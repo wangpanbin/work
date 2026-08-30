@@ -1,0 +1,33 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: cinema-server
+  profiles:
+    active: dev
+  jackson:
+    time-zone: Asia/Shanghai
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+  global-config:
+    banner: false
+
+cinema:
+  jwt:
+    # 生产环境务必更换(至少32字节)并从环境变量注入
+    secret: cinema-dev-secret-key-change-me-32bytes-min!!
+    expire-hours: 72
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics

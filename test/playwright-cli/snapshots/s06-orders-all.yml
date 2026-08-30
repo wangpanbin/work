@@ -1,0 +1,43 @@
+- generic [ref=f11e3]:
+  - generic [ref=f11e4]:
+    - generic [ref=f11e5] [cursor=pointer]: 🎬 星辉影城
+    - generic [ref=f11e6]:
+      - button "我的订单" [ref=f11e7] [cursor=pointer]
+      - generic [ref=f11e9]: 测试用户1
+      - button "退出登录" [ref=f11e10] [cursor=pointer]
+  - main [ref=f11e12]:
+    - generic [ref=f11e13]:
+      - heading "我的订单" [level=2] [ref=f11e14]
+      - radiogroup "radio-group" [ref=f11e15]:
+        - generic [ref=f11e16]:
+          - radio "全部" [ref=f11e17]
+          - generic [ref=f11e18] [cursor=pointer]: 全部
+        - generic [ref=f11e19]:
+          - radio "待支付" [ref=f11e20]
+          - generic [ref=f11e21] [cursor=pointer]: 待支付
+        - generic [ref=f11e22]:
+          - radio "已支付" [ref=f11e23]
+          - generic [ref=f11e24] [cursor=pointer]: 已支付
+        - generic [ref=f11e25]:
+          - radio "已取消" [ref=f11e26]
+          - generic [ref=f11e27] [cursor=pointer]: 已取消
+      - generic [ref=f11e29]:
+        - generic [ref=f11e30]:
+          - generic [ref=f11e31]:
+            - generic [ref=f11e32]: 流浪地球3
+            - generic [ref=f11e33]: 2号IMAX厅 · 08-31 10:00
+          - generic [ref=f11e34]: 已取消
+        - generic [ref=f11e36]: 3排5座、3排6座 · 共 2 座
+        - generic [ref=f11e37]:
+          - generic [ref=f11e38]: 2026-08-30 15:20
+          - generic [ref=f11e39]: ￥79.80
+      - generic [ref=f11e41]:
+        - generic [ref=f11e42]:
+          - generic [ref=f11e43]:
+            - generic [ref=f11e44]: 流浪地球3
+            - generic [ref=f11e45]: 2号IMAX厅 · 08-31 10:00
+          - generic [ref=f11e46]: 已支付
+        - generic [ref=f11e48]: 2排9座、2排10座 · 共 2 座
+        - generic [ref=f11e49]:
+          - generic [ref=f11e50]: 2026-08-30 15:18
+          - generic [ref=f11e51]: ￥79.80

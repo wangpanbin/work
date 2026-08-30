@@ -1,0 +1,4 @@
+# pnpm v11 默认拦截依赖 postinstall 脚本, 显式放行本项目所需构建脚本
+allowBuilds:
+  esbuild: true
+  vue-demi: true

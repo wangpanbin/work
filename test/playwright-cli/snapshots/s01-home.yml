@@ -1,0 +1,28 @@
+- generic [ref=f2e3]:
+  - generic [ref=f2e4]:
+    - generic [ref=f2e5] [cursor=pointer]: 🎬 星辉影城
+    - button "登录 / 注册" [ref=f2e7] [cursor=pointer]
+  - main [ref=f2e9]:
+    - generic [ref=f2e10]:
+      - heading "🎬 热映影片" [level=2] [ref=f2e11]
+      - generic [ref=f2e16]:
+        - generic [ref=f2e18] [cursor=pointer]:
+          - generic [ref=f2e19]: 测试新片
+          - generic [ref=f2e22]:
+            - generic [ref=f2e23]: 测试新片
+            - generic [ref=f2e24]: 时长 120 分钟
+        - generic [ref=f2e26] [cursor=pointer]:
+          - generic [ref=f2e27]: 流浪地球3
+          - generic [ref=f2e30]:
+            - generic [ref=f2e31]: 流浪地球3
+            - generic [ref=f2e32]: 时长 150 分钟
+        - generic [ref=f2e34] [cursor=pointer]:
+          - generic [ref=f2e35]: 沙丘3
+          - generic [ref=f2e38]:
+            - generic [ref=f2e39]: 沙丘3
+            - generic [ref=f2e40]: 时长 166 分钟
+        - generic [ref=f2e42] [cursor=pointer]:
+          - generic [ref=f2e43]: 深海奇航
+          - generic [ref=f2e46]:
+            - generic [ref=f2e47]: 深海奇航
+            - generic [ref=f2e48]: 时长 118 分钟

@@ -1,0 +1,43 @@
+- generic [ref=f3e3]:
+  - generic [ref=f3e4]:
+    - generic [ref=f3e5] [cursor=pointer]: 🎬 星辉影城
+    - button "登录 / 注册" [ref=f3e7] [cursor=pointer]
+  - main [ref=f3e9]:
+    - generic [ref=f3e49]:
+      - generic [ref=f3e50]:
+        - generic [ref=f3e51]: 流浪地球3
+        - generic [ref=f3e54]:
+          - heading "流浪地球3" [level=2] [ref=f3e55]
+          - paragraph [ref=f3e56]: 太阳即将毁灭,人类启动流浪地球计划第三阶段。
+          - paragraph [ref=f3e57]: "时长: 150 分钟"
+      - separator [ref=f3e58]
+      - generic [ref=f3e59]:
+        - radiogroup "radio-group" [ref=f3e60]:
+          - generic [ref=f3e61]:
+            - radio "今天" [ref=f3e62]
+            - generic [ref=f3e63] [cursor=pointer]: 今天
+          - generic [ref=f3e64]:
+            - radio "明天" [checked] [ref=f3e65]
+            - generic [ref=f3e66] [cursor=pointer]: 明天
+          - generic [ref=f3e67]:
+            - radio "后天" [ref=f3e68]
+            - generic [ref=f3e69] [cursor=pointer]: 后天
+        - generic [ref=f3e70]:
+          - generic [ref=f3e73]:
+            - generic [ref=f3e74]:
+              - generic [ref=f3e75]: 10:00
+              - generic [ref=f3e76]: 12:30 散场
+            - generic [ref=f3e77]:
+              - generic [ref=f3e78]: 2号IMAX厅
+              - generic [ref=f3e79]: 星辉影城(高新店)
+            - generic [ref=f3e80]: ￥39.90
+            - button "选座购票" [ref=f3e81] [cursor=pointer]
+          - generic [ref=f3e85]:
+            - generic [ref=f3e86]:
+              - generic [ref=f3e87]: 10:00
+              - generic [ref=f3e88]: 12:30 散场
+            - generic [ref=f3e89]:
+              - generic [ref=f3e90]: 1号激光厅
+              - generic [ref=f3e91]: 星辉影城(高新店)
+            - generic [ref=f3e92]: ￥59.90
+            - button "选座购票" [ref=f3e93] [cursor=pointer]

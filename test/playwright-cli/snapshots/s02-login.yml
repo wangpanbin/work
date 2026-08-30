@@ -1,0 +1,19 @@
+- generic [ref=f4e3]:
+  - generic [ref=f4e4]:
+    - generic [ref=f4e5] [cursor=pointer]: 🎬 星辉影城
+    - button "登录 / 注册" [ref=f4e7] [cursor=pointer]
+  - main [ref=f4e9]:
+    - generic [ref=f4e11]:
+      - generic [ref=f4e12]: 🎬 星辉影城
+      - generic [ref=f4e14]:
+        - tablist [ref=f4e18]:
+          - tab "登录" [selected] [ref=f4e20]
+          - tab "注册" [ref=f4e21]
+        - tabpanel "登录" [ref=f4e23]:
+          - generic [ref=f4e24]:
+            - textbox "用户名" [ref=f4e29]: user1
+            - generic [ref=f4e33]:
+              - textbox "密码" [ref=f4e34]: "123456"
+              - generic [ref=f4e36] [cursor=pointer]
+            - button "登 录" [ref=f4e40] [cursor=pointer]
+            - paragraph [ref=f4e42]: "测试账号: user1 / 123456"

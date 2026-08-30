@@ -1,0 +1,38 @@
+# Java
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# IDEA / VS Code
+.idea/
+*.iml
+.vscode/
+
+# Node
+node_modules/
+dist/
+*.local
+
+# 本机环境配置(含密码)
+cinema-server/src/main/resources/application-dev.yml
+
+# 日志与其他
+logs/
+*.log
+.DS_Store
+
+# 本地工具配置
+.claude/
+.zcode/
+
+# Playwright CLI 测试临时产物
+test/playwright-cli/.playwright-cli/
+test/playwright-cli/screenshots/
+test/playwright-cli/check_*.sql
+test/playwright-cli/check_*.js
+test/playwright-cli/expire_*.sql
+test/playwright-cli/redis_*.txt
+test/playwright-cli/_lib.ps1
+test/playwright-cli/logs/
+test/playwright-cli/scenarios/
