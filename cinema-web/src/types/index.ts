@@ -9,6 +9,8 @@ export interface UserVO {
   username: string
   nickname: string
   phone: string
+  /** 角色: 0-普通用户, 1-管理员 */
+  role: number
 }
 
 export interface LoginVO {

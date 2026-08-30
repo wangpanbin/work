@@ -12,7 +12,7 @@ const activeTab = ref<'login' | 'register'>('login')
 const loading = ref(false)
 
 const loginFormRef = ref<FormInstance>()
-const loginForm = reactive({ username: 'user1', password: '123456' })
+const loginForm = reactive({ username: '', password: '' })
 const loginRules: FormRules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
@@ -86,7 +86,7 @@ async function handleRegister() {
               <el-button type="primary" size="large" class="submit-btn" :loading="loading" @click="handleLogin">
                 立即登录
               </el-button>
-              <p class="tip">测试账号: user1 / 123456</p>
+              <p class="tip">首次使用? <a href="#" @click.prevent="activeTab = 'register'">注册新账号</a></p>
             </el-form>
           </el-tab-pane>
 

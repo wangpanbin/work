@@ -62,3 +62,6 @@ export function createSeatWs(sessionId: number | string, onEvent: (e: SeatEvent)
     },
   }
 }
+
+/** WebSocket 句柄: 仅暴露 close() 供组件卸载时清理 */
+export type SeatWsHandle = ReturnType<typeof createSeatWs>

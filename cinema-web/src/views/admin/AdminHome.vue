@@ -16,63 +16,120 @@ function logout() {
 
 <template>
   <el-container class="admin">
-    <el-aside width="200px" class="aside">
-      <div class="brand">🎬 管理端</div>
-      <el-menu router :default-active="$route.path" mode="vertical">
-        <el-menu-item index="/admin/movies">影片管理</el-menu-item>
-        <el-menu-item index="/admin/halls">影厅管理</el-menu-item>
-        <el-menu-item index="/admin/sessions">场次管理</el-menu-item>
+    <el-aside width="220px" class="aside">
+      <div class="brand">
+        <span class="brand-icon">🎬</span>
+        <span class="brand-text">管理端</span>
+      </div>
+      <el-menu router :default-active="$route.path" mode="vertical" class="menu">
+        <el-menu-item index="/admin/movies">
+          <span>🎞</span>&nbsp;<span>影片管理</span>
+        </el-menu-item>
+        <el-menu-item index="/admin/halls">
+          <span>🛋</span>&nbsp;<span>影厅管理</span>
+        </el-menu-item>
+        <el-menu-item index="/admin/sessions">
+          <span>📅</span>&nbsp;<span>场次管理</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
-    <el-container>
-      <el-header class="header">
-        <span>{{ userStore.user?.nickname || userStore.user?.username }}</span>
-        <div>
-          <el-button v-if="!isAdmin" type="warning" size="small" @click="router.push('/')">回到用户端</el-button>
-          <el-button type="danger" link @click="logout">退出登录</el-button>
-        </div>
-      </el-header>
-      <el-main>
-        <router-view />
-      </el-main>
-    </el-container>
+    <el-main class="content">
+      <router-view />
+    </el-main>
   </el-container>
 </template>
 
 <style scoped>
 .admin {
-  height: calc(100vh - 60px);
+  height: 100%;
+  min-height: calc(100vh - 64px);
+  background: var(--bg-primary);
 }
+
+/* ========== 侧边栏：与全局 Cinema Noir 深色主题统一 ========== */
 .aside {
-  background: #001529;
-  color: #fff;
+  background: linear-gradient(180deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+  color: var(--text-primary);
+  border-right: 1px solid var(--border-subtle);
+  position: relative;
 }
+.aside::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(180deg,
+    transparent 0%,
+    rgba(245, 158, 11, 0.35) 45%,
+    rgba(168, 85, 247, 0.35) 55%,
+    transparent 100%);
+  pointer-events: none;
+}
+
+/* 侧边栏品牌区 —— 与 App.vue 顶部品牌视觉一致 */
 .brand {
-  height: 60px;
+  height: 72px;
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 10px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  position: relative;
+}
+.brand-icon {
+  font-size: 22px;
+  filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.5));
+}
+.brand-text {
+  font-family: var(--font-display);
   font-size: 18px;
   font-weight: 700;
-  border-bottom: 1px solid #1f2d3d;
+  background: var(--gradient-gold);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: 2px;
+  filter: drop-shadow(0 0 10px rgba(245, 158, 11, 0.35));
 }
+
+/* Element Plus 菜单样式覆盖 */
 .aside :deep(.el-menu) {
   background: transparent;
   border-right: none;
+  padding: 12px 8px;
 }
 .aside :deep(.el-menu-item) {
-  color: #c0c4cc;
+  color: var(--text-secondary);
+  height: 48px;
+  line-height: 48px;
+  border-radius: var(--radius-md);
+  margin: 4px 0;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  transition: all var(--transition-fast);
 }
-.aside :deep(.el-menu-item.is-active),
+.aside :deep(.el-menu-item.is-active) {
+  color: var(--text-inverse);
+  background: var(--gradient-gold);
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);
+}
 .aside :deep(.el-menu-item:hover) {
-  color: #fff;
-  background: #002140;
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
 }
-.header {
-  background: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid #ebeef5;
+.aside :deep(.el-menu-item.is-active:hover) {
+  color: var(--text-inverse);
+  background: var(--gradient-gold);
+}
+
+/* ========== 右侧内容区 ========== */
+.content {
+  padding: 28px 36px;
+  background: var(--bg-primary);
+  box-sizing: border-box;
 }
 </style>

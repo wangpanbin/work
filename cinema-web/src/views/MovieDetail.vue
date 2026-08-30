@@ -70,7 +70,8 @@ onMounted(async () => {
             </div>
           </div>
           <div class="info">
-            <div class="info-badge">NOW PLAYING</div>
+            <div v-if="movie.status === 1" class="info-badge">NOW PLAYING</div>
+            <div v-else-if="movie.status === 0" class="info-badge coming-soon">即将上映</div>
             <h1 class="movie-title">{{ movie.title }}</h1>
             <p class="desc">{{ movie.description || '暂无影片简介' }}</p>
             <div class="meta-tags">
@@ -81,13 +82,14 @@ onMounted(async () => {
                 </svg>
                 {{ movie.duration }} 分钟
               </span>
-              <span class="meta-tag">
+              <span v-if="movie.description" class="meta-tag">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                   <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
                   <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
                 </svg>
-                剧情 / 动作
+                {{ movie.description.slice(0, 18) }}{{ movie.description.length > 18 ? '...' : '' }}
               </span>
+              <span v-else class="meta-tag">经典影片</span>
             </div>
           </div>
         </div>
@@ -217,6 +219,11 @@ onMounted(async () => {
   padding: 4px 12px;
   border-radius: 16px;
   margin-bottom: 16px;
+}
+
+.info-badge.coming-soon {
+  color: var(--accent-cyan);
+  border-color: var(--accent-cyan);
 }
 
 .movie-title {

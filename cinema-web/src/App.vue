@@ -24,18 +24,36 @@ function logout() {
         <span class="brand-tag">CINEMA</span>
       </div>
       <div class="user-area">
-        <el-button v-if="userStore.isLogin && userStore.user?.role === 1" link type="warning" @click="router.push('/admin')">
+        <el-button
+          v-if="userStore.isLogin && userStore.user?.role === 1"
+          class="header-chip chip-warning"
+          size="default"
+          @click="router.push('/admin')"
+        >
           ⚙ 管理端
         </el-button>
-        <el-button v-if="userStore.isLogin" link type="primary" @click="router.push('/orders')">🎫 我的订单</el-button>
+        <el-button
+          v-if="userStore.isLogin"
+          class="header-chip chip-primary"
+          size="default"
+          @click="router.push('/orders')"
+        >
+          🎫 我的订单
+        </el-button>
         <template v-if="userStore.user">
-          <span class="nickname">{{ userStore.user.nickname || userStore.user.username }}</span>
-          <el-button link type="danger" @click="logout">退出</el-button>
+          <span class="header-chip chip-user nickname">
+            {{ userStore.user.nickname || userStore.user.username }}
+          </span>
+          <el-button class="header-chip chip-danger" size="default" @click="logout">
+            退出
+          </el-button>
         </template>
-        <el-button v-else type="primary" @click="router.push('/login')">登录 / 注册</el-button>
+        <el-button v-else class="header-chip chip-login" size="default" @click="router.push('/login')">
+          登录 / 注册
+        </el-button>
       </div>
     </el-header>
-    <el-main class="app-main">
+    <el-main class="app-main" :class="{ 'is-admin': $route.path.startsWith('/admin') }">
       <router-view />
     </el-main>
   </el-container>
