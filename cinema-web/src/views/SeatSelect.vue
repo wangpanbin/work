@@ -8,6 +8,7 @@ import { lockSeats } from '../api/order'
 import { useUserStore } from '../stores/user'
 import { useSeatStore } from '../stores/seat'
 import { createSeatWs, type SeatWsHandle } from '../utils/ws'
+import SeatItem from '../components/SeatItem.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -63,10 +64,20 @@ async function onConfirm() {
     seatStore.markMyLocked(seats)
     router.push({ name: 'payment', query: { orderNo: result.orderNo } })
   } catch (e: unknown) {
-    const msg = (e as { message?: string })?.message || '锁座失败'
+    const err = e as { message?: string; data?: { conflict?: number[] } }
+    const msg = err?.message || '锁座失败'
     if (msg.includes('座位已被占用')) {
-      await refresh()
-      ElMessage.error('所选座位已被抢走,已刷新座位图')
+      // Phase D-⑱: 只对后端返回的 conflict 列表做局部置灰, 避免全量 refresh
+      const conflict = err?.data?.conflict
+      if (Array.isArray(conflict) && conflict.length > 0) {
+        seatStore.applyEvent('LOCKED', conflict)
+        // 提示用户被抢的座位
+        ElMessage.error(`所选座位已被抢走 (${conflict.length} 个),请重新选择`)
+      } else {
+        // 兜底: 拿不到 conflict 列表时全量 refresh
+        await refresh()
+        ElMessage.error('所选座位已被抢走,已刷新座位图')
+      }
     } else {
       ElMessage.error(msg)
     }
@@ -118,21 +129,17 @@ function seatClick(idx: number) {
       <div class="screen-stand"></div>
     </div>
 
-    <!-- Seats Grid -->
+    <!-- Seats Grid (Phase D-⑬: 抽 SeatItem 子组件, 父级只传 :index) -->
     <div class="seats-container">
       <div class="row-labels" v-if="seatStore.map.cols <= 16">
         <span v-for="c in seatStore.map.cols" :key="c" class="col-label">{{ c }}</span>
       </div>
       <div class="seats" :style="{ '--cols': seatStore.map.cols }">
-        <div
+        <SeatItem
           v-for="i in seatStore.map.seatCount"
           :key="i - 1"
-          :class="['seat', seatStore.statusAt(i - 1).toLowerCase(), seatStore.statusAt(i - 1) === 'LOCKED_MINE' ? 'mine' : '']"
-          @click="seatClick(i - 1)"
-          :title="`${seatStore.rowCol(i - 1).row}排${seatStore.rowCol(i - 1).col}座`"
-        >
-          {{ seatStore.rowCol(i - 1).col }}
-        </div>
+          :index="i - 1"
+        />
       </div>
     </div>
 

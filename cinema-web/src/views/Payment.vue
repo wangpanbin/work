@@ -1,18 +1,17 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 import { orderDetail, pay, cancel } from '../api/order'
 import type { OrderVO } from '../api/order'
+import Countdown from '../components/Countdown.vue'
 
 const route = useRoute()
 const router = useRouter()
 const orderNo = String(route.query.orderNo || '')
 const order = ref<OrderVO | null>(null)
 const submitting = ref(false)
-let timer: number | null = null
-const now = ref(dayjs())
 
 onMounted(async () => {
   if (!orderNo) {
@@ -21,13 +20,6 @@ onMounted(async () => {
     return
   }
   await load()
-  timer = window.setInterval(() => {
-    now.value = dayjs()
-  }, 1000)
-})
-
-onBeforeUnmount(() => {
-  if (timer) clearInterval(timer)
 })
 
 async function load() {
@@ -36,7 +28,7 @@ async function load() {
 
 const remaining = computed(() => {
   if (!order.value || order.value.status !== 0) return 0
-  return Math.max(0, dayjs(order.value.expireAt).diff(now.value, 'second'))
+  return Math.max(0, dayjs(order.value.expireAt).diff(dayjs(), 'second'))
 })
 
 const expired = computed(() => remaining.value === 0 && order.value?.status === 0)
@@ -125,7 +117,8 @@ function goSeat() {
             <svg v-if="remaining <= 60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="margin-right:4px">
               <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
             </svg>
-            {{ expired ? '00:00' : fmt(remaining) }}
+            <!-- Phase D-⑰: 倒计时用 Countdown 子组件, 父组件不再每秒重渲 -->
+            <Countdown :expire-at="order.expireAt" :urgent-threshold="60" />
           </span>
         </div>
       </div>

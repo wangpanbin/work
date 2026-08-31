@@ -1,5 +1,13 @@
 server:
   port: 8080
+  # Phase A-⑩: 显式配 Tomcat 线程池, 压测 200 并发下不成为瓶颈
+  tomcat:
+    threads:
+      max: 200
+      min-spare: 50
+    accept-count: 200
+    max-connections: 8192
+    connection-timeout: 5s
 
 spring:
   application:

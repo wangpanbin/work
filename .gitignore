@@ -39,3 +39,9 @@ test/playwright-cli/scenarios/
 
 # E2E 测试内容
 test/e2e/
+
+# 测试报告
+docs/压测报告*.md
+test_mixed.py
+test_myorders.py
+verify_lock.py

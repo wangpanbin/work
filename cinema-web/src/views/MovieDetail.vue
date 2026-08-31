@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import { detail } from '../api/movie'
 import { listByMovieAndDate } from '../api/session'
+import { useMovieCache } from '../stores/movieCache'
 import type { Movie, SessionVO } from '../types'
 import { useUserStore } from '../stores/user'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const cache = useMovieCache()
 
 const movieId = route.params.id as string
 const movie = ref<Movie | null>(null)
@@ -25,17 +27,39 @@ const dateOptions = computed(() =>
 )
 
 async function loadMovie() {
-  movie.value = await detail(movieId)
+  // Phase D-⑯: 详情走缓存
+  const id = Number(movieId)
+  const cached = cache.getMovieDetail(id)
+  if (cached) {
+    movie.value = cached
+    return
+  }
+  const m = await detail(movieId)
+  movie.value = m
+  if (m) cache.setMovieDetail(id, m)
 }
 
 async function loadSessions() {
   loading.value = true
   try {
-    sessions.value = await listByMovieAndDate(movieId, selectedDate.value)
+    // Phase D-⑯: 场次列表按 (movieId, date) 缓存
+    const id = Number(movieId)
+    const cached = cache.getSessionList(id, selectedDate.value)
+    if (cached) {
+      sessions.value = cached
+      return
+    }
+    const list = await listByMovieAndDate(movieId, selectedDate.value)
+    sessions.value = list
+    cache.setSessionList(id, selectedDate.value, list)
   } finally {
     loading.value = false
   }
 }
+
+watch(selectedDate, () => {
+  loadSessions()
+})
 
 function goSeat(s: SessionVO) {
   if (!userStore.isLogin) {

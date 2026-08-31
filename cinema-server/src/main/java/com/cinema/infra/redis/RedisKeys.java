@@ -38,4 +38,13 @@ public final class RedisKeys {
 
     /** 座位变更事件 Pub/Sub 频道 */
     public static final String SEAT_EVENT_CHANNEL = "seat:event";
+
+    /**
+     * 用户在某场次锁定的座位集合 Hash(Phase A-① 新增)
+     * field = seatIndex, value = orderNo; 锁座时 HMSET, 释放/支付时 HDEL.
+     * 命中即跳过 OrderService.lockSeats 中的 "查 user 待支付单" DB 调用.
+     */
+    public static String userLocked(Long userId, Long sessionId) {
+        return "cinema:user:locked:" + userId + ":" + sessionId;
+    }
 }

@@ -2,17 +2,26 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { page } from '../api/movie'
+import { useMovieCache } from '../stores/movieCache'
 import type { Movie } from '../types'
 
 const router = useRouter()
 const movies = ref<Movie[]>([])
 const loading = ref(false)
+const cache = useMovieCache()
 
 onMounted(async () => {
   loading.value = true
   try {
+    // Phase D-⑯: 先看缓存, 命中直接渲染避免重复请求
+    const cached = cache.getMovies()
+    if (cached) {
+      movies.value = cached
+      return
+    }
     const data = await page({ page: 1, size: 20, status: 1 })
     movies.value = data.records
+    cache.setMovies(data.records)
   } finally {
     loading.value = false
   }

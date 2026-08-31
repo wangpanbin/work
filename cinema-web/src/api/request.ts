@@ -32,8 +32,12 @@ request.interceptors.response.use(
         }
         return Promise.reject(new Error(body.msg))
       }
+      // Phase D-⑱: 把 body.data 挂到 error 上, 让上层拿到业务数据(如锁座 conflict 列表)
+      const err = new Error(body.msg || '请求失败') as Error & { data?: unknown; code?: number }
+      err.code = body.code
+      err.data = body.data
       ElMessage.error(body.msg || '请求失败')
-      return Promise.reject(new Error(body.msg || '请求失败'))
+      return Promise.reject(err)
     }
     return body
   },
