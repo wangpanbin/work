@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
-import { myOrders, cancel } from '../api/order'
+import { myOrders, cancel, refund } from '../api/order'
 import type { OrderVO } from '../api/order'
 
 const orders = ref<OrderVO[]>([])
@@ -24,9 +24,40 @@ async function onCancel(o: OrderVO) {
     await cancel(o.orderNo)
     ElMessage.success('已取消')
     load()
-  } catch (e: unknown) {
-    ElMessage.error((e as { message?: string })?.message || '取消失败')
+  } catch {
+    // 拦截器已弹错误
   }
+}
+
+async function onRefund(o: OrderVO) {
+  if (!o.startTime || !dayjs(o.startTime).isAfter(dayjs())) {
+    ElMessage.warning('场次已开场,无法退票')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确定退票 ${o.movieTitle} (${o.seatDesc})?退款将原路返回,座位立即释放。`,
+      '申请退票',
+      { confirmButtonText: '确认退票', cancelButtonText: '取消', type: 'warning' },
+    )
+  } catch {
+    return
+  }
+  try {
+    await refund(o.orderNo)
+    ElMessage.success('退款申请已提交')
+    load()
+  } catch {
+    // 拦截器已弹错误
+  }
+}
+
+function statusTagType(s: number): 'success' | 'info' | 'warning' | 'danger' {
+  if (s === 1) return 'success'
+  if (s === 2) return 'info'
+  if (s === 3) return 'warning'
+  if (s === 4) return 'info'
+  return 'warning'
 }
 
 onMounted(load)
@@ -42,6 +73,8 @@ onMounted(load)
         <el-radio-button :value="0">待支付</el-radio-button>
         <el-radio-button :value="1">已支付</el-radio-button>
         <el-radio-button :value="2">已取消</el-radio-button>
+        <el-radio-button :value="3">退款中</el-radio-button>
+        <el-radio-button :value="4">已退款</el-radio-button>
       </el-radio-group>
     </div>
 
@@ -68,7 +101,7 @@ onMounted(load)
             </div>
           </div>
           <div class="order-status">
-            <el-tag :type="o.status === 1 ? 'success' : o.status === 2 ? 'info' : 'warning'" effect="dark" round>
+            <el-tag :type="statusTagType(o.status)" effect="dark" round>
               {{ o.statusText }}
             </el-tag>
           </div>
@@ -84,7 +117,7 @@ onMounted(load)
             <span class="created-at">{{ dayjs(o.createdAt).format('YYYY-MM-DD HH:mm') }}</span>
           </div>
           <div class="footer-middle">
-            <span class="amount-label">合计</span>
+            <span class="amount-label">{{ o.status === 4 ? '已退金额' : '合计' }}</span>
             <span class="amount-value">
               <span class="currency">￥</span>{{ o.totalAmount.toFixed(2) }}
             </span>
@@ -97,7 +130,12 @@ onMounted(load)
             <el-button v-if="o.status === 1" link @click="$router.push({ name: 'payment', query: { orderNo: o.orderNo } })">
               查看详情 →
             </el-button>
+            <el-button v-if="o.status === 1" type="warning" plain @click="onRefund(o)">申请退票</el-button>
             <el-button v-if="o.status === 2" link @click="$router.push(`/seat/${o.sessionId}`)">
+              重新选座 →
+            </el-button>
+            <el-button v-if="o.status === 3" disabled>退款处理中…</el-button>
+            <el-button v-if="o.status === 4" link @click="$router.push(`/seat/${o.sessionId}`)">
               重新选座 →
             </el-button>
           </div>

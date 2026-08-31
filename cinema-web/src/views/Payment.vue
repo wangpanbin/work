@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
-import { orderDetail, pay, cancel } from '../api/order'
-import type { OrderVO } from '../api/order'
+import { orderDetail, pay, cancel, refund, getTicket } from '../api/order'
+import type { OrderVO, TicketVO } from '../api/order'
 import Countdown from '../components/Countdown.vue'
 
 const route = useRoute()
@@ -12,6 +12,10 @@ const router = useRouter()
 const orderNo = String(route.query.orderNo || '')
 const order = ref<OrderVO | null>(null)
 const submitting = ref(false)
+const ticketDialog = ref(false)
+const ticketInfo = ref<TicketVO | null>(null)
+const ticketLoading = ref(false)
+const ticketQrUrl = ref<string>('')
 
 onMounted(async () => {
   if (!orderNo) {
@@ -33,29 +37,100 @@ const remaining = computed(() => {
 
 const expired = computed(() => remaining.value === 0 && order.value?.status === 0)
 
+/** 距离场次开始还剩多久（用于退票按钮的可见性） */
+const sessionNotStarted = computed(() => {
+  if (!order.value?.startTime) return false
+  return dayjs(order.value.startTime).isAfter(dayjs())
+})
+
+/** 状态机文案：覆盖所有 5 个状态, 避免 REFUNDED 还显示"支付成功"的尴尬 */
+const statusBlock = computed(() => {
+  const s = order.value?.status
+  if (s === 0) return { kind: 'pending', text: '' }
+  if (s === 1) return { kind: 'paid', text: '支付成功,祝您观影愉快!' }
+  if (s === 2) return { kind: 'cancelled', text: '订单已取消' }
+  if (s === 3) return { kind: 'refunding', text: '退款处理中,请稍候…' }
+  if (s === 4) return { kind: 'refunded', text: '已退款,座位已释放' }
+  return { kind: 'unknown', text: '' }
+})
+
 async function onPay() {
   submitting.value = true
   try {
     await pay(orderNo)
     ElMessage.success('支付成功!')
     await load()
-  } catch (e: unknown) {
-    ElMessage.error((e as { message?: string })?.message || '支付失败')
+  } catch {
+    // 拦截器已弹错误, 不再重复
   } finally {
     submitting.value = false
   }
 }
 
 async function onCancel() {
+  try {
+    await ElMessageBox.confirm('确定要取消该订单吗?取消后座位将释放。', '提示', {
+      confirmButtonText: '确定取消',
+      cancelButtonText: '再想想',
+      type: 'warning',
+    })
+  } catch {
+    return
+  }
   submitting.value = true
   try {
     await cancel(orderNo)
     ElMessage.success('订单已取消')
     await load()
-  } catch (e: unknown) {
-    ElMessage.error((e as { message?: string })?.message || '取消失败')
+  } catch {
+    // 拦截器已弹错误
   } finally {
     submitting.value = false
+  }
+}
+
+async function onRefund() {
+  if (!sessionNotStarted.value) {
+    ElMessage.warning('场次已开场,无法退票')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      '确定申请退票吗?退款将原路返回, 座位会立即释放, 此操作不可撤销。',
+      '申请退票',
+      { confirmButtonText: '确认退票', cancelButtonText: '取消', type: 'warning' },
+    )
+  } catch {
+    return
+  }
+  submitting.value = true
+  try {
+    await refund(orderNo)
+    ElMessage.success('退款申请已提交')
+    await load()
+  } catch {
+    // 拦截器已弹错误
+  } finally {
+    submitting.value = false
+  }
+}
+
+async function onShowTicket() {
+  ticketDialog.value = true
+  if (ticketInfo.value && ticketInfo.value.orderNo === orderNo) {
+    return
+  }
+  ticketLoading.value = true
+  try {
+    ticketInfo.value = await getTicket(orderNo)
+    // 用后端返回的 payload 拼成验证 URL, 二维码内容 = 完整可校验链接
+    const verifyBase = `${window.location.origin}/api/tickets/verify`
+    const url = `${verifyBase}?payload=${encodeURIComponent(ticketInfo.value.payload)}&sig=${encodeURIComponent(ticketInfo.value.sig)}`
+    ticketQrUrl.value = url
+  } catch {
+    ticketDialog.value = false
+  } finally {
+    ticketLoading.value = false
   }
 }
 
@@ -82,7 +157,10 @@ function goSeat() {
           <div class="meta">{{ order.hallName }} · {{ dayjs(order.startTime).format('YYYY-MM-DD HH:mm') }}</div>
         </div>
         <div class="header-status">
-          <el-tag :type="order.status === 1 ? 'success' : order.status === 2 ? 'info' : 'warning'" size="large" effect="dark">
+          <el-tag
+            :type="order.status === 1 ? 'success' : order.status === 2 || order.status === 4 ? 'info' : order.status === 3 ? 'warning' : 'warning'"
+            size="large" effect="dark"
+          >
             {{ order.statusText }}
           </el-tag>
         </div>
@@ -117,7 +195,6 @@ function goSeat() {
             <svg v-if="remaining <= 60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="margin-right:4px">
               <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
             </svg>
-            <!-- Phase D-⑰: 倒计时用 Countdown 子组件, 父组件不再每秒重渲 -->
             <Countdown :expire-at="order.expireAt" :urgent-threshold="60" />
           </span>
         </div>
@@ -127,7 +204,7 @@ function goSeat() {
 
       <!-- Total -->
       <div class="total-row">
-        <span class="total-label">应付金额</span>
+        <span class="total-label">{{ order.status === 4 ? '已退金额' : '应付金额' }}</span>
         <span class="total-value">
           <span class="currency">￥</span>
           <span class="amount">{{ order.totalAmount.toFixed(2) }}</span>
@@ -136,23 +213,96 @@ function goSeat() {
 
       <div class="divider"></div>
 
-      <!-- Actions -->
+      <!-- Actions: 按状态分支 -->
+      <!-- 待支付: 取消 + 支付 -->
       <div class="actions" v-if="order.status === 0">
         <el-button type="danger" plain @click="onCancel" :disabled="submitting" class="cancel-btn">取消订单</el-button>
         <el-button type="primary" size="large" @click="onPay" :loading="submitting" :disabled="expired" class="pay-btn">
           {{ expired ? '已超时,请重选座位' : '确认支付' }}
         </el-button>
       </div>
+      <!-- 已取消: 重新选座 -->
       <div v-else-if="order.status === 2" class="actions">
         <el-button type="primary" @click="goSeat">重新选座</el-button>
       </div>
+      <!-- 退款中: 进度条 + 等待 -->
+      <div v-else-if="order.status === 3" class="actions">
+        <div class="status-banner status-refunding">
+          <div class="spinner"></div>
+          <span>{{ statusBlock.text }}</span>
+        </div>
+      </div>
+      <!-- 已退款: 重新选座 -->
+      <div v-else-if="order.status === 4" class="actions">
+        <div class="status-banner status-refunded">
+          <div class="banner-icon">↩</div>
+          <span>{{ statusBlock.text }}</span>
+        </div>
+        <el-button type="primary" @click="goSeat">重新选座</el-button>
+      </div>
+      <!-- 已支付: 取票 + 退票(开场前) -->
       <div v-else class="actions success">
         <div class="success-content">
           <div class="success-icon">✓</div>
-          <span>支付成功,祝您观影愉快!</span>
+          <span>{{ statusBlock.text }}</span>
+        </div>
+        <div class="paid-buttons">
+          <el-button type="warning" plain :disabled="submitting" @click="onRefund">
+            申请退票
+          </el-button>
+          <el-button type="primary" @click="onShowTicket">
+            🎟️ 查看电子票
+          </el-button>
         </div>
       </div>
     </div>
+
+    <!-- 电子票弹窗 -->
+    <el-dialog v-model="ticketDialog" title="电子票" width="420px" align-center>
+      <div v-loading="ticketLoading" class="ticket-dialog">
+        <template v-if="ticketInfo">
+          <div class="qr-frame">
+            <div class="qr-stub">
+              <div class="qr-stub-title">{{ order?.movieTitle }}</div>
+              <div class="qr-stub-meta">{{ order?.hallName }} · {{ order?.startTime ? dayjs(order.startTime).format('MM-DD HH:mm') : '' }}</div>
+              <div class="qr-stub-seats">{{ order?.seatDesc }}</div>
+              <div class="qr-stub-fakeqr">
+                <!-- 简单占位: 把 payload 末 8 位用伪二维码样式呈现, 真实场景会接 qrcode 库 -->
+                <div v-for="row in 12" :key="row" class="qr-row">
+                  <span v-for="col in 12" :key="col" class="qr-cell" :data-on="((row * col + (ticketInfo?.payload?.charCodeAt((row+col) % (ticketInfo?.payload?.length ?? 1)) ?? 0)) % 3) === 0"></span>
+                </div>
+              </div>
+              <div class="qr-stub-exp">24h 内有效,过期失效</div>
+              <div class="qr-stub-exp">过期时间: {{ ticketInfo.expAt }}</div>
+            </div>
+          </div>
+          <div class="ticket-payload">
+            <div class="payload-row">
+              <span class="payload-label">orderNo</span>
+              <span class="payload-value mono">{{ ticketInfo.orderNo }}</span>
+            </div>
+            <div class="payload-row">
+              <span class="payload-label">payload</span>
+              <span class="payload-value mono small">{{ ticketInfo.payload }}</span>
+            </div>
+            <div class="payload-row">
+              <span class="payload-label">sig</span>
+              <span class="payload-value mono small">{{ ticketInfo.sig }}</span>
+            </div>
+            <div class="payload-row">
+              <span class="payload-label">expAt</span>
+              <span class="payload-value mono">{{ ticketInfo.expAt }}</span>
+            </div>
+            <div class="payload-hint">
+              验票端点：<code>GET /api/tickets/verify?payload=...&sig=...</code>（一次性, 第二次将返回"已使用"）
+            </div>
+          </div>
+        </template>
+      </div>
+      <template #footer>
+        <el-button @click="ticketDialog = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -293,10 +443,12 @@ function goSeat() {
   display: flex;
   gap: 12px;
   justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .actions.success {
-  justify-content: center;
+  justify-content: space-between;
 }
 
 .success-content {
@@ -319,6 +471,178 @@ function goSeat() {
   justify-content: center;
   font-weight: 700;
   font-size: 18px;
+}
+
+.paid-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+/* --- 退款中 / 已退款 横幅 --- */
+.status-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.status-banner.status-refunding {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: var(--accent-gold-light);
+}
+
+.status-banner.status-refunded {
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+}
+
+.banner-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(245, 158, 11, 0.3);
+  border-top-color: var(--accent-gold);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* --- 电子票弹窗 --- */
+.ticket-dialog {
+  padding: 4px 0;
+}
+
+.qr-frame {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.qr-stub {
+  width: 100%;
+  max-width: 320px;
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 18px;
+  background: var(--bg-tertiary);
+  text-align: center;
+}
+
+.qr-stub-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.qr-stub-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.qr-stub-seats {
+  font-size: 14px;
+  color: var(--accent-gold-light);
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+
+.qr-stub-fakeqr {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 2px;
+  width: 180px;
+  height: 180px;
+  margin: 0 auto 14px;
+  background: #fff;
+  padding: 6px;
+  border-radius: 4px;
+}
+
+.qr-row {
+  display: contents;
+}
+
+.qr-cell {
+  aspect-ratio: 1;
+  background: #fff;
+}
+
+.qr-cell[data-on="true"] {
+  background: #111;
+}
+
+.qr-stub-exp {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.ticket-payload {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.payload-row {
+  display: flex;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--border-color);
+  align-items: flex-start;
+}
+
+.payload-label {
+  flex: 0 0 70px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.payload-value {
+  flex: 1;
+  word-break: break-all;
+  font-family: 'Consolas', 'Monaco', monospace;
+}
+
+.payload-value.mono {
+  font-family: 'Consolas', 'Monaco', monospace;
+}
+
+.payload-value.small {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.payload-hint {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.payload-hint code {
+  background: var(--bg-elevated);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 10px;
 }
 
 @media (max-width: 480px) {
