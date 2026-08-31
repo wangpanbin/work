@@ -38,8 +38,8 @@ test/playwright-cli/logs/
 test/playwright-cli/scenarios/
 
 # E2E 测试内容
-test/e2e/
-
+test/
+tests/
 # 测试报告
 docs/压测报告*.md
 test_mixed.py
