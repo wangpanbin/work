@@ -1,7 +1,7 @@
 package com.cinema.infra.mq;
 
 import com.cinema.infra.delay.DelayQueue;
-import com.cinema.modules.order.service.OrderService;
+import com.cinema.modules.order.service.OrderCancelService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -19,7 +19,7 @@ import java.util.List;
 public class OrderTimeoutScanner {
 
     private final DelayQueue delayQueue;
-    private final OrderService orderService;
+    private final OrderCancelService orderCancelService;
 
     @Scheduled(fixedDelay = 5000)
     public void scan() {
@@ -28,6 +28,6 @@ public class OrderTimeoutScanner {
             return;
         }
         log.info("[超时扫描] 到期订单 {} 个: {}", expired.size(), expired);
-        expired.forEach(orderService::closeIfUnpaid);
+        expired.forEach(orderCancelService::closeIfUnpaid);
     }
 }
