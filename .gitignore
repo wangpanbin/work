@@ -36,3 +36,6 @@ test/playwright-cli/redis_*.txt
 test/playwright-cli/_lib.ps1
 test/playwright-cli/logs/
 test/playwright-cli/scenarios/
+
+# E2E 测试内容
+test/e2e/
