@@ -1,6 +1,7 @@
 package com.cinema.modules.order.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.cinema.common.annotation.Idempotent;
 import com.cinema.common.annotation.RateLimit;
 import com.cinema.common.context.UserContext;
 import com.cinema.common.result.R;
@@ -33,6 +34,8 @@ public class OrderController {
 
     /** 锁座下单 */
     @PostMapping("/lock")
+    @Idempotent(key = "#dto.sessionId + ':' + (#dto.seatIndexes != null ? #dto.seatIndexes.toString() : 'empty')", ttl = 3,
+            message = "锁座请求处理中,请勿重复点击")
     @RateLimit(key = "T(com.cinema.common.context.UserContext).userId() + ':lock:' + #dto.sessionId", permits = 5, window = 1)
     public R<LockResultVO> lock(@Valid @RequestBody LockSeatsDTO dto) {
         return R.ok(orderLockService.lockSeats(UserContext.userId(), dto));
@@ -54,6 +57,7 @@ public class OrderController {
 
     /** 模拟支付 */
     @PostMapping("/{orderNo}/pay")
+    @Idempotent(key = "#orderNo", ttl = 5, message = "支付请求处理中,请勿重复点击")
     @RateLimit(key = "T(com.cinema.common.context.UserContext).userId() + ':pay:' + #orderNo", permits = 3, window = 1, unit = java.util.concurrent.TimeUnit.MINUTES)
     public R<Void> pay(@PathVariable String orderNo) {
         orderPayService.pay(orderNo, UserContext.userId());
