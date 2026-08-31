@@ -1,6 +1,7 @@
 package com.cinema.modules.order.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.cinema.common.annotation.RateLimit;
 import com.cinema.common.context.UserContext;
 import com.cinema.common.result.R;
 import com.cinema.modules.order.dto.LockSeatsDTO;
@@ -32,6 +33,7 @@ public class OrderController {
 
     /** 锁座下单 */
     @PostMapping("/lock")
+    @RateLimit(key = "T(com.cinema.common.context.UserContext).userId() + ':lock:' + #dto.sessionId", permits = 5, window = 1)
     public R<LockResultVO> lock(@Valid @RequestBody LockSeatsDTO dto) {
         return R.ok(orderLockService.lockSeats(UserContext.userId(), dto));
     }
@@ -52,6 +54,7 @@ public class OrderController {
 
     /** 模拟支付 */
     @PostMapping("/{orderNo}/pay")
+    @RateLimit(key = "T(com.cinema.common.context.UserContext).userId() + ':pay:' + #orderNo", permits = 3, window = 1, unit = java.util.concurrent.TimeUnit.MINUTES)
     public R<Void> pay(@PathVariable String orderNo) {
         orderPayService.pay(orderNo, UserContext.userId());
         return R.ok();
@@ -59,6 +62,7 @@ public class OrderController {
 
     /** 主动取消 */
     @PostMapping("/{orderNo}/cancel")
+    @RateLimit(key = "T(com.cinema.common.context.UserContext).userId() + ':cancel:' + #orderNo", permits = 3, window = 1, unit = java.util.concurrent.TimeUnit.MINUTES)
     public R<Void> cancel(@PathVariable String orderNo) {
         orderCancelService.cancel(orderNo, UserContext.userId());
         return R.ok();
