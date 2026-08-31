@@ -35,3 +35,17 @@ CREATE TABLE IF NOT EXISTS refund_log (
   KEY idx_order (order_no),
   KEY idx_user (user_id, created_at)
 ) ENGINE=InnoDB COMMENT '退款日志';
+
+-- N2: 电子票
+CREATE TABLE IF NOT EXISTS ticket (
+  order_no    VARCHAR(32)  NOT NULL PRIMARY KEY,
+  user_id     BIGINT       NOT NULL,
+  session_id  BIGINT       NOT NULL,
+  payload     VARCHAR(512) NOT NULL,
+  sig         VARCHAR(128) NOT NULL,
+  exp_at      DATETIME     NOT NULL,
+  verified_at DATETIME     NULL,
+  created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_user (user_id, created_at),
+  KEY idx_session (session_id)
+) ENGINE=InnoDB COMMENT '电子票';

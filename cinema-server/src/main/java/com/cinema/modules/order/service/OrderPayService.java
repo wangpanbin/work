@@ -42,6 +42,7 @@ public class OrderPayService {
     private final MockRefundService mockRefundService;
     private final SessionMapper sessionMapper;
     private final OrderCore orderCore;
+    private final TicketService ticketService;
 
     /** 模拟支付 */
     public void pay(String orderNo, Long userId) {
@@ -72,6 +73,12 @@ public class OrderPayService {
         redisTemplate.delete(RedisKeys.userPending(order.getUserId(), order.getSessionId()));
         orderCore.clearUserLockedHash(order.getUserId(), order.getSessionId());
         seatEventPublisher.publishSold(order.getSessionId(), seats);
+        // N2: 支付成功生成电子票
+        try {
+            ticketService.generate(orderNo);
+        } catch (Exception e) {
+            log.warn("[支付] orderNo={} 生成电子票失败(不影响支付结果), err={}", orderNo, e.toString());
+        }
         log.info("[支付] orderNo={} seats={} 支付成功", orderNo, seats);
     }
 

@@ -49,6 +49,7 @@ class OrderPayServiceTest {
     @Mock private MockRefundService mockRefundService;
     @Mock private SessionMapper sessionMapper;
     @Mock private OrderCore orderCore;
+    @Mock private TicketService ticketService;
 
     private OrderPayService service;
 
@@ -56,7 +57,7 @@ class OrderPayServiceTest {
     void setUp() {
         service = new OrderPayService(orderMapper, refundLogMapper, seatLuaService,
                 seatEventPublisher, redisTemplate, mockPaymentService, mockRefundService,
-                sessionMapper, orderCore);
+                sessionMapper, orderCore, ticketService);
     }
 
     @Test

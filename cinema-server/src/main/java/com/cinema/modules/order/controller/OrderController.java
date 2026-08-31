@@ -10,6 +10,7 @@ import com.cinema.modules.order.service.OrderCancelService;
 import com.cinema.modules.order.service.OrderLockService;
 import com.cinema.modules.order.service.OrderPayService;
 import com.cinema.modules.order.service.OrderQueryService;
+import com.cinema.modules.order.service.TicketService;
 import com.cinema.modules.order.vo.LockResultVO;
 import com.cinema.modules.order.vo.OrderVO;
 import jakarta.validation.Valid;
@@ -31,6 +32,7 @@ public class OrderController {
     private final OrderPayService orderPayService;
     private final OrderCancelService orderCancelService;
     private final OrderQueryService orderQueryService;
+    private final TicketService ticketService;
 
     /** 锁座下单 */
     @PostMapping("/lock")
@@ -79,5 +81,11 @@ public class OrderController {
     public R<Void> refund(@PathVariable String orderNo) {
         orderPayService.refund(orderNo, UserContext.userId());
         return R.ok();
+    }
+
+    /** N2 取电子票: 返回 payload + sig, 前端拼成二维码 */
+    @GetMapping("/{orderNo}/ticket")
+    public R<java.util.Map<String, String>> ticket(@PathVariable String orderNo) {
+        return R.ok(ticketService.getTicket(orderNo, UserContext.userId()));
     }
 }
