@@ -7,6 +7,7 @@ import com.cinema.common.result.ResultCode;
 import com.cinema.infra.delay.DelayQueue;
 import com.cinema.infra.redis.LuaLockResult;
 import com.cinema.infra.redis.RedisKeys;
+import com.cinema.infra.redis.SeatBitmapGuard;
 import com.cinema.infra.redis.SeatLuaService;
 import com.cinema.infra.ws.SeatEventPublisher;
 import com.cinema.modules.order.dto.LockSeatsDTO;
@@ -48,6 +49,7 @@ public class OrderLockService {
     private final OrderItemMapper orderItemMapper;
     private final SessionMapper sessionMapper;
     private final SeatLuaService seatLuaService;
+    private final SeatBitmapGuard seatBitmapGuard;
     private final DelayQueue delayQueue;
     private final SeatEventPublisher seatEventPublisher;
     private final StringRedisTemplate redisTemplate;
@@ -63,6 +65,9 @@ public class OrderLockService {
         }
 
         Session session = orderCore.requirePurchasableSession(sessionId);
+
+        // P5: 锁座前兜底, 若位图缺失则从 DB 重建(防服务重启后超卖)
+        seatBitmapGuard.ensureBitmaps(sessionId);
 
         // 幂等防重: Redis 短路, 命中再去 DB 确认
         Order pending = findPendingOrderShortCircuit(userId, sessionId);

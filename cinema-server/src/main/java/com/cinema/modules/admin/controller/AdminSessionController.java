@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.cinema.common.exception.BizException;
 import com.cinema.common.result.R;
 import com.cinema.infra.redis.RedisKeys;
+import com.cinema.infra.redis.RecoverResult;
+import com.cinema.infra.redis.SeatBitmapGuard;
 import com.cinema.modules.movie.entity.Movie;
 import com.cinema.modules.movie.mapper.MovieMapper;
 import com.cinema.modules.session.dto.SessionDTO;
@@ -33,6 +35,7 @@ public class AdminSessionController {
     private final SessionMapper sessionMapper;
     private final MovieMapper movieMapper;
     private final StringRedisTemplate redisTemplate;
+    private final SeatBitmapGuard seatBitmapGuard;
 
     @GetMapping
     public R<List<Session>> list(@RequestParam(required = false) Long movieId) {
@@ -80,6 +83,16 @@ public class AdminSessionController {
         redisTemplate.delete(RedisKeys.sessionLock(s.getId()));
         redisTemplate.delete(RedisKeys.sessionSold(s.getId()));
         return R.ok();
+    }
+
+    /** P5 手动恢复位图 — 从 DB 重建 Redis Bitmap */
+    @PostMapping("/bitmaps/recover")
+    public R<RecoverResult> recoverBitmaps(@RequestParam Long sessionId) {
+        Session s = sessionMapper.selectById(sessionId);
+        if (s == null) {
+            throw new BizException("场次不存在");
+        }
+        return R.ok(seatBitmapGuard.forceRecover(sessionId));
     }
 
     private void applyDto(Session s, SessionDTO dto) {

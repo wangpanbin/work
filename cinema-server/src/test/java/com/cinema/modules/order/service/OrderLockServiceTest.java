@@ -3,6 +3,7 @@ package com.cinema.modules.order.service;
 import com.cinema.common.exception.BizException;
 import com.cinema.infra.delay.DelayQueue;
 import com.cinema.infra.redis.LuaLockResult;
+import com.cinema.infra.redis.SeatBitmapGuard;
 import com.cinema.infra.redis.SeatLuaService;
 import com.cinema.infra.ws.SeatEventPublisher;
 import com.cinema.modules.order.dto.LockSeatsDTO;
@@ -52,6 +53,7 @@ class OrderLockServiceTest {
     @Mock private OrderItemMapper orderItemMapper;
     @Mock private SessionMapper sessionMapper;
     @Mock private SeatLuaService seatLuaService;
+    @Mock private SeatBitmapGuard seatBitmapGuard;
     @Mock private DelayQueue delayQueue;
     @Mock private SeatEventPublisher seatEventPublisher;
     @Mock private StringRedisTemplate redisTemplate;
@@ -69,7 +71,7 @@ class OrderLockServiceTest {
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOps);
         lenient().when(redisTemplate.opsForHash()).thenReturn(hashOps);
         service = new OrderLockService(orderMapper, orderItemMapper, sessionMapper,
-                seatLuaService, delayQueue, seatEventPublisher, redisTemplate,
+                seatLuaService, seatBitmapGuard, delayQueue, seatEventPublisher, redisTemplate,
                 transactionTemplate, orderCore);
     }
 
