@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.cinema.common.exception.BizException;
 import com.cinema.infra.redis.RedisKeys;
 import com.cinema.infra.redis.SeatLuaService;
+import com.cinema.infra.ws.AdminEventPublisher;
 import com.cinema.infra.ws.SeatEventPublisher;
 import com.cinema.modules.order.entity.Order;
 import com.cinema.modules.order.entity.RefundLog;
@@ -20,8 +21,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 订单支付 / 退款 — E1 拆分的 service 之一.
@@ -37,6 +40,7 @@ public class OrderPayService {
     private final RefundLogMapper refundLogMapper;
     private final SeatLuaService seatLuaService;
     private final SeatEventPublisher seatEventPublisher;
+    private final AdminEventPublisher adminEventPublisher;
     private final StringRedisTemplate redisTemplate;
     private final MockPaymentService mockPaymentService;
     private final MockRefundService mockRefundService;
@@ -73,6 +77,13 @@ public class OrderPayService {
         redisTemplate.delete(RedisKeys.userPending(order.getUserId(), order.getSessionId()));
         orderCore.clearUserLockedHash(order.getUserId(), order.getSessionId());
         seatEventPublisher.publishSold(order.getSessionId(), seats);
+        // D1 大屏: 推一条售出事件
+        adminEventPublisher.publish("SOLD", Map.of(
+                "orderNo", order.getOrderNo(),
+                "userId", order.getUserId(),
+                "sessionId", order.getSessionId(),
+                "seats", seats,
+                "amount", order.getTotalAmount() == null ? BigDecimal.ZERO : order.getTotalAmount()));
         // N2: 支付成功生成电子票
         try {
             ticketService.generate(orderNo);
@@ -150,6 +161,13 @@ public class OrderPayService {
         redisTemplate.delete(RedisKeys.userPending(userId, order.getSessionId()));
         orderCore.clearUserLockedHash(userId, order.getSessionId());
         seatEventPublisher.publishReleased(order.getSessionId(), seats);
+        // D1 大屏: 推一条退票事件
+        adminEventPublisher.publish("REFUND", Map.of(
+                "orderNo", order.getOrderNo(),
+                "userId", userId,
+                "sessionId", order.getSessionId(),
+                "seats", seats,
+                "amount", order.getTotalAmount() == null ? BigDecimal.ZERO : order.getTotalAmount()));
         log.info("[退票] orderNo={} seats={} 退款成功 amount={}", orderNo, seats, order.getTotalAmount());
     }
 }

@@ -22,6 +22,12 @@ function logout() {
         <span class="brand-text">管理端</span>
       </div>
       <el-menu router :default-active="$route.path" mode="vertical" class="menu">
+        <el-menu-item index="/admin/dashboard">
+          <span>📊</span>&nbsp;<span>经营看板</span>
+        </el-menu-item>
+        <el-menu-item index="/admin/live">
+          <span>📡</span>&nbsp;<span>实时数据大屏</span>
+        </el-menu-item>
         <el-menu-item index="/admin/movies">
           <span>🎞</span>&nbsp;<span>影片管理</span>
         </el-menu-item>

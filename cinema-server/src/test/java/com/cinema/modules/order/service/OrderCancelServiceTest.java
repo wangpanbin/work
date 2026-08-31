@@ -2,6 +2,7 @@ package com.cinema.modules.order.service;
 
 import com.cinema.infra.redis.RedisKeys;
 import com.cinema.infra.redis.SeatLuaService;
+import com.cinema.infra.ws.AdminEventPublisher;
 import com.cinema.infra.ws.SeatEventPublisher;
 import com.cinema.modules.order.entity.Order;
 import com.cinema.modules.order.enums.OrderStatus;
@@ -39,6 +40,7 @@ class OrderCancelServiceTest {
     @Mock private OrderMapper orderMapper;
     @Mock private SeatLuaService seatLuaService;
     @Mock private SeatEventPublisher seatEventPublisher;
+    @Mock private AdminEventPublisher adminEventPublisher;
     @Mock private StringRedisTemplate redisTemplate;
     @Mock private OrderCore orderCore;
 
@@ -47,7 +49,7 @@ class OrderCancelServiceTest {
     @BeforeEach
     void setUp() {
         service = new OrderCancelService(orderMapper, seatLuaService, seatEventPublisher,
-                redisTemplate, orderCore);
+                adminEventPublisher, redisTemplate, orderCore);
     }
 
     @Test

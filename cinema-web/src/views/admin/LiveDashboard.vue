@@ -45,8 +45,14 @@ function connectWs() {
       const env = JSON.parse(e.data)
       const t = env.type as string
       const d = env.data || {}
+      const seats = (d.seats || []).join(',') || '-'
+      const amt = d.amount != null ? ' ¥' + Number(d.amount).toFixed(2) : ''
       let text = ''
-      if (t === 'LOCK') text = `用户 ${d.userId} 锁座 session=${d.sessionId} 座位 ${(d.seats || []).join(',')}`
+      if (t === 'LOCK') text = `用户 ${d.userId} 锁座 session=${d.sessionId} 座位 ${seats}`
+      else if (t === 'SOLD') text = `用户 ${d.userId} 支付成功 session=${d.sessionId} 座位 ${seats}${amt}`
+      else if (t === 'CANCEL') text = `用户 ${d.userId} 主动取消 session=${d.sessionId} 座位 ${seats}`
+      else if (t === 'TIMEOUT') text = `订单 ${d.orderNo} 超时关单 session=${d.sessionId} 座位 ${seats}`
+      else if (t === 'REFUND') text = `用户 ${d.userId} 退票成功 session=${d.sessionId} 座位 ${seats}${amt}`
       else text = `${t}: ${JSON.stringify(d)}`
       pushEvent(t, text)
     } catch {
@@ -178,11 +184,13 @@ onUnmounted(() => {
   margin-bottom: 4px;
   font-family: var(--font-mono, monospace);
 }
-.event-row.LOCK { background: rgba(59, 130, 246, 0.1); }
-.event-row.SOLD { background: rgba(34, 197, 94, 0.1); }
-.event-row.RELEASE { background: rgba(168, 85, 247, 0.1); }
-.event-row.WARN { background: rgba(245, 158, 11, 0.1); }
-.event-row.ERR { background: rgba(239, 68, 68, 0.1); }
+.event-row.LOCK    { background: rgba(59, 130, 246, 0.1); }
+.event-row.SOLD   { background: rgba(34, 197, 94, 0.1); }
+.event-row.CANCEL { background: rgba(168, 85, 247, 0.1); }
+.event-row.TIMEOUT{ background: rgba(245, 158, 11, 0.1); }
+.event-row.REFUND { background: rgba(236, 72, 153, 0.1); }
+.event-row.WARN   { background: rgba(245, 158, 11, 0.1); }
+.event-row.ERR    { background: rgba(239, 68, 68, 0.1); }
 .event-time { color: var(--text-muted); }
 .event-type {
   font-weight: 600;

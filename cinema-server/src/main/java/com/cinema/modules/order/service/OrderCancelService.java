@@ -2,6 +2,7 @@ package com.cinema.modules.order.service;
 
 import com.cinema.infra.redis.RedisKeys;
 import com.cinema.infra.redis.SeatLuaService;
+import com.cinema.infra.ws.AdminEventPublisher;
 import com.cinema.infra.ws.SeatEventPublisher;
 import com.cinema.modules.order.entity.Order;
 import com.cinema.modules.order.enums.OrderStatus;
@@ -13,6 +14,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 订单取消 / 超时关单 — OrderService 拆分的 4 个 service 之一.
@@ -27,6 +29,7 @@ public class OrderCancelService {
     private final OrderMapper orderMapper;
     private final SeatLuaService seatLuaService;
     private final SeatEventPublisher seatEventPublisher;
+    private final AdminEventPublisher adminEventPublisher;
     private final StringRedisTemplate redisTemplate;
     private final OrderCore orderCore;
 
@@ -34,7 +37,7 @@ public class OrderCancelService {
     public void cancel(String orderNo, Long userId) {
         Order order = orderCore.getOwnedOrder(orderNo, userId);
         orderCore.requirePending(order);
-        closeOrder(order);
+        closeOrder(order, "CANCEL");
     }
 
     /**
@@ -47,10 +50,10 @@ public class OrderCancelService {
         }
         // 一次查 order_item 复用给 closeOrder
         order.setSeatIndexCache(orderCore.seatIndexesOf(order.getId()));
-        return closeOrder(order);
+        return closeOrder(order, "TIMEOUT");
     }
 
-    private boolean closeOrder(Order order) {
+    private boolean closeOrder(Order order, String eventType) {
         int updated = orderMapper.casCancel(order.getOrderNo());
         if (updated == 0) {
             return false;
@@ -62,7 +65,13 @@ public class OrderCancelService {
         redisTemplate.delete(RedisKeys.userPending(order.getUserId(), order.getSessionId()));
         orderCore.clearUserLockedHash(order.getUserId(), order.getSessionId());
         seatEventPublisher.publishReleased(order.getSessionId(), seats);
-        log.info("[关单] orderNo={} 释放座位 {}(实际释放 {})", order.getOrderNo(), seats, released);
+        // D1 大屏: 推一条关单事件(CANCEL 用户主动 / TIMEOUT 超时扫描)
+        adminEventPublisher.publish(eventType, Map.of(
+                "orderNo", order.getOrderNo(),
+                "userId", order.getUserId(),
+                "sessionId", order.getSessionId(),
+                "seats", seats));
+        log.info("[关单] orderNo={} type={} 释放座位 {}(实际释放 {})", order.getOrderNo(), eventType, seats, released);
         return true;
     }
 }

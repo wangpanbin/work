@@ -3,6 +3,7 @@ package com.cinema.modules.order.service;
 import com.cinema.common.exception.BizException;
 import com.cinema.infra.redis.RedisKeys;
 import com.cinema.infra.redis.SeatLuaService;
+import com.cinema.infra.ws.AdminEventPublisher;
 import com.cinema.infra.ws.SeatEventPublisher;
 import com.cinema.modules.order.entity.Order;
 import com.cinema.modules.order.enums.OrderStatus;
@@ -45,6 +46,7 @@ class OrderPayServiceRefundTest {
     @Mock private RefundLogMapper refundLogMapper;
     @Mock private SeatLuaService seatLuaService;
     @Mock private SeatEventPublisher seatEventPublisher;
+    @Mock private AdminEventPublisher adminEventPublisher;
     @Mock private StringRedisTemplate redisTemplate;
     @Mock private MockPaymentService mockPaymentService;
     @Mock private MockRefundService mockRefundService;
@@ -57,8 +59,8 @@ class OrderPayServiceRefundTest {
     @BeforeEach
     void setUp() {
         service = new OrderPayService(orderMapper, refundLogMapper, seatLuaService,
-                seatEventPublisher, redisTemplate, mockPaymentService, mockRefundService,
-                sessionMapper, orderCore, ticketService);
+                seatEventPublisher, adminEventPublisher, redisTemplate, mockPaymentService,
+                mockRefundService, sessionMapper, orderCore, ticketService);
     }
 
     @Test
