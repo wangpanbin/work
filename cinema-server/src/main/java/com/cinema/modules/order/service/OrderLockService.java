@@ -9,6 +9,7 @@ import com.cinema.infra.redis.LuaLockResult;
 import com.cinema.infra.redis.RedisKeys;
 import com.cinema.infra.redis.SeatBitmapGuard;
 import com.cinema.infra.redis.SeatLuaService;
+import com.cinema.infra.ws.AdminEventPublisher;
 import com.cinema.infra.ws.SeatEventPublisher;
 import com.cinema.modules.order.dto.LockSeatsDTO;
 import com.cinema.modules.order.entity.Order;
@@ -52,6 +53,7 @@ public class OrderLockService {
     private final SeatBitmapGuard seatBitmapGuard;
     private final DelayQueue delayQueue;
     private final SeatEventPublisher seatEventPublisher;
+    private final AdminEventPublisher adminEventPublisher;
     private final StringRedisTemplate redisTemplate;
     private final TransactionTemplate transactionTemplate;
     private final OrderCore orderCore;
@@ -121,6 +123,12 @@ public class OrderLockService {
 
         // 实时广播: 其他用户看到座位变灰
         seatEventPublisher.publishLocked(sessionId, seats);
+        // D1 大屏: 推一条锁座事件
+        adminEventPublisher.publish("LOCK", java.util.Map.of(
+                "orderNo", order.getOrderNo(),
+                "userId", userId,
+                "sessionId", sessionId,
+                "seats", seats));
         log.info("[锁座] user={} session={} seats={} orderNo={}", userId, sessionId, seats, order.getOrderNo());
         return new LockResultVO(order.getOrderNo(), order.getExpireAt(), order.getTotalAmount(), seats);
     }
