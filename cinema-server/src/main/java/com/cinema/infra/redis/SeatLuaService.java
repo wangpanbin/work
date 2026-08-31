@@ -28,6 +28,7 @@ public class SeatLuaService {
     private static final DefaultRedisScript<String> LOCK_SCRIPT = script("lua/lock_seat.lua");
     private static final DefaultRedisScript<String> CONFIRM_SCRIPT = script("lua/confirm_seat.lua");
     private static final DefaultRedisScript<String> RELEASE_SCRIPT = script("lua/release_seat.lua");
+    private static final DefaultRedisScript<String> RECOVER_SCRIPT = script("lua/recover_seat_bitmap.lua");
 
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
@@ -38,6 +39,7 @@ public class SeatLuaService {
         preload(LOCK_SCRIPT, "lock_seat");
         preload(CONFIRM_SCRIPT, "confirm_seat");
         preload(RELEASE_SCRIPT, "release_seat");
+        preload(RECOVER_SCRIPT, "recover_seat_bitmap");
     }
 
     private void preload(DefaultRedisScript<String> script, String name) {
@@ -77,6 +79,28 @@ public class SeatLuaService {
     public List<Integer> releaseSeats(String lockKey, String soldKey, List<Integer> seats) {
         String json = redisTemplate.execute(RELEASE_SCRIPT, List.of(lockKey, soldKey), args(seats));
         return parseList(json);
+    }
+
+    /**
+     * P5 冷启动恢复: 原子批量 SETBIT(lockSeats → lock bitmap, soldSeats → sold bitmap).
+     * 用于服务重启 / Redis flush 后从 DB 重建位图.
+     */
+    public RecoverResult recoverSeats(String lockKey, String soldKey,
+                                      List<Integer> lockSeats, List<Integer> soldSeats) {
+        // 拼 ARGV: [N, lock1..lockN, M, sold1..soldM]
+        Object[] argv = new Object[2 + lockSeats.size() + soldSeats.size()];
+        argv[0] = String.valueOf(lockSeats.size());
+        for (int i = 0; i < lockSeats.size(); i++) argv[1 + i] = String.valueOf(lockSeats.get(i));
+        argv[1 + lockSeats.size()] = String.valueOf(soldSeats.size());
+        for (int j = 0; j < soldSeats.size(); j++) {
+            argv[2 + lockSeats.size() + j] = String.valueOf(soldSeats.get(j));
+        }
+        String json = redisTemplate.execute(RECOVER_SCRIPT, List.of(lockKey, soldKey), argv);
+        try {
+            return objectMapper.readValue(json, RecoverResult.class);
+        } catch (Exception e) {
+            throw new IllegalStateException("Lua 恢复结果解析失败: " + json, e);
+        }
     }
 
     private static DefaultRedisScript<String> script(String location) {

@@ -71,5 +71,8 @@ public class AdminMovieController {
         m.setDuration(dto.getDuration());
         m.setDescription(dto.getDescription() == null ? "" : dto.getDescription());
         m.setStatus(dto.getStatus() == null ? 1 : dto.getStatus());
+        m.setGenre(dto.getGenre() == null ? "" : dto.getGenre());
+        m.setRegion(dto.getRegion() == null ? "" : dto.getRegion());
+        m.setReleaseDate(dto.getReleaseDate());
     }
 }

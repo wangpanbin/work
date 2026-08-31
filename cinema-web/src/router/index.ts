@@ -11,6 +11,8 @@ const router = createRouter({
     { path: '/orders', name: 'order-list', component: () => import('../views/OrderList.vue') },
     { path: '/admin', name: 'admin-home', component: () => import('../views/admin/AdminHome.vue'),
       children: [
+        { path: 'dashboard', name: 'admin-dashboard', component: () => import('../views/admin/Dashboard.vue') },
+        { path: 'live', name: 'admin-live', component: () => import('../views/admin/LiveDashboard.vue') },
         { path: 'movies', name: 'admin-movies', component: () => import('../views/admin/MovieManage.vue') },
         { path: 'halls', name: 'admin-halls', component: () => import('../views/admin/HallManage.vue') },
         { path: 'sessions', name: 'admin-sessions', component: () => import('../views/admin/SessionManage.vue') },

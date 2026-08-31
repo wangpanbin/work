@@ -40,6 +40,9 @@ public class Order {
 
     private LocalDateTime paidAt;
 
+    /** N1 退款完成时间 */
+    private LocalDateTime refundedAt;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;

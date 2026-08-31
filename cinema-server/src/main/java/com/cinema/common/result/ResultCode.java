@@ -11,6 +11,8 @@ public enum ResultCode {
     SUCCESS(0, "ok"),
     BAD_REQUEST(40001, "参数错误"),
     BUSINESS_ERROR(40002, "业务处理失败"),
+    IDEMPOTENT_CONFLICT(40900, "请勿重复提交"),
+    RATE_LIMIT(42900, "请求过于频繁,请稍后重试"),
     UNAUTHORIZED(40101, "未登录"),
     TOKEN_EXPIRED(40102, "登录已过期"),
     FORBIDDEN(40301, "无权限"),

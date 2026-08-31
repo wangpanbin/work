@@ -1,5 +1,6 @@
 package com.cinema.config;
 
+import com.cinema.infra.ws.AdminWsHandler;
 import com.cinema.infra.ws.SeatWsHandler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
@@ -13,9 +14,11 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 public class WebSocketConfig implements WebSocketConfigurer {
 
     private final SeatWsHandler seatWsHandler;
+    private final AdminWsHandler adminWsHandler;
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry.addHandler(seatWsHandler, "/ws/seat/*").setAllowedOriginPatterns("*");
+        registry.addHandler(adminWsHandler, "/ws/admin").setAllowedOriginPatterns("*");
     }
 }

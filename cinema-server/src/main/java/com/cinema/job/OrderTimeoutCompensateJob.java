@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.cinema.modules.order.entity.Order;
 import com.cinema.modules.order.enums.OrderStatus;
 import com.cinema.modules.order.mapper.OrderMapper;
-import com.cinema.modules.order.service.OrderService;
+import com.cinema.modules.order.service.OrderCancelService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -23,7 +23,7 @@ import java.util.List;
 public class OrderTimeoutCompensateJob {
 
     private final OrderMapper orderMapper;
-    private final OrderService orderService;
+    private final OrderCancelService orderCancelService;
 
     @Scheduled(fixedDelay = 60_000)
     public void compensate() {
@@ -35,6 +35,15 @@ public class OrderTimeoutCompensateJob {
             return;
         }
         log.warn("[补偿任务] 发现 {} 个超时未关订单, 执行兜底关单", expired.size());
-        expired.forEach(o -> orderService.closeIfUnpaid(o.getOrderNo()));
+        expired.forEach(o -> orderCancelService.closeIfUnpaid(o.getOrderNo()));
+    }
+
+    /** N1 补偿: 卡死退款单(REFUNDING 超 5min) → 已取消(降级,不入账) */
+    @Scheduled(fixedDelay = 5 * 60_000)
+    public void compensateStuckRefund() {
+        int n = orderMapper.markStuckRefundingAsFailed();
+        if (n > 0) {
+            log.warn("[补偿任务] 标记 {} 个卡死退款单为已取消(降级)", n);
+        }
     }
 }

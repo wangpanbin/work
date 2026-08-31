@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Data
@@ -26,6 +27,11 @@ public class Movie {
 
     /** 0下架 1热映 */
     private Integer status;
+
+    /** F1 搜索筛选扩展字段 */
+    private String genre;
+    private String region;
+    private LocalDate releaseDate;
 
     private LocalDateTime createdAt;
 }
