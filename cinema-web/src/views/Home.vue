@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { page } from '../api/movie'
+import { search as searchMovies } from '../api/movie'
 import { useMovieCache } from '../stores/movieCache'
 import type { Movie } from '../types'
 
@@ -10,21 +10,54 @@ const movies = ref<Movie[]>([])
 const loading = ref(false)
 const cache = useMovieCache()
 
-onMounted(async () => {
+// F1 搜索 + 筛选
+const keyword = ref('')
+const genre = ref('')
+const region = ref('')
+let debounceTimer: number | null = null
+
+async function loadMovies() {
   loading.value = true
   try {
-    // Phase D-⑯: 先看缓存, 命中直接渲染避免重复请求
-    const cached = cache.getMovies()
-    if (cached) {
-      movies.value = cached
-      return
-    }
-    const data = await page({ page: 1, size: 20, status: 1 })
+    const data = await searchMovies({
+      page: 1, size: 50, status: 1,
+      keyword: keyword.value || undefined,
+      genre: genre.value || undefined,
+      region: region.value || undefined,
+    })
     movies.value = data.records
-    cache.setMovies(data.records)
+    if (!keyword.value && !genre.value && !region.value) {
+      cache.setMovies(data.records)
+    }
   } finally {
     loading.value = false
   }
+}
+
+function onSearchInput() {
+  if (debounceTimer) clearTimeout(debounceTimer)
+  debounceTimer = window.setTimeout(loadMovies, 400)
+}
+
+function onFilterChange() {
+  loadMovies()
+}
+
+function clearFilters() {
+  keyword.value = ''
+  genre.value = ''
+  region.value = ''
+  loadMovies()
+}
+
+onMounted(() => {
+  // 优先用缓存, 但只用于空查询
+  const cached = cache.getMovies()
+  if (cached) {
+    movies.value = cached
+    return
+  }
+  loadMovies()
 })
 </script>
 
@@ -498,6 +531,28 @@ onMounted(async () => {
   opacity: 0;
   transition: opacity var(--transition-normal);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+/* F1 搜索筛选栏 */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.search-input {
+  flex: 1;
+  min-width: 240px;
+  max-width: 380px;
+}
+.filter-select {
+  width: 140px;
+}
+@media (max-width: 640px) {
+  .filter-bar { gap: 8px; }
+  .search-input { min-width: 160px; max-width: 100%; }
+  .filter-select { width: 110px; }
 }
 
 /* --- Responsive --- */

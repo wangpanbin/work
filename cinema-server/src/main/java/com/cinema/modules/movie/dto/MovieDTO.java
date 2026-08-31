@@ -1,9 +1,12 @@
 package com.cinema.modules.movie.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.Data;
+
+import java.time.LocalDate;
 
 @Data
 public class MovieDTO {
@@ -21,4 +24,11 @@ public class MovieDTO {
 
     /** 0下架 1热映 */
     private Integer status;
+
+    /** F1 搜索筛选扩展字段 */
+    private String genre;
+    private String region;
+
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private LocalDate releaseDate;
 }
