@@ -71,4 +71,13 @@ public class OrderController {
         orderCancelService.cancel(orderNo, UserContext.userId());
         return R.ok();
     }
+
+    /** N1 退票: PAID → REFUNDING → REFUNDED, 释放座位 + 写 refund_log */
+    @PostMapping("/{orderNo}/refund")
+    @Idempotent(key = "#orderNo + ':refund'", ttl = 5, message = "退票请求处理中,请勿重复点击")
+    @RateLimit(key = "T(com.cinema.common.context.UserContext).userId() + ':refund:' + #orderNo", permits = 1, window = 1, unit = java.util.concurrent.TimeUnit.MINUTES)
+    public R<Void> refund(@PathVariable String orderNo) {
+        orderPayService.refund(orderNo, UserContext.userId());
+        return R.ok();
+    }
 }

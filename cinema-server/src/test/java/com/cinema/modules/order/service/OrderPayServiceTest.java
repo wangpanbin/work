@@ -7,8 +7,11 @@ import com.cinema.infra.ws.SeatEventPublisher;
 import com.cinema.modules.order.entity.Order;
 import com.cinema.modules.order.enums.OrderStatus;
 import com.cinema.modules.order.mapper.OrderMapper;
+import com.cinema.modules.order.mapper.RefundLogMapper;
 import com.cinema.modules.order.service.core.OrderCore;
 import com.cinema.modules.payment.service.MockPaymentService;
+import com.cinema.modules.payment.service.MockRefundService;
+import com.cinema.modules.session.mapper.SessionMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -38,18 +41,22 @@ import static org.mockito.Mockito.when;
 class OrderPayServiceTest {
 
     @Mock private OrderMapper orderMapper;
+    @Mock private RefundLogMapper refundLogMapper;
     @Mock private SeatLuaService seatLuaService;
     @Mock private SeatEventPublisher seatEventPublisher;
     @Mock private StringRedisTemplate redisTemplate;
     @Mock private MockPaymentService mockPaymentService;
+    @Mock private MockRefundService mockRefundService;
+    @Mock private SessionMapper sessionMapper;
     @Mock private OrderCore orderCore;
 
     private OrderPayService service;
 
     @BeforeEach
     void setUp() {
-        service = new OrderPayService(orderMapper, seatLuaService, seatEventPublisher,
-                redisTemplate, mockPaymentService, orderCore);
+        service = new OrderPayService(orderMapper, refundLogMapper, seatLuaService,
+                seatEventPublisher, redisTemplate, mockPaymentService, mockRefundService,
+                sessionMapper, orderCore);
     }
 
     @Test

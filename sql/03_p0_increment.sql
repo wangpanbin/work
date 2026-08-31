@@ -17,3 +17,21 @@ ALTER TABLE movie
 UPDATE movie SET genre='科幻', region='中国', release_date='2026-07-15' WHERE id=1;
 UPDATE movie SET genre='科幻', region='美国', release_date='2026-08-20' WHERE id=2;
 UPDATE movie SET genre='动画', region='中国', release_date='2026-09-01' WHERE id=3;
+
+-- N1: 订单表新增 refunded_at
+ALTER TABLE `order`
+  ADD COLUMN refunded_at DATETIME NULL COMMENT '退款完成时间' AFTER paid_at,
+  ADD KEY idx_status_paid (status, paid_at) COMMENT '看板:按 status+paid_at 聚合';
+
+-- N1: 退款日志
+CREATE TABLE IF NOT EXISTS refund_log (
+  id          BIGINT        NOT NULL PRIMARY KEY COMMENT '雪花ID',
+  order_no    VARCHAR(32)   NOT NULL,
+  user_id     BIGINT        NOT NULL,
+  amount      DECIMAL(10,2) NOT NULL,
+  status      TINYINT       NOT NULL DEFAULT 0 COMMENT '0成功 1失败',
+  reason      VARCHAR(255)  NOT NULL DEFAULT '',
+  created_at  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_order (order_no),
+  KEY idx_user (user_id, created_at)
+) ENGINE=InnoDB COMMENT '退款日志';

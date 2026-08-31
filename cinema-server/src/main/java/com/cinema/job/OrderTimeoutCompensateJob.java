@@ -37,4 +37,13 @@ public class OrderTimeoutCompensateJob {
         log.warn("[补偿任务] 发现 {} 个超时未关订单, 执行兜底关单", expired.size());
         expired.forEach(o -> orderCancelService.closeIfUnpaid(o.getOrderNo()));
     }
+
+    /** N1 补偿: 卡死退款单(REFUNDING 超 5min) → 已取消(降级,不入账) */
+    @Scheduled(fixedDelay = 5 * 60_000)
+    public void compensateStuckRefund() {
+        int n = orderMapper.markStuckRefundingAsFailed();
+        if (n > 0) {
+            log.warn("[补偿任务] 标记 {} 个卡死退款单为已取消(降级)", n);
+        }
+    }
 }
