@@ -66,7 +66,11 @@ onMounted(load)
     </div>
 
     <el-table :data="list" stripe>
-      <el-table-column prop="id" label="ID" width="80" />
+      <el-table-column prop="id" label="ID" width="90">
+        <template #default="{ row }">
+          <span class="id-cell" :title="String(row.id)">#{{ row.id }}</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="title" label="片名" />
       <el-table-column prop="duration" label="时长(分钟)" width="120" />
       <el-table-column prop="description" label="简介" show-overflow-tooltip />
@@ -119,5 +123,17 @@ onMounted(load)
   display: flex;
   gap: 12px;
   margin-bottom: 12px;
+}
+/* ID 单元格: 19 位雪花 ID 强制 ellipsis, 不允许换行 */
+.id-cell {
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 13px;
+  color: var(--text-secondary);
+  display: inline-block;
+  max-width: 78px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
 }
 </style>

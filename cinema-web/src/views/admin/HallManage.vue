@@ -57,9 +57,17 @@ onMounted(load)
     <el-button type="primary" @click="openCreate">新增影厅</el-button>
 
     <el-table :data="list" stripe style="margin-top: 12px">
-      <el-table-column prop="id" label="ID" width="80" />
+      <el-table-column label="ID" width="90">
+        <template #default="{ row }">
+          <span class="id-cell" :title="String(row.id)">#{{ row.id }}</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="name" label="影厅名" />
-      <el-table-column prop="cinemaId" label="影院" width="100" />
+      <el-table-column label="影院" width="90">
+        <template #default="{ row }">
+          <span class="id-cell" :title="String(row.cinemaId)">#{{ row.cinemaId }}</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="seatRows" label="行" width="80" />
       <el-table-column prop="seatCols" label="列" width="80" />
       <el-table-column prop="seatCount" label="座位数" width="100" />
@@ -91,3 +99,17 @@ onMounted(load)
     </el-dialog>
   </div>
 </template>
+
+<style scoped>
+.id-cell {
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 13px;
+  color: var(--text-secondary);
+  display: inline-block;
+  max-width: 78px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+</style>

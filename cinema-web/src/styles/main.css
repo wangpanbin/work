@@ -134,6 +134,8 @@ img {
   position: sticky;
   top: 0;
   z-index: 100;
+  /* 防止内容溢出导致 body 横滚 */
+  overflow: hidden;
 }
 
 .app-header::after {
@@ -183,6 +185,8 @@ img {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: nowrap;       /* 防止小屏 wrap 出第二行, 改用 chip-icon-text 隐藏文字 */
+  min-width: 0;
 }
 
 /* --- 统一 Header Chip 按钮系统 ---
@@ -421,6 +425,39 @@ img {
   color: var(--text-muted) !important;
 }
 
+/* --- el-select 深色主题覆盖 --- */
+.el-select__wrapper {
+  background: var(--bg-tertiary) !important;
+  box-shadow: 0 0 0 1px var(--border-color) inset !important;
+  border-radius: var(--radius-md) !important;
+}
+.el-select__wrapper.is-focused,
+.el-select__wrapper.is-hovering {
+  box-shadow: 0 0 0 1px var(--accent-gold) inset !important;
+}
+.el-select__placeholder {
+  color: var(--text-muted) !important;
+}
+.el-select__wrapper .el-select__placeholder.is-transparent {
+  color: var(--text-muted) !important;
+}
+/* select 弹层 */
+.el-select-dropdown {
+  background: var(--bg-secondary) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: var(--radius-md) !important;
+}
+.el-select-dropdown__item {
+  color: var(--text-secondary) !important;
+}
+.el-select-dropdown__item.is-hovering {
+  background: var(--bg-tertiary) !important;
+}
+.el-select-dropdown__item.is-selected {
+  color: var(--accent-gold) !important;
+  font-weight: 600;
+}
+
 .el-tag {
   border-radius: var(--radius-sm) !important;
   font-weight: 500 !important;
@@ -428,6 +465,13 @@ img {
 
 .el-empty__description {
   color: var(--text-muted) !important;
+}
+/* el-empty 默认 SVG 图标是白底色块, 在深色主题下很扎眼 → 改为透明/隐藏, 只保留 description */
+.el-empty__image {
+  display: none !important;
+}
+.el-empty {
+  padding: 48px 0 !important;
 }
 
 .el-divider {
@@ -497,6 +541,22 @@ img {
 
 .el-table__body tr:hover > td.el-table__cell {
   background: var(--bg-tertiary) !important;
+}
+
+/* el-table 单元格强制单行 (防测试数据中雪花 ID 换行拉高) 行 */
+.el-table .cell {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+/* 如果某个表格仍需多行 (例如描述列), 可加 .allow-wrap 解除 */
+.el-table .cell.allow-wrap {
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .el-form-item__label {
@@ -573,7 +633,8 @@ img {
     padding: 0 16px;
     height: 56px;
   }
-  .brand { font-size: 18px; letter-spacing: 1px; }
+  .brand-text { font-size: 18px; letter-spacing: 1px; }
+  .brand-tag { display: none; }   /* 小屏隐藏 CINEMA 标签, 给 chip 让位 */
   .user-area { gap: 8px; }
   .app-main { padding: 20px 16px; }
   /* 平板端隐藏昵称 chip，节省空间 */
@@ -588,15 +649,31 @@ img {
   }
 }
 
+@media (max-width: 640px) {
+  /* 小屏: chip 退化为仅图标, 完全消除中文文本挤爆 header 的问题 */
+  .header-chip.chip-icon-text {
+    width: 36px;
+    min-width: 36px;
+    padding: 0;
+    gap: 0;
+    justify-content: center;
+  }
+  .header-chip.chip-icon-text .chip-text {
+    display: none;
+  }
+  .header-chip.chip-icon-text .chip-icon {
+    font-size: 16px;
+  }
+  /* 退出 chip 用图标 */
+  .header-chip.chip-danger.chip-icon-text { color: var(--accent-red-light); }
+}
+
 @media (max-width: 480px) {
   .user-area { gap: 6px; }
   .header-chip {
-    height: 30px;
-    min-height: 30px;
-    line-height: 30px;
-    padding: 0 10px;
-    font-size: 12px;
-    gap: 4px;
-    border-radius: 6px;
+    height: 32px;
+    min-height: 32px;
+    line-height: 32px;
   }
+  .app-header { padding: 0 12px; }
 }

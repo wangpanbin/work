@@ -14,6 +14,10 @@ const cache = useMovieCache()
 const keyword = ref('')
 const genre = ref('')
 const region = ref('')
+// 静态可选项(后端搜索走 LIKE, 这里只负责 UI 入口)
+// 真实电影类型/地区动态值需要后端额外提供 /api/movies/filters, 此处用常见值占位
+const genreOptions = ['动作', '喜剧', '科幻', '爱情', '悬疑', '动画', '战争', '剧情']
+const regionOptions = ['中国大陆', '美国', '日本', '韩国', '欧洲', '印度', '泰国']
 let debounceTimer: number | null = null
 
 async function loadMovies() {
@@ -108,7 +112,28 @@ onMounted(() => {
         </div>
       </div>
 
-      <el-empty v-if="!loading && movies.length === 0" description="暂无热映影片" />
+      <!-- F1 搜索 + 筛选 (CSS 早就写好, 但模板里没渲染 → 修) -->
+      <div class="filter-bar">
+        <el-input
+          v-model="keyword"
+          class="search-input"
+          placeholder="搜索片名 / 关键词"
+          clearable
+          :prefix-icon="'Search'"
+          @input="onSearchInput"
+          @clear="onFilterChange"
+        />
+        <el-select v-model="genre" class="filter-select" placeholder="类型" clearable @change="onFilterChange">
+          <el-option v-for="g in genreOptions" :key="g" :label="g" :value="g" />
+        </el-select>
+        <el-select v-model="region" class="filter-select" placeholder="地区" clearable @change="onFilterChange">
+          <el-option v-for="r in regionOptions" :key="r" :label="r" :value="r" />
+        </el-select>
+        <el-button v-if="keyword || genre || region" class="filter-clear" @click="clearFilters">重置</el-button>
+        <span class="filter-meta">{{ movies.length }} 部影片</span>
+      </div>
+
+      <el-empty v-if="!loading && movies.length === 0" description="暂无匹配影片,试试清空筛选条件" />
 
       <div v-else class="movie-grid">
         <div
@@ -540,6 +565,10 @@ onMounted(() => {
   gap: 12px;
   margin-bottom: 24px;
   flex-wrap: wrap;
+  padding: 14px 18px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
 }
 .search-input {
   flex: 1;
@@ -549,10 +578,20 @@ onMounted(() => {
 .filter-select {
   width: 140px;
 }
+.filter-clear {
+  border-radius: var(--radius-md);
+}
+.filter-meta {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+}
 @media (max-width: 640px) {
-  .filter-bar { gap: 8px; }
+  .filter-bar { gap: 8px; padding: 12px; }
   .search-input { min-width: 160px; max-width: 100%; }
   .filter-select { width: 110px; }
+  .filter-meta { width: 100%; margin-left: 0; }
 }
 
 /* --- Responsive --- */

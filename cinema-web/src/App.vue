@@ -26,30 +26,34 @@ function logout() {
       <div class="user-area">
         <el-button
           v-if="userStore.isLogin && userStore.user?.role === 1"
-          class="header-chip chip-warning"
+          class="header-chip chip-warning chip-icon-text"
           size="default"
           @click="router.push('/admin')"
         >
-          ⚙ 管理端
+          <span class="chip-icon">⚙</span>
+          <span class="chip-text">管理端</span>
         </el-button>
         <el-button
           v-if="userStore.isLogin"
-          class="header-chip chip-primary"
+          class="header-chip chip-primary chip-icon-text"
           size="default"
           @click="router.push('/orders')"
         >
-          🎫 我的订单
+          <span class="chip-icon">🎫</span>
+          <span class="chip-text">我的订单</span>
         </el-button>
         <template v-if="userStore.user">
-          <span class="header-chip chip-user nickname">
-            {{ userStore.user.nickname || userStore.user.username }}
+          <span class="header-chip chip-user nickname chip-icon-text">
+            <span class="chip-icon">👤</span>
+            <span class="chip-text">{{ userStore.user.nickname || userStore.user.username }}</span>
           </span>
-          <el-button class="header-chip chip-danger" size="default" @click="logout">
-            退出
+          <el-button class="header-chip chip-danger chip-icon-text" size="default" @click="logout">
+            <span class="chip-icon">⏻</span>
+            <span class="chip-text">退出</span>
           </el-button>
         </template>
-        <el-button v-else class="header-chip chip-login" size="default" @click="router.push('/login')">
-          登录 / 注册
+        <el-button v-else class="header-chip chip-login chip-icon-text" size="default" @click="router.push('/login')">
+          <span class="chip-text">登录 / 注册</span>
         </el-button>
       </div>
     </el-header>
@@ -62,10 +66,12 @@ function logout() {
 <style scoped>
 .brand {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
   cursor: pointer;
   user-select: none;
+  flex-shrink: 0;        /* 防止被 user-area 挤碎 */
+  min-width: 0;           /* 允许内部收缩 */
 }
 .brand-text {
   font-family: var(--font-display);
@@ -78,6 +84,7 @@ function logout() {
   letter-spacing: 2px;
   filter: drop-shadow(0 0 12px rgba(245, 158, 11, 0.4));
   transition: transform var(--transition-fast);
+  white-space: nowrap;    /* 防止中文 brand 字面被按字换行 */
 }
 .brand:hover .brand-text {
   transform: scale(1.03);
@@ -91,5 +98,19 @@ function logout() {
   padding: 2px 8px;
   border-radius: var(--radius-sm);
   text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+/* chip 内的 icon / text 容器, 用于小屏切换 */
+.chip-icon-text {
+  /* 默认 desktop 正常显示 */
+}
+.chip-icon-text .chip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.chip-icon-text .chip-text {
+  display: inline-block;
 }
 </style>

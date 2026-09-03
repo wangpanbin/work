@@ -127,8 +127,13 @@ onMounted(load)
   align-items: center;
   justify-content: space-between;
   margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 .page-header h2 { margin: 0; font-size: 22px; }
+@media (max-width: 768px) {
+  .page-header h2 { font-size: 18px; }
+}
 
 .cards {
   display: grid;

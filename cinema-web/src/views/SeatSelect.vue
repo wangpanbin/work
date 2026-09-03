@@ -129,17 +129,24 @@ function seatClick(idx: number) {
       <div class="screen-stand"></div>
     </div>
 
-    <!-- Seats Grid (Phase D-⑬: 抽 SeatItem 子组件, 父级只传 :index) -->
-    <div class="seats-container">
-      <div class="row-labels" v-if="seatStore.map.cols <= 16">
-        <span v-for="c in seatStore.map.cols" :key="c" class="col-label">{{ c }}</span>
+    <!-- Seats Grid (Phase D-⑬: 抽 SeatItem 子组件, 父级只传 :index)
+         行/列标签: 左侧行号 + 顶部列号, 统一挂在 seats-container 上设 --cols/--rows -->
+    <div class="seats-container" :style="{ '--cols': seatStore.map.cols, '--rows': seatStore.map.rows }">
+      <div class="seats-grid" v-if="seatStore.map.cols <= 16">
+        <!-- 列号表头: 占 1 格给左侧行号标签 -->
+        <div class="corner-spacer"></div>
+        <div v-for="c in seatStore.map.cols" :key="`c-${c}`" class="col-label">{{ c }}</div>
+        <!-- 每一行: 行号 + cols 个座位 -->
+        <template v-for="r in seatStore.map.rows" :key="`r-${r}`">
+          <div class="row-label">{{ r }}</div>
+          <template v-for="(_, idx) in seatStore.map.cols" :key="`c-${r}-${idx}`">
+            <SeatItem :index="(r - 1) * seatStore.map.cols + idx" />
+          </template>
+        </template>
       </div>
-      <div class="seats" :style="{ '--cols': seatStore.map.cols }">
-        <SeatItem
-          v-for="i in seatStore.map.seatCount"
-          :key="i - 1"
-          :index="i - 1"
-        />
+      <!-- 超过 16 列: 退化为横向单行, 不显示行列标签 (大影厅) -->
+      <div v-else class="seats" :style="{ '--cols': seatStore.map.cols }">
+        <SeatItem v-for="i in seatStore.map.seatCount" :key="i - 1" :index="i - 1" />
       </div>
     </div>
 
@@ -289,21 +296,42 @@ function seatClick(idx: number) {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   padding: 24px;
+  overflow-x: auto;
 }
 
-.row-labels {
+/* 带行列标签的网格 (cols <= 16) */
+.seats-grid {
   display: grid;
-  grid-template-columns: repeat(var(--cols), 1fr);
+  grid-template-columns: 32px repeat(var(--cols), minmax(28px, 1fr));
   gap: 6px;
-  margin-bottom: 8px;
+  min-width: max-content;
 }
-
+.corner-spacer {
+  /* 左上角空白: 与列号行平齐 */
+}
 .col-label {
   text-align: center;
   font-size: 11px;
   color: var(--text-muted);
+  font-weight: 500;
+  user-select: none;
+  height: 16px;
+  line-height: 16px;
+}
+.row-label {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 行高与座位高一致 (座位 aspect-ratio: 1 + 字号 + padding 估算 ~38-44px) */
+  height: 38px;
 }
 
+/* 大影厅退化为单行网格 */
 .seats {
   display: grid;
   grid-template-columns: repeat(var(--cols), 1fr);
@@ -324,6 +352,8 @@ function seatClick(idx: number) {
   transition: all var(--transition-fast);
   color: var(--text-muted);
   position: relative;
+  min-width: 28px;
+  min-height: 38px;
 }
 
 .seat:hover:not(.locked_other):not(.sold) {

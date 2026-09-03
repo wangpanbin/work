@@ -91,7 +91,10 @@ onMounted(load)
         <div class="order-main">
           <div class="order-icon">🎬</div>
           <div class="order-info">
-            <h3 class="movie-title">{{ o.movieTitle }}</h3>
+            <h3 class="movie-title">
+              <span v-if="o.status === 0" class="dot-pulse" title="需要尽快支付"></span>
+              {{ o.movieTitle }}
+            </h3>
             <div class="order-meta">
               <span>{{ o.hallName }}</span>
               <span class="sep">·</span>
@@ -187,6 +190,25 @@ onMounted(load)
 
 .order-card.status-2 {
   opacity: 0.7;
+}
+
+/* 待支付订单: 左侧金边 + 标题前红点脉冲, 提醒用户及时支付 */
+.order-card.status-0 {
+  border-left: 3px solid var(--accent-gold);
+}
+.dot-pulse {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-red);
+  margin-right: 8px;
+  vertical-align: middle;
+  animation: pulse-red-dot 1.5s ease-in-out infinite;
+}
+@keyframes pulse-red-dot {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
+  50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
 }
 
 .order-main {
@@ -306,6 +328,14 @@ onMounted(load)
   }
   .amount-value {
     font-size: 18px;
+  }
+  /* 状态 tabs 允许换行, 避免溢出 */
+  .filter-tabs {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .filter-tabs :deep(.el-radio-button) {
+    margin-right: 0 !important;
   }
 }
 
