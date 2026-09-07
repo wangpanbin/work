@@ -365,6 +365,55 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
+/* ============================================
+   按钮视觉一致性 —— 统一尺寸规格
+   规则: 所有按钮变体(primary/plain/link/disabled、
+   有无角标)共用同一套盒子尺寸; 正常/悬停/按下/禁用
+   各状态只改颜色, 不允许改变宽高/padding/字号。
+   ============================================ */
+
+/* --- 状态筛选 tabs (el-radio-button) ---
+   固定宽高: 文字 2/3 字、有无角标都不再影响尺寸;
+   inline-flex 让文字与角标作为整体居中。 */
+.filter-tabs :deep(.el-radio-button__inner) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 112px;
+  height: 36px;
+  padding: 0;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+
+/* --- 卡片操作按钮 (el-button) ---
+   primary(去支付) / plain(取消订单/申请退票) /
+   link(查看详情/重新选座) / disabled(退款处理中)
+   全部统一为 128×36, 字号 14/500。 */
+.footer-right .el-button {
+  width: 128px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0 !important; /* 覆盖全局 primary 的 10px 24px 与 link 的 2px */
+  margin: 0;
+  font-size: 14px !important;
+  font-weight: 500 !important; /* 覆盖全局 primary 的 600 */
+  line-height: 1;
+  border-radius: var(--radius-md) !important;
+  /* 边框统一 1px 透明: 覆盖全局 primary/danger/warning 的 border:none,
+     让 flex 等分布局不受边框宽度差异影响; 填充按钮背景铺满 border-box, 视觉不变 */
+  border: 1px solid transparent !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
 /* --- Responsive --- */
 @media (max-width: 768px) {
   .order-main {
@@ -383,13 +432,18 @@ onMounted(() => {
   .amount-value {
     font-size: 18px;
   }
-  /* 状态 tabs 允许换行, 避免溢出 */
+  /* 状态 tabs 换行后退化为独立 chip: 宽度仍统一,
+     各自带完整圆角, 间距由 gap 控制 */
   .filter-tabs {
     flex-wrap: wrap;
-    gap: 4px;
+    gap: 8px;
   }
   .filter-tabs :deep(.el-radio-button) {
-    margin-right: 0 !important;
+    margin: 0 !important;
+  }
+  .filter-tabs :deep(.el-radio-button__inner) {
+    width: 104px;
+    border-radius: var(--radius-md);
   }
 }
 
@@ -405,20 +459,22 @@ onMounted(() => {
   .footer-right {
     flex-basis: 100%;
   }
+  /* flex:1 + min-width:0: 等分整行宽度, 不受文字长短
+     (link 按钮的箭头/字数) 影响, 保证两个按钮像素级等宽 */
   .footer-right .el-button {
-    flex: 1;
+    flex: 1 1 0%;
+    min-width: 0;
   }
 }
 
-/* P2-#16: tab 角标 — 贴在 radio-button 文字右侧 */
-.tab-badge {
-  margin-left: 6px;
-  vertical-align: middle;
-}
+/* P2-#16: tab 角标 — 与文字的间距由 .el-radio-button__inner 的 gap 统一控制,
+   角标自身尺寸固定, 不随数字位数/有无角标改变 tab 大小 */
 .tab-badge :deep(.el-badge__content) {
   font-size: 10px;
+  font-weight: 500;
   height: 16px;
   line-height: 16px;
   padding: 0 5px;
+  border: none;
 }
 </style>
