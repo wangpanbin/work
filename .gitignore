@@ -44,6 +44,9 @@ tests/
 docs/压测报告*.md
 test_mixed.py
 test_myorders.py
+test_webapp_e2e.py
 verify_lock.py
+_report.json
+_report_*.png
 .playwright-cli/
 .playwright/
