@@ -36,7 +36,9 @@ public class OrderController {
 
     /** 锁座下单 */
     @PostMapping("/lock")
-    @Idempotent(key = "#dto.sessionId + ':' + (#dto.seatIndexes != null ? #dto.seatIndexes.toString() : 'empty')", ttl = 3,
+    // P0 修复: idempotent key 必须带 userId(否则 user1 和 user2 锁同一座位会撞同一个 key 互锁 3 秒);
+    // ttl 从 3s 提到 8s 覆盖前端锁座 + 后端 IO + Lua + 事务的整段耗时, 防止用户浏览器卡一下就被受理成"重复点击"以外的提交
+    @Idempotent(key = "T(com.cinema.common.context.UserContext).userId() + ':' + #dto.sessionId + ':' + (#dto.seatIndexes != null ? #dto.seatIndexes.toString() : 'empty')", ttl = 8,
             message = "锁座请求处理中,请勿重复点击")
     @RateLimit(key = "T(com.cinema.common.context.UserContext).userId() + ':lock:' + #dto.sessionId", permits = 5, window = 1)
     public R<LockResultVO> lock(@Valid @RequestBody LockSeatsDTO dto) {
