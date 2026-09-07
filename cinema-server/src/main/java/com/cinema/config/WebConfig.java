@@ -32,7 +32,7 @@ public class WebConfig implements WebMvcConfigurer {
                         "/error");
         // 强制登录: 订单、我的资料
         registry.addInterceptor(authRequiredInterceptor)
-                .addPathPatterns("/api/orders/**", "/api/user/me");
+                .addPathPatterns("/api/orders/**", "/api/users/me");
         // 管理端鉴权: 先 JWT 注入 UserContext, 再 Admin 校验角色
         registry.addInterceptor(adminInterceptor)
                 .addPathPatterns("/api/admin/**");
