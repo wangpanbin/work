@@ -174,15 +174,42 @@ onMounted(() => {
             </span>
           </div>
           <div class="footer-right">
-            <el-button v-if="o.status === 0" type="primary" @click="$router.push({ name: 'payment', query: { orderNo: o.orderNo } })">
+            <el-button
+              v-if="o.status === 0"
+              class="btn-action is-fixed"
+              type="primary"
+              @click="$router.push({ name: 'payment', query: { orderNo: o.orderNo } })"
+            >
               去支付
             </el-button>
-            <el-button v-if="o.status === 0" type="danger" plain @click="onCancel(o)">取消订单</el-button>
-            <el-button v-if="o.status === 1" link @click="$router.push({ name: 'payment', query: { orderNo: o.orderNo } })">
+            <el-button
+              v-if="o.status === 0"
+              class="btn-action is-fixed"
+              type="danger"
+              plain
+              @click="onCancel(o)"
+            >取消订单</el-button>
+            <el-button
+              v-if="o.status === 1"
+              class="btn-action is-fixed"
+              link
+              @click="$router.push({ name: 'payment', query: { orderNo: o.orderNo } })"
+            >
               查看详情 →
             </el-button>
-            <el-button v-if="o.status === 1" type="warning" plain @click="onRefund(o)">申请退票</el-button>
-            <el-button v-if="o.status === 2" link @click="$router.push(`/seat/${o.sessionId}`)">
+            <el-button
+              v-if="o.status === 1"
+              class="btn-action is-fixed"
+              type="warning"
+              plain
+              @click="onRefund(o)"
+            >申请退票</el-button>
+            <el-button
+              v-if="o.status === 2"
+              class="btn-action is-fixed"
+              link
+              @click="$router.push(`/seat/${o.sessionId}`)"
+            >
               重新选座 →
             </el-button>
             <el-tooltip
@@ -190,9 +217,14 @@ onMounted(() => {
               content="退款正在处理中, 通常 1-3 个工作日会到账。如超时未到账请联系影院工作人员。"
               placement="top"
             >
-              <el-button disabled>退款处理中…</el-button>
+              <el-button class="btn-action is-fixed" disabled>退款处理中…</el-button>
             </el-tooltip>
-            <el-button v-if="o.status === 4" link @click="$router.push(`/seat/${o.sessionId}`)">
+            <el-button
+              v-if="o.status === 4"
+              class="btn-action is-fixed"
+              link
+              @click="$router.push(`/seat/${o.sessionId}`)"
+            >
               重新选座 →
             </el-button>
           </div>
@@ -392,27 +424,8 @@ onMounted(() => {
 }
 
 /* --- 卡片操作按钮 (el-button) ---
-   primary(去支付) / plain(取消订单/申请退票) /
-   link(查看详情/重新选座) / disabled(退款处理中)
-   全部统一为 128×36, 字号 14/500。 */
-.footer-right .el-button {
-  width: 128px;
-  height: 36px;
-  min-height: 36px;
-  padding: 0 !important; /* 覆盖全局 primary 的 10px 24px 与 link 的 2px */
-  margin: 0;
-  font-size: 14px !important;
-  font-weight: 500 !important; /* 覆盖全局 primary 的 600 */
-  line-height: 1;
-  border-radius: var(--radius-md) !important;
-  /* 边框统一 1px 透明: 覆盖全局 primary/danger/warning 的 border:none,
-     让 flex 等分布局不受边框宽度差异影响; 填充按钮背景铺满 border-box, 视觉不变 */
-  border: 1px solid transparent !important;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-}
+   复用全局 .btn-action.is-fixed (见 src/styles/main.css),
+   本页只保留响应式覆盖, 不再重复定义尺寸/padding/font/border。 */
 
 /* --- Responsive --- */
 @media (max-width: 768px) {
@@ -461,7 +474,7 @@ onMounted(() => {
   }
   /* flex:1 + min-width:0: 等分整行宽度, 不受文字长短
      (link 按钮的箭头/字数) 影响, 保证两个按钮像素级等宽 */
-  .footer-right .el-button {
+  .footer-right .btn-action {
     flex: 1 1 0%;
     min-width: 0;
   }

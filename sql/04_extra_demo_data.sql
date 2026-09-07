@@ -82,14 +82,32 @@ UPDATE movie SET poster = 'https://image.tmdb.org/t/p/w500/phM9bb6s9c60LA8qwsdk7
 --    * 价格: 早场 39.9, 下午 49.9, 晚场 59.9, 夜场 45.9
 -- ============================================================
 DELIMITER $$
+-- 单条场次插入工具: duration 查表 + end_time 计算 + INSERT IGNORE
+-- (与 sql/02_init_data.sql 中的 insert_session_at 保持一致;
+--  每个脚本自包含定义, 可独立执行, 避免跨脚本依赖)
+DROP PROCEDURE IF EXISTS insert_session_at $$
+CREATE PROCEDURE insert_session_at(
+  IN p_movie BIGINT,
+  IN p_hall  BIGINT,
+  IN p_start DATETIME,
+  IN p_price DECIMAL(10,2),
+  IN p_id    BIGINT
+)
+BEGIN
+  DECLARE v_dur INT;
+  SELECT duration INTO v_dur FROM movie WHERE id = p_movie;
+  INSERT IGNORE INTO `session`
+    (id, movie_id, hall_id, start_time, end_time, price, status)
+  VALUES (p_id, p_movie, p_hall, p_start,
+          DATE_ADD(p_start, INTERVAL v_dur MINUTE), p_price, 1);
+END $$
+
 DROP PROCEDURE IF EXISTS gen_extra_sessions $$
 CREATE PROCEDURE gen_extra_sessions()
 BEGIN
   DECLARE v_movie BIGINT DEFAULT 0;
   DECLARE v_hall  BIGINT DEFAULT 0;
-  DECLARE v_dur   INT    DEFAULT 0;
   DECLARE v_start DATETIME;
-  DECLARE v_end   DATETIME;
   DECLARE v_price DECIMAL(10,2);
   DECLARE v_id    BIGINT;
   DECLARE v_done  INT DEFAULT 0;
@@ -98,13 +116,14 @@ BEGIN
   DECLARE s INT DEFAULT 1;   -- slot index (1..4)
 
   -- 只为演示影片生成场次 (id 小于 1000, 避开雪花 ID; 否则 10000000 倍数会溢出 BIGINT)
+  -- duration 由 insert_session_at 内部查表, 游标只取 id
   DECLARE cur CURSOR FOR
-    SELECT id, duration FROM movie WHERE status = 1 AND id < 1000 ORDER BY id;
+    SELECT id FROM movie WHERE status = 1 AND id < 1000 ORDER BY id;
   DECLARE CONTINUE HANDLER FOR NOT FOUND SET v_done = 1;
 
   OPEN cur;
   movie_loop: WHILE v_done = 0 DO
-    FETCH cur INTO v_movie, v_dur;
+    FETCH cur INTO v_movie;
     IF v_done = 1 THEN LEAVE movie_loop; END IF;
 
     SET d = 1;
@@ -118,15 +137,13 @@ BEGIN
           DATE_ADD(CURDATE(), INTERVAL d DAY),
           ELT(s, '10:00:00', '14:30:00', '19:30:00', '22:00:00')
         );
-        SET v_end   = DATE_ADD(v_start, INTERVAL v_dur MINUTE);
         SET v_price = ELT(s, 39.90, 49.90, 59.90, 45.90);
 
         -- 确定性 ID: 与 02 脚本的 1..9 及雪花 ID 均不冲突
         SET v_id = v_movie * 10000000 + v_hall * 100000 + d * 100 + s;
 
-        INSERT IGNORE INTO `session`
-          (id, movie_id, hall_id, start_time, end_time, price, status)
-          VALUES (v_id, v_movie, v_hall, v_start, v_end, v_price, 1);
+        -- 单条 INSERT 由 insert_session_at 完成 (含 duration 查表 + end_time 计算)
+        CALL insert_session_at(v_movie, v_hall, v_start, v_price, v_id);
 
         SET s = s + 1;
       END WHILE slot_loop;
@@ -139,6 +156,7 @@ DELIMITER ;
 
 CALL gen_extra_sessions();
 DROP PROCEDURE gen_extra_sessions;
+DROP PROCEDURE insert_session_at;
 
 -- ============================================================
 -- 4) 校验

@@ -49,7 +49,28 @@ INSERT INTO movie (id, title, poster, duration, description, status) VALUES
 (3, '深海奇航',    '', 118, '一场潜入马里亚纳海沟的奇幻冒险。',             1);
 
 -- 场次: 明天起3天 x 每天3个时段(10:00/14:30/19:30), 影片与影厅轮转
+-- 说明: insert_session_at 是单条场次的插入工具 (duration 查表 + end_time 计算 + INSERT),
+--       gen_sessions / gen_extra_sessions (sql/04_extra_demo_data.sql) 都调用它,
+--       避免重复实现 duration→end_time 的核心逻辑。
 DELIMITER $$
+DROP PROCEDURE IF EXISTS insert_session_at $$
+CREATE PROCEDURE insert_session_at(
+  IN p_movie BIGINT,
+  IN p_hall  BIGINT,
+  IN p_start DATETIME,
+  IN p_price DECIMAL(10,2),
+  IN p_id    BIGINT
+)
+BEGIN
+  DECLARE v_dur INT;
+  SELECT duration INTO v_dur FROM movie WHERE id = p_movie;
+  -- 用 INSERT IGNORE: 与 gen_extra_sessions (sql/04) 保持一致,
+  -- 也让 02 在重复执行时不会因 ID 冲突报错 (仅静默跳过)。
+  INSERT IGNORE INTO `session` (id, movie_id, hall_id, start_time, end_time, price, status)
+  VALUES (p_id, p_movie, p_hall, p_start,
+          DATE_ADD(p_start, INTERVAL v_dur MINUTE), p_price, 1);
+END $$
+
 DROP PROCEDURE IF EXISTS gen_sessions $$
 CREATE PROCEDURE gen_sessions()
 BEGIN
@@ -60,7 +81,6 @@ BEGIN
   DECLARE v_movie BIGINT;
   DECLARE v_hall  BIGINT;
   DECLARE v_price DECIMAL(10,2);
-  DECLARE v_dur   INT;
   WHILE d <= 3 DO
     SET s = 0;
     WHILE s <= 2 DO
@@ -69,10 +89,8 @@ BEGIN
       SET v_start = TIMESTAMP(DATE_ADD(CURDATE(), INTERVAL d DAY),
                               ELT(s + 1, '10:00:00', '14:30:00', '19:30:00'));
       SET v_price = ELT(s + 1, 39.90, 49.90, 59.90);
-      SELECT duration INTO v_dur FROM movie WHERE id = v_movie;
       SET v_id = v_id + 1;
-      INSERT INTO `session` (id, movie_id, hall_id, start_time, end_time, price, status)
-      VALUES (v_id, v_movie, v_hall, v_start, DATE_ADD(v_start, INTERVAL v_dur MINUTE), v_price, 1);
+      CALL insert_session_at(v_movie, v_hall, v_start, v_price, v_id);
       SET s = s + 1;
     END WHILE;
     SET d = d + 1;
@@ -82,6 +100,7 @@ DELIMITER ;
 
 CALL gen_sessions();
 DROP PROCEDURE gen_sessions;
+DROP PROCEDURE insert_session_at;
 
 -- 测试用户(密码由后端启动时初始化为 123456)
 INSERT INTO `user` (id, username, password, nickname, phone) VALUES

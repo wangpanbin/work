@@ -297,6 +297,64 @@ img {
   box-shadow: 0 2px 10px rgba(168, 85, 247, 0.2);
 }
 
+/* ============================================
+   通用按钮基类 (.btn-action)
+   ------------------------------------------------------------
+   用途: 统一卡片内/页内操作按钮的尺寸/字体/边框/布局规范,
+         避免每个 .vue 文件重复定义同一组按钮样式。
+   用法: 给 <el-button> 或 <button> 加 class="btn-action" 即可
+         拿到统一盒子;若需等宽再加 .is-fixed (如订单卡片 flex 等分)。
+   注意: 主色调 (gold/red/gold-purple) / hover / active 仍由
+         Element Plus 的 type="primary" 等或单独修饰类提供;
+         本类只锁定"尺寸 + 字体 + 边框 + 布局",不动颜色。
+   ============================================ */
+.btn-action {
+  /* 尺寸基准 —— 所有派生变体必须严格遵守 */
+  height: 36px;
+  min-height: 36px;
+  line-height: 1;
+  padding: 0 18px;
+  margin: 0;
+  /* 字体 */
+  font-size: 14px;
+  font-weight: 500;
+  /* 视觉 */
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  /* 布局 */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  white-space: nowrap;
+  /* 交互 */
+  cursor: pointer;
+  user-select: none;
+  text-decoration: none;
+  transition: transform var(--transition-fast),
+              box-shadow var(--transition-fast),
+              background-color var(--transition-fast),
+              border-color var(--transition-fast),
+              color var(--transition-fast),
+              opacity var(--transition-fast);
+}
+
+/* 等宽修饰: 固定宽度的等宽按钮, 用于 flex 等分布局
+   (如订单卡片多个操作按钮, 无论 link / plain / primary
+   像素级等宽, 不受文字长短影响) */
+.btn-action.is-fixed {
+  width: 128px;
+  padding: 0;
+}
+
+/* 清除 Element Plus 默认样式覆盖 (针对 el-button) */
+.el-button.btn-action {
+  margin: 0;
+  border-width: 1px;
+  /* Element 默认 padding / height 由 .btn-action 的规则覆盖 */
+}
+
 /* Login —— 未登录状态 (登录/注册) */
 .header-chip.chip-login {
   background: var(--gradient-gold);

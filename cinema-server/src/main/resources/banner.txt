@@ -1,0 +1,9 @@
+${AnsiColor.BRIGHT_RED}${AnsiStyle.BOLD}                  ✿  ✦  ☸  ✦  卍  ✦  ☸  ✦  ✿${AnsiStyle.NORMAL}${AnsiColor.DEFAULT}
+${AnsiColor.BRIGHT_YELLOW}             ════════════════════════════════════════${AnsiColor.DEFAULT}
+${AnsiColor.RED}${AnsiStyle.BOLD}                          佛 光 普 照${AnsiStyle.NORMAL}${AnsiColor.DEFAULT}
+${AnsiColor.BRIGHT_YELLOW}${AnsiStyle.BOLD}                          佛 祖 保 佑${AnsiStyle.NORMAL}${AnsiColor.DEFAULT}
+${AnsiColor.BRIGHT_YELLOW}${AnsiStyle.BOLD}                        代 码 运 行 成 功${AnsiStyle.NORMAL}${AnsiColor.DEFAULT}
+${AnsiColor.BRIGHT_YELLOW}             ════════════════════════════════════════${AnsiColor.DEFAULT}
+${AnsiColor.RED}${AnsiStyle.BOLD}                   卍  BUG 退 散  ·  万 事 顺 遂  卍${AnsiStyle.NORMAL}${AnsiColor.DEFAULT}
+${AnsiColor.BRIGHT_RED}${AnsiStyle.BOLD}                  ✿  ✦  ☸  ✦  卍  ✦  ☸  ✦  ✿${AnsiStyle.NORMAL}${AnsiColor.DEFAULT}
+${AnsiColor.BRIGHT_RED}${AnsiStyle.BOLD}              卍 ☸  ☸  ☸  ☸  ☸  ☸  ☸  ☸  ☸  ☸ 卍${AnsiStyle.NORMAL}${AnsiColor.DEFAULT}
