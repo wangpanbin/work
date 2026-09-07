@@ -15,5 +15,5 @@ export function register(data: {
 }
 
 export function me(): Promise<UserVO> {
-  return request.get('/user/me') as Promise<UserVO>
+  return request.get('/users/me') as Promise<UserVO>
 }
