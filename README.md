@@ -83,6 +83,8 @@
 mysql -uroot -p < sql/01_schema.sql
 mysql -uroot -p < sql/02_init_data.sql
 mysql -uroot -p < sql/03_p0_increment.sql   # P0 增量: movie 加列 + refund_log + ticket
+# 可选: 更多演示影片(12 部含真实海报) + 未来 14 天场次; 必须带 --default-character-set=utf8mb4
+mysql -uroot -p --default-character-set=utf8mb4 < sql/04_extra_demo_data.sql
 ```
 
 ### 2. 配置并启动后端(8080)
@@ -179,8 +181,9 @@ F:/test/work/
 │   └── superpowers/specs/                P0 增量设计 spec
 ├── sql/
 │   ├── 01_schema.sql                    建库建表
-│   ├── 02_init_data.sql                 演示数据
-│   └── 03_p0_increment.sql              P0 增量: movie 扩列 + refund_log + ticket
+│   ├── 02_init_data.sql                 演示数据(3 部影片 + 3 天场次)
+│   ├── 03_p0_increment.sql              P0 增量: movie 扩列 + refund_log + ticket
+│   └── 04_extra_demo_data.sql           扩展演示: 12 部影片(带 TMDB 海报) + 14 天场次
 ├── cinema-server/                       Spring Boot 后端(按领域分包)
 │   ├── pom.xml
 │   └── src/main/java/com/cinema/
