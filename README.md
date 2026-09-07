@@ -19,6 +19,7 @@
 | **交易闭环** | 锁座 → 支付 → 退票(状态机 PAID→REFUNDING→REFUNDED) + 电子票(HMAC 签名,24h 过期,一次性验票) |
 | **工程严谨** | 22 个 JUnit5 + Mockito 单元测试覆盖核心链路;`@RateLimit`/`@Idempotent` AOP 注解;OrderService 拆 4 service + 1 core(单文件 ≤ 300 行) |
 | **数据可视化** | 管理端经营看板(4 卡片 + 3 图 + 1 表);实时数据大屏(WebSocket 推送锁座事件) |
+| **前端体验** | 全局路由守卫(未登录/非管理员自动拦截) · 影片搜索/筛选 · 注册确认密码 · 移动端适配 · 座位图重构 |
 
 ---
 
@@ -28,7 +29,7 @@
 
 | 功能 | 状态 | 备注 |
 | --- | --- | --- |
-| 注册/登录(JWT) | ✅ | BCrypt 密码 |
+| 注册/登录(JWT) | ✅ | BCrypt 密码;注册需确认密码;登录态写入 localStorage 供路由守卫读取 |
 | 影片列表 + 详情 | ✅ | 包含海报/时长/简介 |
 | 影片搜索 + 类型/地区筛选 | ✅ P0 F1 | MySQL LIKE + 精确匹配 |
 | 场次选择 | ✅ | 关联影厅+时间 |
@@ -109,8 +110,9 @@ pnpm dev
 
 打开 http://localhost:5173
 
-- 用户: `localhost:5173/login` → 选片/选座/支付/退票
-- 管理员: `localhost:5173/admin` → CRUD + 看板 + 大屏
+- 用户: `/login` 注册/登录 → `/` 首页选片/搜索 → `/movie/:id` 详情选场次 → `/seat/:sessionId` 选座/锁座 → `/payment` 支付 → `/orders` 我的订单(取消/退票/电子票)
+- 管理员: `/admin` → 经营看板/实时大屏 + 影片/影厅/场次管理
+- 路由守卫: 未登录访问 `/seat*`、`/payment`、`/orders` 跳 `/login`(带 redirect);非管理员访问 `/admin*` 跳首页;未知路径显示 404 兜底页
 
 ### 4. 跑单测
 
@@ -128,10 +130,13 @@ mvn test
 
 | Method | Path | 说明 | 鉴权 |
 | --- | --- | --- | --- |
-| POST | `/api/auth/register` | 注册 | 公开 |
+| POST | `/api/auth/register` | 注册(确认密码由前端校验) | 公开 |
 | POST | `/api/auth/login` | 登录(JWT) | 公开 |
+| GET | `/api/users/me` | 当前登录用户信息 | 需登录 |
 | GET | `/api/movies` | 影片搜索/筛选(`?keyword=&genre=&region=`) | 公开 |
 | GET | `/api/movies/{id}` | 影片详情 | 公开 |
+| GET | `/api/sessions/movies/{movieId}/sessions` | 影片场次列表 | 公开 |
+| GET | `/api/sessions/{sessionId}` | 场次详情 | 公开 |
 | GET | `/api/sessions/{sessionId}/seat-map` | 场次座位图 | 公开 |
 | POST | `/api/orders/lock` | 锁座下单 | 需登录 + `@RateLimit` + `@Idempotent` |
 | POST | `/api/orders/{orderNo}/pay` | 模拟支付 | 需登录 + `@RateLimit` + `@Idempotent` |
@@ -168,9 +173,9 @@ F:/test/work/
 ├── plan.md                              原始架构方案
 ├── README.md                            本文件
 ├── docs/
-│   ├── 实现方案.md                       详细实现方案(W1-W5)
-│   ├── api.md                           接口契约
+│   ├── 实现方案.md                       详细实现方案(W1-W5 + P0)
 │   ├── 压测报告.md                       W5 压测结果
+│   ├── 压测报告-v2.md                    P0 后回归压测结果
 │   └── superpowers/specs/                P0 增量设计 spec
 ├── sql/
 │   ├── 01_schema.sql                    建库建表
@@ -180,44 +185,60 @@ F:/test/work/
 │   ├── pom.xml
 │   └── src/main/java/com/cinema/
 │       ├── CinemaApplication.java
-│       ├── common/                       公共(注解/AOP/异常/响应)
+│       ├── common/                       公共(注解/AOP/上下文/异常/加密/限流/响应)
 │       │   ├── annotation/              RateLimit, Idempotent
 │       │   ├── aop/                     RateLimitAspect, IdempotentAspect
+│       │   ├── context/                 UserContext
 │       │   ├── crypto/                  HmacSigner
-│       │   └── ratelimit/               RedisSlidingWindow
-│       ├── config/                       配置(WebSocket/MyBatis/Jackson/OpenApi)
-│       ├── interceptor/                  JWT/Admin 拦截器
+│       │   ├── exception/               BizException + 全局异常处理
+│       │   ├── ratelimit/               RedisSlidingWindow
+│       │   └── result/                  R + ResultCode(0/4xxxx/5xxxx)
+│       ├── config/                       配置(Web/WebSocket/Redis+PubSub/MyBatis/Jackson/OpenApi)
+│       ├── interceptor/                  Jwt / AuthRequired / Admin 拦截器
 │       ├── modules/                      业务模块(按领域)
-│       │   ├── user/         认证
+│       │   ├── user/         认证 + 用户信息
 │       │   ├── movie/        影片(搜索/筛选 F1)
 │       │   ├── hall/         影厅
+│       │   ├── cinema/       影院
 │       │   ├── session/      场次
 │       │   ├── seat/         座位图
-│       │   ├── order/        订单(E1 拆分: Lock/Pay/Cancel/Query + Core)
-│       │   ├── payment/      模拟支付/退款
+│       │   ├── order/        订单(E1 拆分: Lock/Pay/Cancel/Query + Core) + 电子票 Ticket
+│       │   ├── payment/      模拟支付/退款(MockPayment / MockRefund)
 │       │   └── admin/        管理端(CRUD + Dashboard O3)
 │       ├── infra/                        基础设施
 │       │   ├── delay/        DelayQueue(Redis ZSet 实现)
 │       │   ├── jwt/          JwtUtil
 │       │   ├── mq/           OrderTimeoutScanner
-│       │   ├── redis/        Lua 服务 + 缓存 + SeatBitmapGuard(P5)
+│       │   ├── redis/        Lua 服务 + SeatBitmapGuard(P5) + cache
 │       │   └── ws/           WebSocket(Seat + Admin 大屏 D1)
+│       ├── support/                      DataInitializer(测试账号自动初始化)
 │       └── job/                          定时任务
 │           └── OrderTimeoutCompensateJob  超时关单 + 退款卡死补偿(N1)
 └── cinema-web/                          Vue3 前端
+    ├── package.json
     └── src/
         ├── api/                          axios 封装 + 各模块 API
         ├── components/                   SeatItem, Countdown
-        ├── views/
-        │   ├── Home.vue                  首页(F1 搜索筛选)
-        │   ├── SeatSelect.vue            选座(WebSocket 实时)
-        │   ├── Payment.vue               模拟支付 + 倒计时
-        │   ├── OrderList.vue             我的订单
-        │   └── admin/
-        │       ├── Dashboard.vue         经营看板(O3)
-        │       └── LiveDashboard.vue     实时大屏(D1)
+        ├── router/index.ts               路由 + 全局守卫(登录/管理员)
         ├── stores/                       Pinia(user/seat/movieCache)
-        └── utils/                        ws, bitmap 解析
+        ├── styles/main.css               全局样式
+        ├── types/                        TS 类型定义
+        ├── utils/                        ws 封装, bitmap 解析
+        └── views/
+            ├── Home.vue                  首页(F1 搜索筛选)
+            ├── Login.vue                 登录/注册(确认密码)
+            ├── MovieDetail.vue           影片详情 + 场次
+            ├── SeatSelect.vue            选座(WebSocket 实时)
+            ├── Payment.vue               模拟支付 + 倒计时
+            ├── OrderList.vue             我的订单(取消/退票/电子票)
+            ├── NotFound.vue              404 兜底
+            └── admin/
+                ├── AdminHome.vue         后台骨架 + 嵌套路由
+                ├── Dashboard.vue         经营看板(O3)
+                ├── LiveDashboard.vue     实时大屏(D1)
+                ├── MovieManage.vue       影片管理
+                ├── HallManage.vue        影厅管理
+                └── SessionManage.vue     场次管理
 ```
 
 ---
@@ -239,6 +260,7 @@ F:/test/work/
 - [x] P0-8  N2 电子票二维码(HMAC 签名 + 24h 过期 + 一次性)
 - [x] P0-9  O3 管理端经营看板
 - [x] P0-10 D1 实时数据大屏(/ws/admin)
+- [x] UX-1  前端体验升级(全局路由守卫 / 注册确认密码 / 移动端适配 / 座位图重构 / 11 处 UI 修复 + 404 兜底页)
 
 ---
 
@@ -261,6 +283,9 @@ F:/test/work/
 - **P0**: 100 次同用户锁座 → 第 6 次起返 `code=42900` 限流 ✓
 - **P0**: 看板数据与 DB 直接查询一致(随机抽 3 个数对账) ✓
 - **P0**: 大屏下单事件 1s 内反映到事件流 ✓
+- **UX**: 未登录访问 `/seat*`/`/payment`/`/orders` → 跳 `/login` 并带 redirect ✓
+- **UX**: 普通用户访问 `/admin` → 拦截回首页 ✓ | 已登录访问 `/login` → 跳首页 ✓
+- **UX**: 注册确认密码不一致 → 前端拦下,不发请求 ✓
 
 ---
 
@@ -288,9 +313,13 @@ F:/test/work/
 - `cinema-server/src/test/java/...` — 22 个 JUnit5 + Mockito 单元测试(E2)
 - `test/load_test.py` — 三场景 Python 压测驱动
 - `test/concurrency_strict.py` — 防超卖专项
-- `test/myorders.py` — /api/orders/my 单独压测
-- `test/mixed.py` — 200 并发混合读/锁/查压测
-- `test/verify_lock.py` — Lua 锁座正确性验证
+- `test/concurrency_test.py` — 并发基础压测
+- `test/e2e/e2e_regression.py` — E2E 回归用例(含截图产物)
 - `test/jmeter/scenario-*.jmx` — JMeter 模板
-- `docs/压测报告.md` — 完整报告
+- `test_mixed.py` — 200 并发混合读/锁/查压测(根目录)
+- `test_webapp_e2e.py` — Web 端 E2E 脚本(根目录)
+- `docs/压测报告.md` — 完整压测报告(W5)
+- `docs/压测报告-v2.md` — P0 后回归压测报告
 - `docs/superpowers/specs/2026-08-31-p0-increment-design.md` — P0 增量设计 spec
+
+> `test/` 目录与根目录测试脚本均属本地测试产物,已由 `.gitignore` 排除,不进入版本库。
