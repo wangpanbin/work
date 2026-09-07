@@ -26,9 +26,11 @@ request.interceptors.response.use(
       }
       if (body.code === 40101 || body.code === 40102) {
         localStorage.removeItem(TOKEN_KEY)
+        localStorage.removeItem('cinema_user')   // P0-1: 同步清掉 user 缓存, 守卫能立刻判定为未登录
         if (router.currentRoute.value.path !== '/login') {
           ElMessage.warning(body.msg || '请先登录')
-          router.push('/login')
+          // 带上 redirect, 登录成功后能回到原页面
+          router.push({ path: '/login', query: { redirect: router.currentRoute.value.fullPath } })
         }
         return Promise.reject(new Error(body.msg))
       }

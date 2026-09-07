@@ -27,11 +27,18 @@ const dateOptions = computed(() =>
 )
 
 async function loadMovie() {
-  // Phase D-⑯: 详情走缓存
-  const id = Number(movieId)
+  // P0-3: 命中缓存时先立即渲染, 再后台静默刷新拉新, 让 5min TTL 真正生效
+  // 保持 movieId 为 string, 与 URL 路径 / cache key 类型一致; 后端雪花 ID 转 number 会丢精度
+  const id = movieId
   const cached = cache.getMovieDetail(id)
   if (cached) {
     movie.value = cached
+    detail(movieId).then((m) => {
+      if (m) {
+        movie.value = m
+        cache.setMovieDetail(id, m)
+      }
+    }).catch(() => { /* 拦截器已提示 */ })
     return
   }
   const m = await detail(movieId)
@@ -40,13 +47,19 @@ async function loadMovie() {
 }
 
 async function loadSessions() {
+  // P0-3: 缓存命中也走 silent 刷新, 不再"命中即 return"
   loading.value = true
   try {
-    // Phase D-⑯: 场次列表按 (movieId, date) 缓存
-    const id = Number(movieId)
+    const id = movieId
     const cached = cache.getSessionList(id, selectedDate.value)
     if (cached) {
+      // 立即渲染缓存, 避免切换日期时骨架闪烁
       sessions.value = cached
+      // 后台静默刷新
+      listByMovieAndDate(movieId, selectedDate.value).then((list) => {
+        sessions.value = list
+        cache.setSessionList(id, selectedDate.value, list)
+      }).catch(() => { /* 拦截器已提示 */ })
       return
     }
     const list = await listByMovieAndDate(movieId, selectedDate.value)

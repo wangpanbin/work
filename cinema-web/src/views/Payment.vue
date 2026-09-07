@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
+import QRCode from 'qrcode'
 import { orderDetail, pay, cancel, refund, getTicket } from '../api/order'
 import type { OrderVO, TicketVO } from '../api/order'
 import Countdown from '../components/Countdown.vue'
@@ -16,6 +17,8 @@ const ticketDialog = ref(false)
 const ticketInfo = ref<TicketVO | null>(null)
 const ticketLoading = ref(false)
 const ticketQrUrl = ref<string>('')
+// P0-4: 超时自动跳转的"已触发"标记, 防止 watch + 用户点击双重触发
+const autoRedirected = ref(false)
 
 onMounted(async () => {
   if (!orderNo) {
@@ -36,6 +39,19 @@ const remaining = computed(() => {
 })
 
 const expired = computed(() => remaining.value === 0 && order.value?.status === 0)
+
+// P0-4: 待支付订单超时后, 不再让用户卡在支付页 — 3s 后自动跳订单列表
+// 用 setTimeout 而非 immediate, 给用户一个看到"已超时"状态的窗口期
+function redirectToOrders() {
+  if (autoRedirected.value) return
+  autoRedirected.value = true
+  ElMessage.warning('订单已超时,即将跳转到订单列表,请重新选座')
+  setTimeout(() => router.push('/orders'), 3000)
+}
+
+watch(expired, (isExpired) => {
+  if (isExpired) redirectToOrders()
+})
 
 /** 距离场次开始还剩多久（用于退票按钮的可见性） */
 const sessionNotStarted = computed(() => {
@@ -123,12 +139,19 @@ async function onShowTicket() {
   ticketLoading.value = true
   try {
     ticketInfo.value = await getTicket(orderNo)
-    // 用后端返回的 payload 拼成验证 URL, 二维码内容 = 完整可校验链接
+    // P0-5: 用 qrcode 库渲染真 QR(替代之前装饰用的伪二维码格子)
+    // 内容 = 后端验证 URL, 影院扫码枪/手机扫码可直接验票
     const verifyBase = `${window.location.origin}/api/tickets/verify`
     const url = `${verifyBase}?payload=${encodeURIComponent(ticketInfo.value.payload)}&sig=${encodeURIComponent(ticketInfo.value.sig)}`
-    ticketQrUrl.value = url
+    ticketQrUrl.value = await QRCode.toDataURL(url, {
+      errorCorrectionLevel: 'M',
+      margin: 2,
+      width: 360,
+      color: { dark: '#111827', light: '#ffffff' },
+    })
   } catch {
     ticketDialog.value = false
+    ElMessage.error('生成二维码失败,请稍后重试')
   } finally {
     ticketLoading.value = false
   }
@@ -217,8 +240,11 @@ function goSeat() {
       <!-- 待支付: 取消 + 支付 -->
       <div class="actions" v-if="order.status === 0">
         <el-button type="danger" plain @click="onCancel" :disabled="submitting" class="cancel-btn">取消订单</el-button>
-        <el-button type="primary" size="large" @click="onPay" :loading="submitting" :disabled="expired" class="pay-btn">
-          {{ expired ? '已超时,请重选座位' : '确认支付' }}
+        <el-button
+          type="primary" size="large" @click="expired ? redirectToOrders() : onPay()"
+          :loading="submitting" class="pay-btn"
+        >
+          {{ expired ? '已超时,重新选座' : '确认支付' }}
         </el-button>
       </div>
       <!-- 已取消: 重新选座 -->
@@ -266,14 +292,10 @@ function goSeat() {
               <div class="qr-stub-title">{{ order?.movieTitle }}</div>
               <div class="qr-stub-meta">{{ order?.hallName }} · {{ order?.startTime ? dayjs(order.startTime).format('MM-DD HH:mm') : '' }}</div>
               <div class="qr-stub-seats">{{ order?.seatDesc }}</div>
-              <div class="qr-stub-fakeqr">
-                <!-- 简单占位: 把 payload 末 8 位用伪二维码样式呈现, 真实场景会接 qrcode 库 -->
-                <div v-for="row in 12" :key="row" class="qr-row">
-                  <span v-for="col in 12" :key="col" class="qr-cell" :data-on="((row * col + (ticketInfo?.payload?.charCodeAt((row+col) % (ticketInfo?.payload?.length ?? 1)) ?? 0)) % 3) === 0"></span>
-                </div>
-              </div>
-              <div class="qr-stub-exp">24h 内有效,过期失效</div>
-              <div class="qr-stub-exp">过期时间: {{ ticketInfo.expAt }}</div>
+              <!-- P0-5: 用 qrcode 库渲染的真 QR, 验票端/手机扫码可直接入场 -->
+              <img v-if="ticketQrUrl" :src="ticketQrUrl" alt="电子票二维码" class="qr-real" />
+              <div class="qr-stub-exp">请出示给验票员扫码入场</div>
+              <div class="qr-stub-exp">过期时间: {{ ticketInfo.expAt }} · 一次性使用</div>
             </div>
           </div>
           <div class="ticket-payload">
@@ -566,29 +588,15 @@ function goSeat() {
   margin-bottom: 14px;
 }
 
-.qr-stub-fakeqr {
-  display: grid;
-  grid-template-columns: repeat(12, 1fr);
-  gap: 2px;
-  width: 180px;
-  height: 180px;
+.qr-real {
+  display: block;
+  width: 220px;
+  height: 220px;
   margin: 0 auto 14px;
   background: #fff;
-  padding: 6px;
-  border-radius: 4px;
-}
-
-.qr-row {
-  display: contents;
-}
-
-.qr-cell {
-  aspect-ratio: 1;
-  background: #fff;
-}
-
-.qr-cell[data-on="true"] {
-  background: #111;
+  padding: 8px;
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px var(--border-color);
 }
 
 .qr-stub-exp {

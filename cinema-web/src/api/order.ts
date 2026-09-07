@@ -3,7 +3,8 @@ import type { PageData } from '../types'
 
 export interface OrderVO {
   orderNo: string
-  sessionId: number
+  // 雪花 ID 走 string, 避免 JS Number 精度截断
+  sessionId: string
   status: number
   statusText: string
   movieTitle: string
@@ -25,7 +26,7 @@ export interface LockResult {
   seatIndexes: number[]
 }
 
-export function lockSeats(data: { sessionId: number; seatIndexes: number[] }): Promise<LockResult> {
+export function lockSeats(data: { sessionId: string | number; seatIndexes: number[] }): Promise<LockResult> {
   return request.post('/orders/lock', data) as Promise<LockResult>
 }
 

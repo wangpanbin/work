@@ -20,6 +20,9 @@ export const useSeatStore = defineStore('seat', () => {
   const colOfIdx = ref<number[]>([])
   const selected = ref<Set<number>>(new Set())
   const maxSelect = 4
+  // P0-2: 刚被他人抢走的座位(原在 selected 中) — 用于驱动 UI 闪烁/提示
+  // 存的是 index, 1.8s 后自动清除
+  const conflictFlash = ref<Set<number>>(new Set())
 
   function load(m: SeatMap) {
     map.value = m
@@ -77,21 +80,41 @@ export const useSeatStore = defineStore('seat', () => {
     if (seats.length === 0) return
     const newLockBits = new Uint8Array(lockBits.value)
     const newSoldBits = new Uint8Array(soldBits.value)
+    // P0-2: 收集本轮被抢走的座位中, 原本在 selected 里的
+    const newFlashes = new Set(conflictFlash.value)
     for (const s of seats) {
       if (s < 0 || s >= newLockBits.length) continue
       if (type === 'LOCKED') {
         newLockBits[s] = 1
-        if (selected.value.has(s)) selected.value.delete(s)
+        if (selected.value.has(s)) {
+          newFlashes.add(s)
+          selected.value.delete(s)
+        }
       } else if (type === 'RELEASED') {
         newLockBits[s] = 0
       } else if (type === 'SOLD') {
         newLockBits[s] = 1
         newSoldBits[s] = 1
-        if (selected.value.has(s)) selected.value.delete(s)
+        if (selected.value.has(s)) {
+          newFlashes.add(s)
+          selected.value.delete(s)
+        }
       }
     }
     lockBits.value = newLockBits
     soldBits.value = newSoldBits
+    if (newFlashes.size > 0) {
+      conflictFlash.value = newFlashes
+      // 1.8s 后清掉, 让闪烁/高亮恢复普通 LOCKED_OTHER 样式
+      window.setTimeout(() => {
+        const cur = new Set(conflictFlash.value)
+        let changed = false
+        for (const idx of newFlashes) {
+          if (cur.delete(idx)) changed = true
+        }
+        if (changed) conflictFlash.value = cur
+      }, 1800)
+    }
   }
 
   /** 锁座成功后: 立即把锁位的位图置 1(乐观更新, 等待 WS 兜底) */
@@ -115,6 +138,7 @@ export const useSeatStore = defineStore('seat', () => {
   return {
     map, lockBits, soldBits, selected, maxSelect,
     myLockedSeats,                                  // computed: 兼容原组件读取
+    conflictFlash,                                  // P0-2: 暴露给 SeatItem
     load, statusAt, rowCol, toggle, clearSelection, applyEvent, markMyLocked,
   }
 })

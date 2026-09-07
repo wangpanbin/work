@@ -4,6 +4,7 @@
  * <p>把 SeatSelect 模板里每座 4 次方法调用(statusAt×2 + rowCol×2)收敛到子组件内,
  * 父组件 v-for 只传递 :index, 单个座位的状态变化只触发子组件 update, 不影响其他座位.
  * <p>点击反馈在子组件内处理(用全局 ElMessage), 父组件不必再管 maxSelect 提示.
+ * <p>P0-2: conflictFlash 命中时加 .flash class, 做红色脉冲外环, 提示用户"刚被抢走".
  */
 import { computed } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -14,6 +15,7 @@ const props = defineProps<{ index: number }>()
 const seatStore = useSeatStore()
 const status = computed(() => seatStore.statusAt(props.index))
 const pos = computed(() => seatStore.rowCol(props.index))
+const isFlashing = computed(() => seatStore.conflictFlash.has(props.index))
 
 function onClick() {
   const ok = seatStore.toggle(props.index)
@@ -29,7 +31,7 @@ function onClick() {
 
 <template>
   <div
-    :class="['seat', status.toLowerCase(), status === 'LOCKED_MINE' ? 'mine' : '']"
+    :class="['seat', status.toLowerCase(), { mine: status === 'LOCKED_MINE', flash: isFlashing }]"
     :title="`${pos.row}排${pos.col}座`"
     @click="onClick"
   >

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, computed } from 'vue'
+import { onBeforeUnmount, onMounted, ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
@@ -7,7 +7,7 @@ import { seatMap } from '../api/seat'
 import { lockSeats } from '../api/order'
 import { useUserStore } from '../stores/user'
 import { useSeatStore } from '../stores/seat'
-import { createSeatWs, type SeatWsHandle } from '../utils/ws'
+import { createSeatWs, type SeatWsHandle, type WsStatus } from '../utils/ws'
 import SeatItem from '../components/SeatItem.vue'
 
 const route = useRoute()
@@ -15,13 +15,24 @@ const router = useRouter()
 const userStore = useUserStore()
 const seatStore = useSeatStore()
 
-const sessionId = computed(() => Number(route.params.sessionId))
+// 后端 sessionId 是雪花 ID (19 位, 超过 JS Number.MAX_SAFE_INTEGER=2^53-1=9007199254740991),
+// 必须保持 string 才能避免精度丢失 —— 否则 request URL 里最后几位会变 0, 后端查不到
+const sessionId = computed(() => String(route.params.sessionId))
 const submitting = ref(false)
+const refreshing = ref(false)
 let wsHandle: SeatWsHandle | null = null
 
+// P0-2: WS 连接状态(从 wsHandle.status 同步过来给 template 用)
+const wsStatus = ref<WsStatus>('connecting')
+
 async function refresh() {
-  const m = await seatMap(sessionId.value)
-  seatStore.load(m)
+  refreshing.value = true
+  try {
+    const m = await seatMap(sessionId.value)
+    seatStore.load(m)
+  } finally {
+    refreshing.value = false
+  }
 }
 
 onMounted(async () => {
@@ -32,8 +43,17 @@ onMounted(async () => {
   }
   await refresh()
   wsHandle = createSeatWs(sessionId.value, (evt) => {
+    const before = seatStore.selected.size
     seatStore.applyEvent(evt.type, evt.seats)
+    // P0-2: WS 事件导致 selected 减少时, 提示用户具体被抢了哪个
+    if ((evt.type === 'LOCKED' || evt.type === 'SOLD') && seatStore.selected.size < before) {
+      const lostCount = before - seatStore.selected.size
+      ElMessage.warning(`你已选的 ${lostCount} 个座位被他人锁定,已自动移出选择`)
+    }
   })
+  // 同步初始状态, 后续 watch 自动更新
+  wsStatus.value = wsHandle.status.value
+  watch(wsHandle.status, (s) => { wsStatus.value = s })
 })
 
 onBeforeUnmount(() => {
@@ -71,8 +91,13 @@ async function onConfirm() {
       const conflict = err?.data?.conflict
       if (Array.isArray(conflict) && conflict.length > 0) {
         seatStore.applyEvent('LOCKED', conflict)
-        // 提示用户被抢的座位
-        ElMessage.error(`所选座位已被抢走 (${conflict.length} 个),请重新选择`)
+        // P1-#6: 把被抢的座位转成"X排Y座"格式, 让用户一眼能定位
+        const labels = conflict.map((idx) => {
+          const { row, col } = seatStore.rowCol(idx)
+          return `${row}排${col}座`
+        })
+        const shown = labels.length > 4 ? `${labels.slice(0, 4).join('、')} 等 ${labels.length} 个` : labels.join('、')
+        ElMessage.error(`所选座位已被抢走: ${shown}, 请重新选择`)
       } else {
         // 兜底: 拿不到 conflict 列表时全量 refresh
         await refresh()
@@ -100,6 +125,16 @@ function seatClick(idx: number) {
 
 <template>
   <div class="seat-select" v-if="seatStore.map">
+    <!-- P0-2: WS 连接状态条 — 断连/重连时给用户明确反馈, 避免静默失同步 -->
+    <div class="ws-status" :class="`ws-${wsStatus}`" role="status" aria-live="polite">
+      <span class="ws-dot"></span>
+      <span class="ws-text">
+        <template v-if="wsStatus === 'open'">实时同步中</template>
+        <template v-else-if="wsStatus === 'connecting'">正在连接实时同步…</template>
+        <template v-else>已断开,正在重连 — 座位状态可能未及时更新</template>
+      </span>
+    </div>
+
     <!-- Header -->
     <div class="header-card">
       <div class="header-info">
@@ -112,7 +147,7 @@ function seatClick(idx: number) {
           <span class="meta-item price-tag">￥{{ seatStore.map.price.toFixed(2) }}/座</span>
         </div>
       </div>
-      <el-button @click="refresh" class="refresh-btn">
+      <el-button @click="refresh" :loading="refreshing" class="refresh-btn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="margin-right:4px">
           <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
         </svg>
@@ -145,8 +180,14 @@ function seatClick(idx: number) {
         </template>
       </div>
       <!-- 超过 16 列: 退化为横向单行, 不显示行列标签 (大影厅) -->
-      <div v-else class="seats" :style="{ '--cols': seatStore.map.cols }">
-        <SeatItem v-for="i in seatStore.map.seatCount" :key="i - 1" :index="i - 1" />
+      <div v-else>
+        <!-- P2-#13: 大影厅布局丢了行列标签, 加个 hint 给用户交代 -->
+        <div class="seats-hint">
+          💡 本场 {{ seatStore.map.rows }} 排 × {{ seatStore.map.cols }} 座 · 长按 / 悬停座位可看具体位置
+        </div>
+        <div class="seats" :style="{ '--cols': seatStore.map.cols }">
+          <SeatItem v-for="i in seatStore.map.seatCount" :key="i - 1" :index="i - 1" />
+        </div>
       </div>
     </div>
 
@@ -338,6 +379,18 @@ function seatClick(idx: number) {
   gap: 6px;
 }
 
+/* P2-#13: 大影厅 hint */
+.seats-hint {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  padding: 6px 12px;
+  background: rgba(245, 158, 11, 0.06);
+  border-radius: var(--radius-sm);
+  border: 1px dashed rgba(245, 158, 11, 0.2);
+}
+
 .seat {
   aspect-ratio: 1;
   display: flex;
@@ -354,6 +407,8 @@ function seatClick(idx: number) {
   position: relative;
   min-width: 28px;
   min-height: 38px;
+  /* P2-#14: 触摸优化 — 移动端 44x44 是 Apple HIG 推荐的最小点击区 */
+  touch-action: manipulation;
 }
 
 .seat:hover:not(.locked_other):not(.sold) {
@@ -489,8 +544,15 @@ function seatClick(idx: number) {
   .seats-container {
     padding: 16px;
   }
+  /* P2-#14: 移动端座位字号从 10px → 13px, 配合更大的最小尺寸, 触摸更准 */
   .seat {
-    font-size: 10px;
+    font-size: 13px;
+    min-width: 32px;
+    min-height: 32px;
+  }
+  .col-label,
+  .row-label {
+    font-size: 12px;
   }
   .summary {
     padding: 16px 20px;
@@ -515,5 +577,84 @@ function seatClick(idx: number) {
   .summary-value.price {
     font-size: 22px;
   }
+}
+
+/* --- P0-2: WS 连接状态条 --- */
+.ws-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid;
+  animation: fadeInUp 0.3s ease;
+}
+.ws-status .ws-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.ws-status.ws-open {
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #10b981;
+}
+.ws-status.ws-open .ws-dot {
+  background: #10b981;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+  animation: ws-pulse 2s ease-in-out infinite;
+}
+.ws-status.ws-connecting {
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: var(--accent-gold-light);
+}
+.ws-status.ws-connecting .ws-dot {
+  background: var(--accent-gold);
+  animation: ws-blink 1s ease-in-out infinite;
+}
+.ws-status.ws-closed {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+}
+.ws-status.ws-closed .ws-dot {
+  background: #ef4444;
+  animation: ws-blink 0.6s ease-in-out infinite;
+}
+@keyframes ws-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); }
+  50% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+}
+@keyframes ws-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* --- P0-2: 被他人抢走的已选座位 — 1.8s 红色脉冲外环, 强提示 --- */
+.seat.flash {
+  animation: seat-conflict 0.4s ease-in-out 4;
+  position: relative;
+  z-index: 2;
+}
+.seat.flash::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border: 2px solid #ef4444;
+  border-radius: 6px 6px 10px 10px;
+  pointer-events: none;
+  animation: seat-conflict-ring 0.4s ease-in-out 4;
+}
+@keyframes seat-conflict {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.18); }
+}
+@keyframes seat-conflict-ring {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
+  50% { opacity: 0.5; box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
 }
 </style>

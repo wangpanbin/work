@@ -16,7 +16,8 @@ type Entry<T> = { value: T; expireAt: number }
 
 export const useMovieCache = defineStore('movieCache', () => {
   const movies = ref<Entry<Movie[]> | null>(null)
-  const movieDetails = ref<Map<number, Entry<Movie>>>(new Map())
+  // movieId / key 一律用 string, 与 URL 路径保持一致; 后端雪花 ID (>2^53) 转 number 会丢精度
+  const movieDetails = ref<Map<string, Entry<Movie>>>(new Map())
   const sessionLists = ref<Map<string, Entry<SessionVO[]>>>(new Map())
   const moviePages = ref<Map<string, Entry<PageData<Movie>>>>(new Map())
 
@@ -30,24 +31,24 @@ export const useMovieCache = defineStore('movieCache', () => {
     return alive(movies.value) ? movies.value!.value : null
   }
 
-  function setMovieDetail(id: number, m: Movie) {
+  function setMovieDetail(id: string, m: Movie) {
     movieDetails.value.set(id, { value: m, expireAt: now() + TTL_MS })
   }
-  function getMovieDetail(id: number): Movie | null {
+  function getMovieDetail(id: string): Movie | null {
     const e = movieDetails.value.get(id)
     return alive(e) ? e!.value : null
   }
 
-  function sessionListKey(movieId: number, date: string) {
+  function sessionListKey(movieId: string, date: string) {
     return `${movieId}:${date}`
   }
-  function setSessionList(movieId: number, date: string, list: SessionVO[]) {
+  function setSessionList(movieId: string, date: string, list: SessionVO[]) {
     sessionLists.value.set(sessionListKey(movieId, date), {
       value: list,
       expireAt: now() + TTL_MS,
     })
   }
-  function getSessionList(movieId: number, date: string): SessionVO[] | null {
+  function getSessionList(movieId: string, date: string): SessionVO[] | null {
     const e = sessionLists.value.get(sessionListKey(movieId, date))
     return alive(e) ? e!.value : null
   }

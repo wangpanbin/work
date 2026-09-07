@@ -20,8 +20,8 @@ const genreOptions = ['动作', '喜剧', '科幻', '爱情', '悬疑', '动画'
 const regionOptions = ['中国大陆', '美国', '日本', '韩国', '欧洲', '印度', '泰国']
 let debounceTimer: number | null = null
 
-async function loadMovies() {
-  loading.value = true
+async function loadMovies(silent = false) {
+  if (!silent) loading.value = true
   try {
     const data = await searchMovies({
       page: 1, size: 50, status: 1,
@@ -34,34 +34,41 @@ async function loadMovies() {
       cache.setMovies(data.records)
     }
   } finally {
-    loading.value = false
+    if (!silent) loading.value = false
   }
 }
 
-function onSearchInput() {
+// P2-#19: 统一防抖 — 输入/筛选/清除都走同一路径, 避免"清除 X 立刻刷新"vs"输入 400ms 才刷新"的不一致
+function debouncedSearch(delay = 300) {
   if (debounceTimer) clearTimeout(debounceTimer)
-  debounceTimer = window.setTimeout(loadMovies, 400)
+  debounceTimer = window.setTimeout(() => loadMovies(false), delay)
+}
+
+function onSearchInput() {
+  debouncedSearch(400)   // 输入稍长防抖, 减少每键一查
 }
 
 function onFilterChange() {
-  loadMovies()
+  debouncedSearch(300)
 }
 
 function clearFilters() {
   keyword.value = ''
   genre.value = ''
   region.value = ''
-  loadMovies()
+  debouncedSearch(300)
 }
 
 onMounted(() => {
-  // 优先用缓存, 但只用于空查询
+  // P0-3: 命中缓存时先立即渲染(避免首屏空), 再后台静默刷新拉新
+  // 让 movieCache 的 5min TTL 真正生效 — 后台请求拿到结果后会覆盖, 用户能看到新影片
   const cached = cache.getMovies()
   if (cached) {
     movies.value = cached
-    return
+    loadMovies(true)   // silent: 不触发顶层 loading
+  } else {
+    loadMovies(false)
   }
-  loadMovies()
 })
 </script>
 

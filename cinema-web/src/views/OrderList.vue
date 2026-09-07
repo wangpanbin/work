@@ -8,6 +8,9 @@ import type { OrderVO } from '../api/order'
 const orders = ref<OrderVO[]>([])
 const loading = ref(false)
 const activeStatus = ref<number | null>(null)
+// P2-#16: 各状态订单数, 用于 tab 角标
+const counts = ref<Record<number, number>>({ 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 })
+const allCount = ref(0)
 
 async function load() {
   loading.value = true
@@ -19,7 +22,37 @@ async function load() {
   }
 }
 
+// P2-#16: 并发拉各状态 size=1 计数, 让 tab 角标有数据
+// 用户首次进入页面能立刻看到"待支付 3 单、退款中 1 单"等关键信息
+async function loadCounts() {
+  const statuses = [0, 1, 2, 3, 4] as const
+  try {
+    const [all, ...byStatus] = await Promise.all([
+      myOrders({ page: 1, size: 1 }),
+      ...statuses.map((s) => myOrders({ status: s, page: 1, size: 1 })),
+    ])
+    allCount.value = all.total
+    statuses.forEach((s, i) => { counts.value[s] = byStatus[i].total })
+  } catch {
+    // 拦截器已提示, 角标保持 0, 不阻断主列表
+  }
+}
+
 async function onCancel(o: OrderVO) {
+  // P1-#7: 与 Payment.vue onCancel 保持一致, 加确认弹窗防误触
+  try {
+    await ElMessageBox.confirm(
+      `确定取消《${o.movieTitle}》( ${o.seatDesc} )? 取消后座位将立即释放, 此操作不可撤销。`,
+      '取消订单',
+      {
+        confirmButtonText: '确定取消',
+        cancelButtonText: '再想想',
+        type: 'warning',
+      },
+    )
+  } catch {
+    return
+  }
   try {
     await cancel(o.orderNo)
     ElMessage.success('已取消')
@@ -60,7 +93,10 @@ function statusTagType(s: number): 'success' | 'info' | 'warning' | 'danger' {
   return 'warning'
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  loadCounts()
+})
 </script>
 
 <template>
@@ -69,12 +105,24 @@ onMounted(load)
     <div class="page-header">
       <h2 class="section-title">📋 我的订单</h2>
       <el-radio-group v-model="activeStatus" @change="load" class="filter-tabs">
-        <el-radio-button :value="null">全部</el-radio-button>
-        <el-radio-button :value="0">待支付</el-radio-button>
-        <el-radio-button :value="1">已支付</el-radio-button>
-        <el-radio-button :value="2">已取消</el-radio-button>
-        <el-radio-button :value="3">退款中</el-radio-button>
-        <el-radio-button :value="4">已退款</el-radio-button>
+        <el-radio-button :value="null">
+          全部<el-badge v-if="allCount > 0" :value="allCount" class="tab-badge" />
+        </el-radio-button>
+        <el-radio-button :value="0">
+          待支付<el-badge v-if="counts[0] > 0" :value="counts[0]" class="tab-badge" type="warning" />
+        </el-radio-button>
+        <el-radio-button :value="1">
+          已支付<el-badge v-if="counts[1] > 0" :value="counts[1]" class="tab-badge" type="success" />
+        </el-radio-button>
+        <el-radio-button :value="2">
+          已取消<el-badge v-if="counts[2] > 0" :value="counts[2]" class="tab-badge" type="info" />
+        </el-radio-button>
+        <el-radio-button :value="3">
+          退款中<el-badge v-if="counts[3] > 0" :value="counts[3]" class="tab-badge" type="warning" />
+        </el-radio-button>
+        <el-radio-button :value="4">
+          已退款<el-badge v-if="counts[4] > 0" :value="counts[4]" class="tab-badge" type="info" />
+        </el-radio-button>
       </el-radio-group>
     </div>
 
@@ -137,7 +185,13 @@ onMounted(load)
             <el-button v-if="o.status === 2" link @click="$router.push(`/seat/${o.sessionId}`)">
               重新选座 →
             </el-button>
-            <el-button v-if="o.status === 3" disabled>退款处理中…</el-button>
+            <el-tooltip
+              v-if="o.status === 3"
+              content="退款正在处理中, 通常 1-3 个工作日会到账。如超时未到账请联系影院工作人员。"
+              placement="top"
+            >
+              <el-button disabled>退款处理中…</el-button>
+            </el-tooltip>
             <el-button v-if="o.status === 4" link @click="$router.push(`/seat/${o.sessionId}`)">
               重新选座 →
             </el-button>
@@ -354,5 +408,17 @@ onMounted(load)
   .footer-right .el-button {
     flex: 1;
   }
+}
+
+/* P2-#16: tab 角标 — 贴在 radio-button 文字右侧 */
+.tab-badge {
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.tab-badge :deep(.el-badge__content) {
+  font-size: 10px;
+  height: 16px;
+  line-height: 16px;
+  padding: 0 5px;
 }
 </style>

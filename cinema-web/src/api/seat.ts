@@ -1,7 +1,8 @@
 import request from './request'
 
 export interface SeatMap {
-  sessionId: number
+  // 雪花 ID 走 string, 避免 JS Number 精度截断 (超出 2^53)
+  sessionId: string
   movieTitle: string
   hallName: string
   startTime: string

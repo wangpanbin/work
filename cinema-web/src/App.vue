@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessageBox } from 'element-plus'
 import { useUserStore } from './stores/user'
 
 const userStore = useUserStore()
@@ -10,9 +11,41 @@ onMounted(() => {
   userStore.fetchMe()
 })
 
-function logout() {
+// P2-#17: 登出前确认, 防止误触
+async function logout() {
+  try {
+    await ElMessageBox.confirm('确定退出当前登录状态?', '退出登录', {
+      confirmButtonText: '确定退出',
+      cancelButtonText: '再看看',
+      type: 'warning',
+    })
+  } catch {
+    return
+  }
   userStore.logout()
   router.push('/login')
+}
+
+// P2-#15: 移动端 dropdown 菜单项
+const mobileMenu = computed(() => {
+  const items: { key: string; label: string; icon: string; danger?: boolean; adminOnly?: boolean; needLogin?: boolean }[] = [
+    { key: '/orders', label: '我的订单', icon: '🎫', needLogin: true },
+    { key: '/admin', label: '管理端', icon: '⚙', adminOnly: true },
+    { key: 'logout', label: '退出登录', icon: '⏻', danger: true, needLogin: true },
+  ]
+  return items.filter((i) => {
+    if (i.adminOnly && userStore.user?.role !== 1) return false
+    if (i.needLogin && !userStore.isLogin) return false
+    return true
+  })
+})
+
+function onMobileSelect(key: string | number) {
+  if (key === 'logout') {
+    logout()
+  } else {
+    router.push(String(key))
+  }
 }
 </script>
 
@@ -23,7 +56,8 @@ function logout() {
         <span class="brand-text">星辉影城</span>
         <span class="brand-tag">CINEMA</span>
       </div>
-      <div class="user-area">
+      <!-- 桌面端: 横向 chip 列表 -->
+      <div class="user-area desktop-only">
         <el-button
           v-if="userStore.isLogin && userStore.user?.role === 1"
           class="header-chip chip-warning chip-icon-text"
@@ -54,6 +88,30 @@ function logout() {
         </template>
         <el-button v-else class="header-chip chip-login chip-icon-text" size="default" @click="router.push('/login')">
           <span class="chip-text">登录 / 注册</span>
+        </el-button>
+      </div>
+
+      <!-- 移动端: 折叠成下拉菜单 -->
+      <div class="user-area mobile-only">
+        <template v-if="userStore.user">
+          <el-dropdown trigger="click" @command="onMobileSelect">
+            <el-button class="avatar-btn" circle size="default" aria-label="用户菜单">
+              <span class="chip-icon">👤</span>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <div class="dropdown-user">
+                  <span class="dropdown-nick">{{ userStore.user.nickname || userStore.user.username }}</span>
+                </div>
+                <el-dropdown-item v-for="i in mobileMenu" :key="i.key" :command="i.key" :divided="i.danger">
+                  <span style="margin-right:8px">{{ i.icon }}</span>{{ i.label }}
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </template>
+        <el-button v-else class="header-chip chip-login" size="default" @click="router.push('/login')">
+          登录
         </el-button>
       </div>
     </el-header>
@@ -112,5 +170,37 @@ function logout() {
 }
 .chip-icon-text .chip-text {
   display: inline-block;
+}
+
+/* --- P2-#15: 桌面/移动 chip 切换 --- */
+.desktop-only { display: flex; }
+.mobile-only  { display: none; }
+
+.avatar-btn {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: var(--accent-gold-light);
+  width: 36px;
+  height: 36px;
+  padding: 0;
+}
+.avatar-btn:hover {
+  background: rgba(245, 158, 11, 0.25);
+  border-color: var(--accent-gold);
+}
+.dropdown-user {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+}
+.dropdown-nick {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+@media (max-width: 640px) {
+  .desktop-only { display: none; }
+  .mobile-only  { display: flex; align-items: center; gap: 8px; }
 }
 </style>
