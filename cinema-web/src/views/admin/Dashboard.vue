@@ -9,6 +9,11 @@ import {
   type RevenueExportQuery,
 } from '../../api/admin'
 import { downloadBlob } from '../../utils/download'
+import {
+  DEFAULT_EXPORT_PRESET,
+  EXPORT_PRESETS,
+  type ExportPreset,
+} from './constants'
 
 const router = useRouter()
 const data = ref<DashboardSummary | null>(null)
@@ -16,7 +21,7 @@ const loading = ref(false)
 
 // ====== T5: 导出对话框 ======
 const exportDialogVisible = ref(false)
-const exportMode = ref<'today' | '7d' | '30d' | 'month' | 'custom'>('7d')
+const exportMode = ref<ExportPreset>(DEFAULT_EXPORT_PRESET)
 const exportRange = ref<[string, string] | null>(null)
 const exportError = ref<string | null>(null)
 const exportLoading = ref(false)
@@ -30,33 +35,17 @@ function toIso(d: Date): string {
 
 /** 由 exportMode + exportRange 计算出 [from, to] 两个 ISO 日期 */
 const computedRange = computed<{ from: string; to: string }>(() => {
-  const today = new Date()
-  if (exportMode.value === 'today') {
-    const iso = toIso(today)
-    return { from: iso, to: iso }
+  const preset = EXPORT_PRESETS[exportMode.value]
+  if (!preset.compute) {
+    // custom: 用用户在 daterange 选的范围; 未选时回退 7d
+    if (exportRange.value && exportRange.value.length === 2) {
+      return { from: exportRange.value[0], to: exportRange.value[1] }
+    }
+    const fallback = EXPORT_PRESETS['7d'].compute!(new Date())!
+    return { from: toIso(fallback.from), to: toIso(fallback.to) }
   }
-  if (exportMode.value === '7d') {
-    const from = new Date(today)
-    from.setDate(from.getDate() - 6)
-    return { from: toIso(from), to: toIso(today) }
-  }
-  if (exportMode.value === '30d') {
-    const from = new Date(today)
-    from.setDate(from.getDate() - 29)
-    return { from: toIso(from), to: toIso(today) }
-  }
-  if (exportMode.value === 'month') {
-    const from = new Date(today.getFullYear(), today.getMonth(), 1)
-    return { from: toIso(from), to: toIso(today) }
-  }
-  // custom
-  if (exportRange.value && exportRange.value.length === 2) {
-    return { from: exportRange.value[0], to: exportRange.value[1] }
-  }
-  // 兜底: 7 天
-  const from = new Date(today)
-  from.setDate(from.getDate() - 6)
-  return { from: toIso(from), to: toIso(today) }
+  const { from, to } = preset.compute(new Date())
+  return { from: toIso(from), to: toIso(to) }
 })
 
 function openExportDialog() {
@@ -203,11 +192,11 @@ onMounted(load)
         <div class="form-row">
           <span class="form-label">选择范围</span>
           <el-radio-group v-model="exportMode">
-            <el-radio-button value="today">今日</el-radio-button>
-            <el-radio-button value="7d">最近 7 天</el-radio-button>
-            <el-radio-button value="30d">最近 30 天</el-radio-button>
-            <el-radio-button value="month">本月</el-radio-button>
-            <el-radio-button value="custom">自定义</el-radio-button>
+            <el-radio-button
+              v-for="(def, key) in EXPORT_PRESETS"
+              :key="key"
+              :value="key"
+            >{{ def.label }}</el-radio-button>
           </el-radio-group>
         </div>
 

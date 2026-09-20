@@ -1,7 +1,7 @@
+import axios from 'axios'
 import request from './request'
 import type { Hall, Session } from '../types/admin-types'
 import type { Movie, PageData } from '../types'
-import { createCinemaAxios } from '../utils/download'
 
 /** O3 经营看板汇总 */
 export interface DashboardSummary {
@@ -142,14 +142,23 @@ export interface RevenueExportQuery {
 /**
  * 下载已支付订单明细 .xlsx. 返回 Blob, 由调用方 `downloadBlob(...)` 触发浏览器下载.
  *
- * <p>走独立 axios 实例 (非默认 request), 避开全局 JSON 响应拦截器对 blob 路径的副作用.
+ * <p>自建独立 axios 实例 (不走默认 request.ts), 避开全局 JSON 响应拦截器对 blob 路径的副作用:
+ * 全局拦截器会把非 0 业务码自动 ElMessage.error, 而且 `if ('code' in body)` 会把对象型 body 当 JSON 解.
+ * 手抓 token + 30s timeout.
  *
  * <p>服务端业务异常时 GlobalExceptionHandler 返 JSON 包 (`Content-Type: application/json`),
  * 此处检测 Content-Type 并把 JSON body 文本抛为 Error, 防止把"业务错误 JSON"当 xlsx 下载.
  */
 export async function exportRevenue(query: RevenueExportQuery): Promise<Blob> {
-  const axios = createCinemaAxios()
-  const response = await axios.get('/admin/revenue/export', {
+  const instance = axios.create({ baseURL: '/api', timeout: 30000 })
+  instance.interceptors.request.use((config) => {
+    const token = localStorage.getItem('cinema_token')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+    return config
+  })
+  const response = await instance.get('/admin/revenue/export', {
     params: query,
     responseType: 'blob',
   })

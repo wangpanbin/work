@@ -18,8 +18,7 @@ import java.util.List;
 /**
  * T1 营收导出服务.
  *
- * <p>职责单一: ① 复用 {@code RevenueExportQuery.normalize()} 校验+补默认;
- * ② 调 mapper 拉区间数据; ③ EasyExcel 写到内存字节流 (返回 byte[]).
+ * <p>三步独立: 校验补默认 → 拉行 → 渲染字节流. 每步可单独替换实现 (如换图表库 / 换 SQL) 而不影响其它步.
  *
  * <p>为什么返回 byte[] 而不是写 OutputStream:
  * 若 service 写外层流到一半抛 BizException, GlobalExceptionHandler 之后写 JSON body
@@ -34,23 +33,34 @@ public class AdminRevenueExportService {
     private final OrderMapper orderMapper;
 
     /**
-     * @param query 入参; from/to 任一为 null 时按"最近 7 日"兜底
-     * @return 完整的 .xlsx 字节流 (UTF-8 BOM 由 EasyExcel 自动写入 sheet 头)
-     * @throws BizException 起始日期晚于结束日期 / Excel 生成失败
+     * 编排: 校验 → 拉行 → 渲染.
+     *
+     * @throws BizException query 为 null / 起始日期晚于结束日期 / Excel 生成失败
      */
     public byte[] renderBytes(RevenueExportQuery query) {
+        validate(query);
+        List<RevenueRowVO> rows = fetchRows(query);
+        return renderToBytes(rows);
+    }
+
+    /** ① query 非空 + 补默认 + 范围校验. 失败抛 BizException(40001). */
+    private void validate(RevenueExportQuery query) {
         if (query == null) {
             throw new BizException(ResultCode.BAD_REQUEST, "查询参数为空");
         }
-        // 1. 补默认 + 校验 (query 内部抛 BizException, 此处不重复)
         query.normalize();
+    }
 
-        // 2. 拉数据: 半开区间由 mapper 内部 `+1 day` 处理
+    /** ② mapper 拉行; 含端点 → 半开区间由 mapper SQL 内部 `DATE_ADD(..., INTERVAL 1 DAY)` 处理. */
+    private List<RevenueRowVO> fetchRows(RevenueExportQuery query) {
         List<RevenueRowVO> rows = orderMapper.selectRevenueRows(query.getFrom(), query.getTo());
         log.info("营收导出: from={}, to={}, rows={}", query.getFrom(), query.getTo(),
                 rows == null ? 0 : rows.size());
+        return rows == null ? List.of() : rows;
+    }
 
-        // 3. EasyExcel 写到内存
+    /** ③ EasyExcel 写到内存字节流. 写失败抛 BizException(50000). */
+    private byte[] renderToBytes(List<RevenueRowVO> rows) {
         ByteArrayOutputStream buf = new ByteArrayOutputStream(64 * 1024);
         try (ExcelWriter writer = EasyExcel.write(buf, RevenueRowVO.class).build()) {
             WriteSheet sheet = EasyExcel.writerSheet(0, "营收明细").build();
