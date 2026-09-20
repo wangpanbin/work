@@ -38,3 +38,17 @@ Test accounts seeded by backend on startup: `user1/123456`, `user2/123456`, `adm
 ## Architecture orientation
 
 Frontend (all under `cinema-web/src/`): `api/` axios modules · `router/index.ts` global guards · `stores/` Pinia (user/seat/movieCache) · `utils/ws.ts` seat WebSocket · `utils/bitmap.ts` seat bitmap parsing · `views/` pages plus `views/admin/` management + dashboard/live. Seat selection is the core flash-sale flow (`views/SeatSelect.vue` + `stores/seat.ts`).
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues (via the `gh` CLI). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Five canonical roles: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout. See `docs/agents/domain.md`.
