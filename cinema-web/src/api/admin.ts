@@ -1,6 +1,7 @@
 import request from './request'
 import type { Hall, Session } from '../types/admin-types'
 import type { Movie, PageData } from '../types'
+import { createCinemaAxios } from '../utils/download'
 
 /** O3 经营看板汇总 */
 export interface DashboardSummary {
@@ -125,4 +126,45 @@ export interface RecoverResult {
 
 export function recoverSessionBitmap(sessionId: number): Promise<RecoverResult> {
   return request.post('/admin/sessions/bitmaps/recover', null, { params: { sessionId } }) as Promise<RecoverResult>
+}
+
+/* ===================== 营收明细导出 (T4) ===================== */
+
+export interface RevenueExportQuery {
+  /** ISO 日期 yyyy-MM-dd */
+  from: string
+  /** ISO 日期 yyyy-MM-dd */
+  to: string
+  /** 前端 UI 状态语义, 后端不二次推断 */
+  mode?: 'preset' | 'custom'
+}
+
+/**
+ * 下载已支付订单明细 .xlsx. 返回 Blob, 由调用方 `downloadBlob(...)` 触发浏览器下载.
+ *
+ * <p>走独立 axios 实例 (非默认 request), 避开全局 JSON 响应拦截器对 blob 路径的副作用.
+ *
+ * <p>服务端业务异常时 GlobalExceptionHandler 返 JSON 包 (`Content-Type: application/json`),
+ * 此处检测 Content-Type 并把 JSON body 文本抛为 Error, 防止把"业务错误 JSON"当 xlsx 下载.
+ */
+export async function exportRevenue(query: RevenueExportQuery): Promise<Blob> {
+  const axios = createCinemaAxios()
+  const response = await axios.get('/admin/revenue/export', {
+    params: query,
+    responseType: 'blob',
+  })
+  const blob = response.data as Blob
+  const ct = (response.headers['content-type'] || response.headers['Content-Type'] || '') as string
+  if (ct.includes('application/json')) {
+    const text = await blob.text()
+    let msg = text
+    try {
+      const parsed = JSON.parse(text) as { code?: number; msg?: string }
+      msg = parsed.msg || text
+    } catch {
+      // 非 JSON 文本, 直接展示
+    }
+    throw new Error(msg || '导出失败')
+  }
+  return blob
 }

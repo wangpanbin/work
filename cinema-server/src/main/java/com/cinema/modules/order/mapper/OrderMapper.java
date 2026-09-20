@@ -3,6 +3,7 @@ package com.cinema.modules.order.mapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.cinema.modules.order.entity.Order;
+import com.cinema.modules.order.vo.RevenueRowVO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Update;
@@ -79,4 +80,33 @@ public interface OrderMapper extends BaseMapper<Order> {
             "WHERE s.start_time BETWEEN DATE_SUB(NOW(), INTERVAL 7 DAY) AND DATE_ADD(NOW(), INTERVAL 1 DAY) " +
             "GROUP BY s.id ORDER BY sold DESC LIMIT 20")
     java.util.List<java.util.Map<String, Object>> sessionOccupancyWeek();
+
+    // ====================== T1 营收导出 ======================
+
+    /**
+     * 营收明细行: 已支付订单 + 影片/影厅/用户 join.
+     * <p>含端点区间 {@code [from, to]} (mapper 内部 `+1 day` 转半开);
+     * status=1 锁定已支付. 入参用 LocalDate 让语义直观, mapper 自管半开转换.
+     */
+    @org.apache.ibatis.annotations.Select("SELECT " +
+            "  o.order_no     AS orderNo, " +
+            "  u.username     AS username, " +
+            "  m.title        AS movieTitle, " +
+            "  h.name         AS hallName, " +
+            "  s.start_time   AS startTime, " +
+            "  o.seat_count   AS seatCount, " +
+            "  o.total_amount AS totalAmount, " +
+            "  o.paid_at      AS paidAt, " +
+            "  o.status       AS status " +
+            "FROM `order` o " +
+            "LEFT JOIN `user`    u ON o.user_id    = u.id " +
+            "LEFT JOIN `session` s ON o.session_id = s.id " +
+            "LEFT JOIN `movie`   m ON s.movie_id   = m.id " +
+            "LEFT JOIN `hall`    h ON s.hall_id    = h.id " +
+            "WHERE o.status = 1 " +
+            "  AND o.paid_at >= #{from} " +
+            "  AND o.paid_at <  DATE_ADD(#{to}, INTERVAL 1 DAY) " +
+            "ORDER BY o.paid_at DESC")
+    java.util.List<RevenueRowVO> selectRevenueRows(@Param("from") java.time.LocalDate from,
+                                                   @Param("to") java.time.LocalDate to);
 }

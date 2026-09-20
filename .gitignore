@@ -37,9 +37,10 @@ test/playwright-cli/_lib.ps1
 test/playwright-cli/logs/
 test/playwright-cli/scenarios/
 
-# E2E 测试内容
-test/
-tests/
+# E2E 测试内容 (顶层 test/ tests/ 目录; 不影响 cinema-server/src/test/ 等子模块测试目录)
+# / 前缀强制仅匹配 git root; 避免误伤 cinema-server/src/test/
+/test/
+/tests/
 # 测试报告
 docs/压测报告*.md
 test_mixed.py

@@ -1,12 +1,90 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { dashboardSummary, type DashboardSummary } from '../../api/admin'
+import { ElMessage } from 'element-plus'
+import {
+  dashboardSummary,
+  exportRevenue,
+  type DashboardSummary,
+  type RevenueExportQuery,
+} from '../../api/admin'
+import { downloadBlob } from '../../utils/download'
 
 const router = useRouter()
 const data = ref<DashboardSummary | null>(null)
 const loading = ref(false)
 
+// ====== T5: 导出对话框 ======
+const exportDialogVisible = ref(false)
+const exportMode = ref<'today' | '7d' | '30d' | 'month' | 'custom'>('7d')
+const exportRange = ref<[string, string] | null>(null)
+const exportError = ref<string | null>(null)
+const exportLoading = ref(false)
+
+function toIso(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${dd}`
+}
+
+/** 由 exportMode + exportRange 计算出 [from, to] 两个 ISO 日期 */
+const computedRange = computed<{ from: string; to: string }>(() => {
+  const today = new Date()
+  if (exportMode.value === 'today') {
+    const iso = toIso(today)
+    return { from: iso, to: iso }
+  }
+  if (exportMode.value === '7d') {
+    const from = new Date(today)
+    from.setDate(from.getDate() - 6)
+    return { from: toIso(from), to: toIso(today) }
+  }
+  if (exportMode.value === '30d') {
+    const from = new Date(today)
+    from.setDate(from.getDate() - 29)
+    return { from: toIso(from), to: toIso(today) }
+  }
+  if (exportMode.value === 'month') {
+    const from = new Date(today.getFullYear(), today.getMonth(), 1)
+    return { from: toIso(from), to: toIso(today) }
+  }
+  // custom
+  if (exportRange.value && exportRange.value.length === 2) {
+    return { from: exportRange.value[0], to: exportRange.value[1] }
+  }
+  // 兜底: 7 天
+  const from = new Date(today)
+  from.setDate(from.getDate() - 6)
+  return { from: toIso(from), to: toIso(today) }
+})
+
+function openExportDialog() {
+  exportError.value = null
+  exportDialogVisible.value = true
+}
+
+async function doExport() {
+  exportError.value = null
+  exportLoading.value = true
+  const r = computedRange.value
+  try {
+    const query: RevenueExportQuery = { from: r.from, to: r.to, mode: exportMode.value === 'custom' ? 'custom' : 'preset' }
+    const blob = await exportRevenue(query)
+    const filename = `营收报表_${r.from}_至_${r.to}.xlsx`
+    downloadBlob(blob, filename)
+    ElMessage.success(`已导出 ${filename}`)
+    exportDialogVisible.value = false
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : '导出失败'
+    exportError.value = msg
+    ElMessage.error(msg)
+  } finally {
+    exportLoading.value = false
+  }
+}
+
+// ====== 原有 dashboard 逻辑 ======
 async function load() {
   loading.value = true
   try {
@@ -43,7 +121,10 @@ onMounted(load)
   <div v-loading="loading" class="dashboard">
     <div class="page-header">
       <h2>📊 经营看板</h2>
-      <el-button @click="router.push('/admin')" plain>返回管理首页</el-button>
+      <div class="header-actions">
+        <el-button type="primary" @click="openExportDialog">📥 导出 Excel</el-button>
+        <el-button @click="router.push('/admin')" plain>返回管理首页</el-button>
+      </div>
     </div>
 
     <template v-if="data">
@@ -115,6 +196,48 @@ onMounted(load)
         <div v-else class="empty">暂无场次数据</div>
       </div>
     </template>
+
+    <!-- T5: 导出对话框 -->
+    <el-dialog v-model="exportDialogVisible" title="导出营收明细" width="480px" :close-on-click-modal="false">
+      <div class="export-form">
+        <div class="form-row">
+          <span class="form-label">选择范围</span>
+          <el-radio-group v-model="exportMode">
+            <el-radio-button value="today">今日</el-radio-button>
+            <el-radio-button value="7d">最近 7 天</el-radio-button>
+            <el-radio-button value="30d">最近 30 天</el-radio-button>
+            <el-radio-button value="month">本月</el-radio-button>
+            <el-radio-button value="custom">自定义</el-radio-button>
+          </el-radio-group>
+        </div>
+
+        <div v-if="exportMode === 'custom'" class="form-row">
+          <span class="form-label">日期范围</span>
+          <el-date-picker
+            v-model="exportRange"
+            type="daterange"
+            value-format="yyyy-MM-DD"
+            range-separator="至"
+            start-placeholder="起始日期"
+            end-placeholder="结束日期"
+            :clearable="false"
+            style="width: 100%"
+          />
+        </div>
+
+        <div class="form-row preview">
+          <span class="form-label">将导出</span>
+          <span class="preview-text">{{ computedRange.from }} 至 {{ computedRange.to }}</span>
+        </div>
+
+        <div v-if="exportError" class="form-error">{{ exportError }}</div>
+      </div>
+
+      <template #footer>
+        <el-button @click="exportDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="exportLoading" @click="doExport">下载</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -131,6 +254,7 @@ onMounted(load)
   gap: 12px;
 }
 .page-header h2 { margin: 0; font-size: 22px; }
+.header-actions { display: flex; gap: 12px; align-items: center; }
 @media (max-width: 768px) {
   .page-header h2 { font-size: 18px; }
 }
@@ -242,6 +366,25 @@ onMounted(load)
 .rate-fill { height: 100%; background: var(--gradient-gold); }
 .rate-text { position: absolute; right: 8px; top: 0; line-height: 18px; font-size: 12px; color: var(--text-primary); }
 .empty { padding: 40px 0; text-align: center; color: var(--text-muted); }
+
+/* T5: 导出对话框 */
+.export-form { display: flex; flex-direction: column; gap: 18px; }
+.form-row { display: flex; flex-direction: column; gap: 8px; }
+.form-row.preview { flex-direction: row; align-items: center; gap: 12px; }
+.form-label { font-size: 13px; color: var(--text-muted); }
+.preview-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent-gold);
+  font-family: var(--font-display, monospace);
+}
+.form-error {
+  color: #f56c6c;
+  font-size: 13px;
+  padding: 8px 12px;
+  background: rgba(245, 108, 108, 0.08);
+  border-radius: 4px;
+}
 
 @media (max-width: 768px) {
   .cards { grid-template-columns: repeat(2, 1fr); }

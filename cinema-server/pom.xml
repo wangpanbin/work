@@ -56,6 +56,13 @@
             <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
             <version>${mybatis-plus.version}</version>
         </dependency>
+
+        <!-- Excel 导出 (T1) -->
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>easyexcel</artifactId>
+            <version>3.3.4</version>
+        </dependency>
         <!-- MP 3.5.9+ 分页插件等 jsqlparser 相关能力拆分至此模块 -->
         <dependency>
             <groupId>com.baomidou</groupId>
