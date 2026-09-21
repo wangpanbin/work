@@ -3,6 +3,7 @@ import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import { useUserStore } from './stores/user'
+import ChatWidget from './components/chat/ChatWidget.vue'
 
 const userStore = useUserStore()
 const router = useRouter()
@@ -118,6 +119,9 @@ function onMobileSelect(key: string | number) {
     <el-main class="app-main" :class="{ 'is-admin': $route.path.startsWith('/admin') }">
       <router-view />
     </el-main>
+
+    <!-- T6: 对话式订票助手浮窗 — ChatWidget 内部按路由自动隐藏(/payment + /admin/**) -->
+    <ChatWidget />
   </el-container>
 </template>
 
