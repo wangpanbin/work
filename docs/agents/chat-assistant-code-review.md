@@ -178,3 +178,72 @@ ChatMemoryStore 按 `chatSessionId` 分桶,与 userId 完全独立。匿名用�
 **MATT 完成度**: T1-T7 9 个 micro-commit + 36/74 测试全绿 + ADR/Q1-Q6 全部 honored + T8 集成验证通过(LLM 真打 + 5 类工具调用 + 多轮记忆 + ADR-0002 守则)。**仅 S1 spec §6.1 cards 契约未实现** — 已落 #16 后续 ticket,**不影响当前 release**(T7 URL query 旁路独立可用)。
 
 **推荐**: 本轮 release 可推送,#16 切下个 sprint 处理。
+
+---
+
+# T9 增量(2026-09-21)
+
+## TL;DR
+T8 验收发现的 S1 spec §6.1 契约缺口已闭合。`ChatAssistantService.chat()` 现在调 `ReplyCardParser.parse(reply)` 提取 cards + followUps + 剥离 fence。LLM 在 system prompt 引导下输出 fenced ` ```json-cards ... ``` ` 块。
+
+## 改动
+| 文件 | 类型 | 行数 |
+|---|---|---|
+| `service/ReplyCardParser.java` | NEW | +160 |
+| `test/.../ReplyCardParserTest.java` | NEW | +200 (7 用例) |
+| `agent/CinemaAssistant.java` | MOD | +20 (system prompt 加 fence 引导) |
+| `service/ChatAssistantService.java` | MOD | +8 -1 |
+| `test/.../ChatAssistantServiceTest.java` | MOD | +60 (3 契约) |
+
+## 测试 totals
+- 后端 mvn test: **115 用例跨 25 类**(原 105 + 7 ReplyCardParserTest + 3 ChatAssistantServiceTest 契约)
+- 前端 pnpm test: **74 用例跨 6 文件**(本轮未触及)
+
+## Live curl 真打
+
+### T9.H.1 "挑三个连在一起、靠中间" → LLM 真发 cards
+```json
+{
+  "reply": "场次 1 整个厅目前是空的...候选连座:座位索引 0、1、2(3 连座)...卡片只是方便你跳转到选座页,**不会替你锁座或下单**——锁座和支付需要你在前端选座页自己确认后才会发生。",
+  "cards": [{
+    "type": "SEAT_SUGGESTION",
+    "sessionId": "1",
+    "movieTitle": "流浪地球3",
+    "hallName": "2号IMAX厅",
+    "startTime": "2026-08-31 10:00:00",
+    "price": 39.9,
+    "seatIndexes": [0, 1, 2],
+    "seatDesc": "该排座位索引0、1、2(全场为空,实际靠左侧)",
+    "totalAmount": 119.7,
+    "actionLabel": "去选座确认"
+  }],
+  "followUps": ["换成第7排的3个连座", "这个厅总共几排几座?", "帮我看看场次1的座位分布"]
+}
+```
+
+**3.4s** 端到端(含 LLM 工具调用 + reply 合成)。
+
+### T9.H.2 普通询问 "有什么科幻" → LLM 不发卡片
+```json
+{ "reply": "...4 部电影...", "cards": [], "followUps": [] }
+```
+✅ LLM 正确判断"用户没要推荐座位"就不发卡片,系统 prompt 引导精准生效。
+
+## 副作用
+| redis pattern | count |
+|---|---|
+| `chat:*` | **0** |
+| `user:locked:*` | **0** |
+| `seat:bitmap:*` | **0** |
+| `seat:locked:*` | **0** |
+
+**零副作用** — chat 模块不影响 Redis 任何锁座/位图/订单状态。
+
+## S1 状态: ✅ 闭合
+原 S1 `cards=List.of()` spec 契约违反已修复:
+- 后端解析 fence → 真实 SEAT_SUGGESTION 数据
+- 前端 ChatMessage `v-if="response.cards.length"` 现在能渲染 ActionCard 组件
+- T7 URL query 旁路 + LLM 主导卡片 = 双路径就位
+
+## 锁座路径
+**仍然零触动** — `git diff cinema-server/src/main/java/com/cinema/modules/order/` 0 行。
