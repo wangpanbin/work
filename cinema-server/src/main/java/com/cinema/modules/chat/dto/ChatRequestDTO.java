@@ -4,15 +4,24 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 /**
- * T1 cycle 2 — 对话请求 DTO(占位).
+ * T1 cycle 3 — 对话请求 DTO(完整 schema,spec §6.1).
  *
- * <p>本 cycle 只用 {@code message} 字段验证 50000 短路路径。
- * {@code chatSessionId} + {@code context} 在 cycle 3 与 {@code ChatResponseVO}
- * 一起补(spec §6.1 schema 完整字段).
+ * <ul>
+ *   <li>{@code chatSessionId} — 前端首次进浮窗用 {@code crypto.randomUUID()} 生成,
+ *             localStorage 持久化,同 id 路由同一 ChatMemory 桶(spec §4.4)</li>
+ *   <li>{@code message} — 用户消息</li>
+ *   <li>{@code context} — 场次上下文,让"这个还有座吗"等指代可解析(spec §6.1)</li>
+ * </ul>
+ *
+ * 注意: {@code chatSessionId} 是聊天会话 id,<b>不是</b>场次 id.
  */
 @Data
 public class ChatRequestDTO {
 
+    private String chatSessionId;
+
     @NotBlank(message = "消息内容不能为空")
     private String message;
+
+    private ChatContextDTO context;
 }

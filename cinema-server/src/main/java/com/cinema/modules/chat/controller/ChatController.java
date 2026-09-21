@@ -2,27 +2,26 @@ package com.cinema.modules.chat.controller;
 
 import com.cinema.common.result.R;
 import com.cinema.modules.chat.dto.ChatRequestDTO;
-import dev.langchain4j.model.chat.ChatModel;
+import com.cinema.modules.chat.service.ChatAssistantService;
+import com.cinema.modules.chat.vo.ChatResponseVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Optional;
+
 /**
- * T1 cycle 2 — 对话入口 Controller.
+ * T1 cycle 3 — 对话入口 Controller(spec §6.1).
  *
- * <p>seam: 短路路径 — ChatModel Bean 不存在(由 cycle 1 ChatConfig 决定)时,
- * 直接返 {@code R.fail(50000, "对话功能未配置")},不抛 NPE,不返 HTTP 500.
+ * <p>cycle 3 重构:从 cycle 2 直接用 {@code ObjectProvider<ChatModel>}
+ * 切换到 {@link ChatAssistantService}(后者也是可选 Bean 路径 —
+ * 服务内部用 {@code ObjectProvider<CinemaAssistant>}). 行为不变:
+ * 无 key → 50000 + "对话功能未配置".
  *
- * <p>用 {@link ObjectProvider} 而非 {@code @Autowired ChatModel} 注入 —
- * 后者在 bean 缺失时启动失败,前者允许 bean 缺失并通过 {@code getIfAvailable()}
- * 走 null 分支(spec §8 验收要求).
- *
- * <p>cycle 3 接入 ChatAssistantService,把 Assistant.chat() → reply/cards/followUps
- * 转换 + ChatMemory + 串行化串起来。
+ * <p>cycle 5 (T1) 接入 {@code @RateLimit} + {@code @Idempotent}.
  */
 @Slf4j
 @RestController
@@ -30,16 +29,16 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class ChatController {
 
-    private final ObjectProvider<ChatModel> chatModelProvider;
+    private final ChatAssistantService chatAssistantService;
 
     @PostMapping("/message")
-    public R<?> chatMessage(@RequestBody ChatRequestDTO dto) {
-        ChatModel model = chatModelProvider.getIfAvailable();
-        if (model == null) {
-            log.info("[chat] ChatModel Bean 未注册, 走 50000 短路路径");
+    public R<ChatResponseVO> chatMessage(@RequestBody ChatRequestDTO dto) {
+        Optional<ChatResponseVO> voOpt = chatAssistantService.chat(
+                dto.getChatSessionId(), dto.getMessage());
+        if (voOpt.isEmpty()) {
+            // ChatConfig 在 api-key 为空时不注册 CinemaAssistant Bean(cycle 1/3)
             return R.fail(50000, "对话功能未配置");
         }
-        // cycle 3: 调 ChatAssistantService.chat(...) 把模型调用 / 工具调用链 / VO 转换串起来
-        return R.ok();
+        return R.ok(voOpt.get());
     }
 }

@@ -1,8 +1,12 @@
 package com.cinema.modules.chat.config;
 
+import com.cinema.modules.chat.agent.CinemaAssistant;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
+import dev.langchain4j.service.AiServices;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -10,20 +14,21 @@ import org.springframework.context.annotation.Configuration;
 import java.time.Duration;
 
 /**
- * T1 cycle 1 — 对话助手 Bean 装配.
+ * T1 cycle 3 — 对话助手 Bean 装配(spec §4.5 + §8).
  *
- * <p>spec §8 + §6.2: api-key 为空或缺失时不注册 ChatModel Bean,让
- * {@code /api/chat/message} 走 {@code 50000 + "对话功能未配置"} 路径,保证
- * 无密钥环境下其他 12 个 Controller 仍可正常服务,{@code mvn test} 也无需密钥.
+ * <p>两个 Bean:
+ * <ul>
+ *   <li>{@code ChatModel} — @ConditionalOnExpression 控制 api-key 非空才注册(cycle 1)</li>
+ *   <li>{@code CinemaAssistant} — @ConditionalOnBean(ChatModel.class) 控制 ChatModel 存在时才注册,
+ *       AiServices.builder() 把 ChatModel 包装成代理实例,作为 {@code CinemaAssistant} 类型 Bean 注册</li>
+ * </ul>
  *
- * <p>条件用 {@link ConditionalOnExpression} 而非 {@code @ConditionalOnProperty}:
- * 后者在 property 值为空字符串时仍视为"存在",会导致 ChatModel Bean 在
- * {@code cinema.chat.api-key=""} 时尝试创建时 NPE.
+ * <p>T2 ticket #9 接入 .tools(ChatTools),T3 ticket #10 接入 .chatMemoryProvider。
  *
- * <p>不用 langchain4j-spring-boot-starter (理由见 spec §3.2 — 仍是 beta,
- * 且会扫描所有 {@code @Component} 上的 {@code @Tool} 注入每一个 AI Service,
- * 存在意外暴露风险;另答辩解释成本高).
+ * <p>不用 langchain4j-spring-boot-starter (理由见 spec §3.2 — 仍是 beta,且会扫描
+ * 所有 {@code @Component} 上的 {@code @Tool} 注入每一个 AI Service).
  */
+@Slf4j
 @Configuration
 public class ChatConfig {
 
@@ -42,6 +47,17 @@ public class ChatConfig {
                 .modelName(modelName)
                 .timeout(Duration.ofSeconds(timeoutSeconds))
                 .maxRetries(maxRetries)
+                .build();
+    }
+
+    @Bean
+    @ConditionalOnBean(ChatModel.class)
+    public CinemaAssistant cinemaAssistant(ChatModel chatModel) {
+        log.info("[chat] 注册 CinemaAssistant Bean (AiServices.builder)");
+        return AiServices.builder(CinemaAssistant.class)
+                .chatModel(chatModel)
+                // .chatMemoryProvider(...)  // T3 ticket #10 接入
+                // .tools(...)              // T2 ticket #9 接入 ChatTools
                 .build();
     }
 }
