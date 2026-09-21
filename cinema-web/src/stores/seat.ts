@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { decodeBitmap } from '../utils/bitmap'
 import type { SeatMap } from '../api/seat'
-import { computeApplyEvent } from './seatEventReducer'
+import { computeApplyEvent, computeApplyPreselect } from './seatEventReducer'
 
 /**
  * 座位图 store (Phase D-⑬ 优化)
@@ -76,6 +76,42 @@ export const useSeatStore = defineStore('seat', () => {
     selected.value = new Set()
   }
 
+  /**
+   * T7: 应用 preselect(来自 chat 行动卡片 — spec §7.2).
+   *
+   * <p>追加语义 + 超 maxSelect 按 preselect 索引最小优先剔除 + 冲突闪烁
+   * (1.8s 自动清除, 与 applyEvent 走同一 schedule)。
+   *
+   * <p>调用时机: SeatSelect.vue onMounted 后, refresh() 完成拉到位图后再调。
+   * (不能在 refresh() 之前,因为位图未知,冲突判断失效)。
+   */
+  function applyPreselect(preselect: number[]) {
+    if (!map.value || preselect.length === 0) return
+    const r = computeApplyPreselect(
+      selected.value,
+      conflictFlash.value,
+      preselect,
+      lockBits.value,
+      soldBits.value,
+      myLockedSet.value,
+      map.value.seatCount,
+      maxSelect,
+    )
+    selected.value = r.newSelected
+    if (r.hasNewFlash) {
+      conflictFlash.value = r.newConflictFlash
+      const flashed = new Set(r.newConflictFlash)
+      window.setTimeout(() => {
+        const cur = new Set(conflictFlash.value)
+        let changed = false
+        for (const idx of flashed) {
+          if (cur.delete(idx)) changed = true
+        }
+        if (changed) conflictFlash.value = cur
+      }, 1800)
+    }
+  }
+
   /** WS 事件应用: 本地位图同步. 注意: ref 包裹的 Uint8Array 必须整体替换才能触发响应式. */
   function applyEvent(type: string, seats: number[]) {
     if (seats.length === 0) return
@@ -125,6 +161,6 @@ export const useSeatStore = defineStore('seat', () => {
     map, lockBits, soldBits, selected, maxSelect,
     myLockedSeats,                                  // computed: 兼容原组件读取
     conflictFlash,                                  // P0-2: 暴露给 SeatItem
-    load, statusAt, rowCol, toggle, clearSelection, applyEvent, markMyLocked,
+    load, statusAt, rowCol, toggle, clearSelection, applyEvent, applyPreselect, markMyLocked,
   }
 })

@@ -7,6 +7,7 @@ import { seatMap } from '../api/seat'
 import { lockSeats } from '../api/order'
 import { useUserStore } from '../stores/user'
 import { useSeatStore } from '../stores/seat'
+import { parsePreselectFromQuery } from '../stores/seatEventReducer'
 import { createSeatWs, type SeatWsHandle, type WsStatus } from '../utils/ws'
 import SeatItem from '../components/SeatItem.vue'
 
@@ -42,6 +43,12 @@ onMounted(async () => {
     return
   }
   await refresh()
+  // T7: 应用 preselect(spec §7.2) — 来自 chat 行动卡片的跳转
+  // 必须在 refresh() 之后调用(位图未知则冲突判断失效)
+  const preselect = parsePreselectFromQuery(route.query.preselect)
+  if (preselect.length > 0) {
+    seatStore.applyPreselect(preselect)
+  }
   wsHandle = createSeatWs(sessionId.value, (evt) => {
     const before = seatStore.selected.size
     seatStore.applyEvent(evt.type, evt.seats)
