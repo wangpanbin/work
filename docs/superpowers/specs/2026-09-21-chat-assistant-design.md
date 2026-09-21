@@ -203,14 +203,16 @@ LangChain4j 官方明文警告:
 - 锁内调用 `assistant.chat(...)`,锁外做 DTO 转换;
 - map 需带清理(会话结束或 TTL 到期移除),否则又是内存泄漏。
 
+**串行化 map 与 ChatMemory 必须同生命周期清理(本步明确):** `ChatAssistantService#evict(id)` 原子地 `chatMemory.remove(id)` + `serializationLocks.remove(id)` 一起做;并以 `id` 为 key 存 `lastAccessAt`(`ConcurrentHashMap<String, Long>`),后台 `evictIfIdle` 扫描时一并清。否则串行化重入会拿到"空 memory"破坏语义(锁留着但 memory 没了 / 反之)。详见 §4.4 淘汰策略。
+
 ### 4.4 记忆策略
 
 | 项 | 选择 | 理由 |
 | --- | --- | --- |
 | 实现 | `MessageWindowChatMemory.withMaxMessages(10)` | 原型级够用;官方建议生产用 `TokenWindowChatMemory` + `TokenCountEstimator`,本项目引入 estimator 属过度设计 |
-| 作用域 | 按会话 id 分桶(`chatMemoryProvider`) | 每用户每会话独立 |
+| 作用域 | 按 **chatSessionId** 分桶(`chatMemoryProvider`);id 即 §6.1 请求体中的 `chatSessionId` 字段,**不是**场次 id | 每用户每聊天会话独立 |
 | 持久化 | **无**,进程内 | 不新增 MySQL 表;重启丢失可接受 |
-| 淘汰 | 会话结束/超时调用 `evictChatMemory(id)` | **必须做**:官方提示不淘汰会内存泄漏 |
+| 淘汰 | **空闲 30min 自动 evict** —— `ChatAssistantService` 入口对目标 id 检查 `lastAccessAt >= now-30min` 才复用,否则新建;后台 `@Scheduled(fixedDelay=60s)` 扫一遍 map 清 30min 未访问的桶(含 §4.3 的 `serializationLocks` 同步清理) | **必须做**:官方提示不淘汰会内存泄漏 |
 | 窗口大小 | **不得小于"一轮工具调用产生的完整消息组"** | 见下 |
 
 **窗口太小的隐藏后果(官方文档):** 若一条含 `ToolExecutionRequest` 的 `AiMessage` 被淘汰,其后续**孤儿 `ToolExecutionResultMessage` 会被一并淘汰** —— 因为部分 provider(含 OpenAI 系)禁止请求里出现孤儿 tool 结果。也就是说窗口设小了会**静默丢掉半轮工具调用**。10 条是本方案的取值下限。
@@ -262,10 +264,10 @@ cinema-web/src/
 | `searchMovies(keyword, genre?, region?)` | `MovieService.search` | 影片检索 |
 | `getMovieDetail(movieId)` | `MovieService.detail` | 影片详情 |
 | `listSessions(movieId, date?)` | `SessionService.listByMovieAndDate` | 某片某日场次 |
-| `getSeatSummary(sessionId)` | `SeatService.seatMap` | **只返回计数与连座片段,不返回整张位图** |
-| `findContiguousSeats(sessionId, count, preferRow?)` | `SeatService.seatMap` | 找 N 连座,返回座位索引 |
-| `getMyOrders(status?, page?, size?)` | `OrderQueryService.myOrders` | 需登录,否则返回空并提示 |
-| `getMyOrder(orderNo)` | `OrderQueryService.detail` | 需登录 |
+| `getSeatSummary(Long sessionId, Long userId)` | `SeatService.seatMap` | **只返回计数与连座片段,不返回整张位图**;userId 用于填充 `myLockedSeats`,可空 |
+| `findContiguousSeats(Long sessionId, Long userId, int count, Integer preferRow)` | `SeatService.seatMap` + 位图解析 | 找 N 连座,返回座位索引;userId 同上 |
+| `getMyOrders(Long userId, Integer status, Integer page, Integer size)` | `OrderQueryService.myOrders` | **userId 必须非 null**;LLM 若传 null,工具层直接返回 `Map.of("error", "LOGIN_REQUIRED")`,由 §5.4(a) `ToolArgumentsErrorHandler` 转自然语言回复("请先登录后再查看订单"),不抛异常 — 抛了反而浪费一次 LLM 轮次 |
+| `getMyOrder(String orderNo, Long userId)` | `OrderQueryService.detail` | 同上 |
 
 **禁止出现在工具清单里的方法**(即使技术上可行):任何 `lockSeats` / `pay` / `cancel` / `refund` / `forceRecover` / 管理端写接口。
 
@@ -294,6 +296,8 @@ cinema-web/src/
 官方原文:"By default, when something is wrong with tool arguments… the AI Service will not be able to execute the tool, so it will fail with an exception." 且官方自评"The current default (throw) is rarely what you want",计划在 2.0 改默认。
 
 ```java
+import dev.langchain4j.service.tool.ToolErrorHandlerResult;
+
 .toolArgumentsErrorHandler((error, ctx) -> ToolErrorHandlerResult.text(error.getMessage()))
 ```
 
@@ -308,12 +312,22 @@ cinema-web/src/
 **(c) 幻觉工具名 —— 默认同样抛异常。**
 
 ```java
+import dev.langchain4j.agent.tool.ToolExecutionRequest;
+import dev.langchain4j.data.message.ToolExecutionResultMessage;
+
 .hallucinatedToolNameStrategy(req ->
     ToolExecutionResultMessage.from(req, "没有名为 " + req.name() + " 的工具,请从可用工具中选择"))
 ```
 
 **(d) 对象类型参数可能为 `null`。**
 官方文档记载 1.x 的不对称行为:**required 校验只对基本类型生效,缺失的对象参数会把 `null` 直接传进方法**,尽管 schema 标了 required。**因此每个 `String` / POJO 参数都要自己判空**(或给 `defaultValue`)。这一条会直接导致 NPE,必须写进 code review 清单。
+
+> **1.20.0 实测的包路径**(本 spec 之前 §5.4 写法在 `dev.langchain4j.agent.tool.*`,反编译 jar 后修正如下):
+> - `ToolErrorHandlerResult` → `dev.langchain4j.service.tool.ToolErrorHandlerResult`(不是 `.agent.tool`)
+> - `ToolExecutionRequest` → `dev.langchain4j.agent.tool.ToolExecutionRequest`(✓ 原写法正确)
+> - `ToolExecutionResultMessage` → `dev.langchain4j.data.message.ToolExecutionResultMessage`(不是 `.service.tool`)
+>
+> 验证手段:`jar tf langchain4j-1.20.0.jar | grep <类名>` + `javap -p <class文件>` 看签名。
 
 ### 5.5 工具入参的白名单校验
 
@@ -335,15 +349,18 @@ cinema-web/src/
 
 ```json
 {
+  "chatSessionId": "uuid-v4-...",   // 前端首次进浮窗用 crypto.randomUUID() 生成;同 id 的对话串行化进同一 memory 桶(§4.3 + §4.4);**与"场次 id"是不同字段**
   "message": "今晚 8 点有什么电影?两个人",
   "context": {
     "route": "/movie/3",
-    "sessionId": null,
+    "sessionId": null,                // 场次 id,本字段才是
     "seatCount": 2,
     "selectedSeatIndexes": []
   }
 }
 ```
+
+**`chatSessionId` 必须客户端生成,后端不代发。** 理由:无状态服务器便于多实例扩;ChatMemory 进程内 map 重启清空本就接受会话丢失(§4.4);后端拿到 `null` 视为新会话并立即生成一个 fallback id 返回给前端(下次请求用该 id),保证 1:N 重试不丢上下文。
 
 响应(沿用 `R<T>` 包装,`code === 0`):
 
@@ -387,10 +404,12 @@ cinema-web/src/
 ### 6.3 限流
 
 ```java
-@RateLimit(key = "chat", permits = 10, window = 1, unit = MINUTES)
+@RateLimit(
+    key = "T(com.cinema.common.context.UserContext).userId() ?: 'anon' + ':chat'",
+    permits = 10, window = 1, unit = MINUTES)
 ```
 
-复用 P0 spec §3.3 已有的 `@RateLimit` AOP 与 Redis 滑动窗口 Lua,key 维度取 `userId`,匿名时退化为 `ip`。
+复用 P0 spec §3.3 已有的 `@RateLimit` AOP 与 Redis 滑动窗口 Lua,key 维度取 `userId`,匿名时退化为字面量 `'anon'`(占位字符串)。与既有锁座/支付/退票接口的 `@RateLimit` key 风格保持一致(都拼 `UserContext.userId()`)。
 
 **为什么不顺手给 `/seat-map` 加限流:** 那是抢票链路的读路径,加限流会改变其容量特征,必须回到 `docs/压测报告-v2.md` 重新验证 P99。聊天是第一个会"机器速度"调用读接口的客户端,应当**在聊天层消化掉这个风险**(靠 §5.2 的结论化工具 + `SessionInfoCacheService` 的 30 分钟 TTL),而不是改动被测过的接口。
 
@@ -415,7 +434,7 @@ cinema-web/src/
 
 卡片点击 → `router.push({ name: 'seat-select', params: { sessionId }, query: { preselect: card.seatIndexes.join(',') } })`。
 
-`SeatSelect.vue` 读取 `preselect`:把还能选的座位加入 `seatStore.selected`,冲突的座位走既有 `conflictFlash` 高亮提示。**这是前端唯一需要新增的交互逻辑,不触碰 `lockSeats()` 调用路径。**
+`SeatSelect.vue` 读取 `preselect`:**追加语义** — 把还能选的座位加入 `seatStore.selected`(用户已有选择**保留**,不被覆盖),冲突的座位走既有 `conflictFlash` 红色脉冲提示。若合并后超过 `maxSelect=4`,按 `preselect` 中座位索引**最小优先剔除**直到 4 个。**这是前端唯一需要新增的交互逻辑,不触碰 `lockSeats()` 调用路径。**
 
 ---
 
@@ -470,13 +489,13 @@ cinema:
 - 浮窗在 `/payment` 不显示;
 - 发送消息后出现回复气泡(不校验文案内容);
 - 卡片点击后 URL 变为 `/seat/{sessionId}` 且 `preselect` 传入;
-- **回归断言:既有 47 个用例仍全绿** —— 这是浮窗改动的真正验收线。
+- **回归断言:既有 67 个 E2E 用例(`tests/` + `tests/web/` 下 `test_*.py` 文件中 `def test_*` 函数统计,2026-09-21 实测)仍全绿** —— 这是浮窗改动的真正验收线。计数口径已与当前仓库一致,后续若新增 E2E 同步更新此数字。
 
 ### 9.4 验收门禁
 
-1. `mvn test` 全绿(既有 27 个 `@Test` + 新增);
+1. `mvn test` 全绿(既有 69 个 `@Test`(17 个测试类,2026-09-21 实测;AGENTS.md 旧数字 29/8 早不准确) + 新增);
 2. `pnpm type-check` + `pnpm test` 全绿;
-3. `tests/` 套件 47 用例不回归;
+3. `tests/` 套件 67 用例不回归(口径同上:`tests/` + `tests/web/` 下 `test_*.py` 文件中 `def test_*` 函数统计);
 4. **助手在任何输入下都不得产生锁座/支付/退票副作用** —— 用 `redis-cli` 断言 `cinema:session:*:lock` 与 `cinema:user:pending:*` 在纯聊天后无变化。这是本 spec 最重要的一条门禁,直接对应 §2.3 的三条证据;
 5. `CinemaAssistant` 的工具清单里不存在任何写方法(可用反射断言 `ChatTools` 上的 `@Tool` 方法白名单)。
 
