@@ -22,6 +22,8 @@
         <mybatis-plus.version>3.5.12</mybatis-plus.version>
         <jjwt.version>0.12.6</jjwt.version>
         <springdoc.version>2.8.6</springdoc.version>
+        <!-- 对话助手:LangChain4j 1.20.0 + langchain4j-open-ai(显式两依赖,不用 BOM 不用 starter,理由见 spec §3.2) -->
+        <langchain4j.version>1.20.0</langchain4j.version>
     </properties>
 
     <dependencies>
@@ -105,6 +107,18 @@
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
             <version>${springdoc.version}</version>
+        </dependency>
+
+        <!-- 对话助手:LangChain4j(显式两依赖,不用 BOM 不用 starter,理由见 spec §3.2) -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j</artifactId>
+            <version>${langchain4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-open-ai</artifactId>
+            <version>${langchain4j.version}</version>
         </dependency>
 
         <dependency>
