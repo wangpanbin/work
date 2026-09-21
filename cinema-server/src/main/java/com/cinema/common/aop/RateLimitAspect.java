@@ -37,8 +37,12 @@ public class RateLimitAspect {
     public Object around(ProceedingJoinPoint pjp, RateLimit rateLimit) throws Throwable {
         String bucketKey = "cinema:ratelimit:" + evalKey(pjp, rateLimit.key());
         long windowMs = TimeUnit.MILLISECONDS.convert(rateLimit.window(), rateLimit.unit());
-        if (!slidingWindow.tryAcquire(bucketKey, rateLimit.permits(), windowMs)) {
-            log.warn("[限流] bucket={} permits={} window={}ms", bucketKey, rateLimit.permits(), windowMs);
+        // spec #17 限流分桶:bucketKey 含 ":anon:" 且 anonymousPermits >= 0 时,匿名走专属 permits
+        int effectivePermits = (bucketKey.contains(":anon:") && rateLimit.anonymousPermits() >= 0)
+                ? rateLimit.anonymousPermits()
+                : rateLimit.permits();
+        if (!slidingWindow.tryAcquire(bucketKey, effectivePermits, windowMs)) {
+            log.warn("[限流] bucket={} permits={} window={}ms", bucketKey, effectivePermits, windowMs);
             throw new BizException(ResultCode.RATE_LIMIT.getCode(), rateLimit.message(), null);
         }
         return pjp.proceed();

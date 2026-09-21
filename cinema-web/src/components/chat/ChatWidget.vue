@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { sendMessage } from '../../api/chat'
 import { useChatContext } from '../../composables/useChatContext'
 import { useUserStore } from '../../stores/user'
+import { detectLoginRequired } from '../../utils/loginRequiredDetector'
 import type { ChatResponseVO } from '../../types'
 import ChatMessage from './ChatMessage.vue'
 
 const userStore = useUserStore()
+const router = useRouter()
 const { context, isHidden } = useChatContext()
 
 const open = ref(false)
@@ -22,6 +25,27 @@ function toggle() {
   open.value = !open.value
 }
 
+/**
+ * spec #17 ID-5 — 检测到 LOGIN_REQUIRED 回复时,弹 ElMessageBox 引导登录。
+ * 仅在用户**已登录**时跳过(spec Q3 决策:匿名用户用工具层降级已处理,
+ * 重复弹窗会骚扰真实登录用户)— 实际触发场景是 anonymous 用户用 getMyOrders,
+ * 后端 ChatTools 返 LOGIN_REQUIRED,本前端拦截引导登录。
+ */
+async function maybePromptLogin(reply: string | undefined) {
+  if (!userStore.isLogin && detectLoginRequired(reply)) {
+    try {
+      await ElMessageBox.confirm(
+        '需要登录才能继续,是否跳转登录?',
+        '提示',
+        { confirmButtonText: '去登录', cancelButtonText: '稍后', type: 'info' },
+      )
+      router.push({ path: '/login', query: { redirect: router.currentRoute.value.fullPath } })
+    } catch {
+      // 用户点"稍后"或关闭,不动作
+    }
+  }
+}
+
 async function send() {
   const text = inputText.value.trim()
   if (!text || sending.value) return
@@ -34,6 +58,8 @@ async function send() {
     const resp = await sendMessage({ message: text, context: context.value })
     const assistantTimestamp = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
     messages.value.push({ role: 'assistant', message: '', response: resp, timestamp: assistantTimestamp })
+    // spec #17:检测到 LOGIN_REQUIRED → 引导登录(只对匿名用户)
+    maybePromptLogin(resp?.reply)
   } catch (e: any) {
     ElMessage.error(e?.message || '对话失败,请稍后重试')
     const errorTimestamp = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })

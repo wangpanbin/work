@@ -406,12 +406,23 @@ import dev.langchain4j.data.message.ToolExecutionResultMessage;
 ```java
 @RateLimit(
     key = "T(com.cinema.common.context.UserContext).userId() ?: 'anon' + ':chat'",
-    permits = 10, window = 1, unit = MINUTES)
+    permits = 10, anonymousPermits = 2,
+    window = 1, unit = MINUTES)
 ```
 
 复用 P0 spec §3.3 已有的 `@RateLimit` AOP 与 Redis 滑动窗口 Lua,key 维度取 `userId`,匿名时退化为字面量 `'anon'`(占位字符串)。与既有锁座/支付/退票接口的 `@RateLimit` key 风格保持一致(都拼 `UserContext.userId()`)。
 
+**限流分桶(spec #17 / ADR 修订):** 匿名用户 2/min,登录用户 10/min。`@RateLimit` 注解新增 `anonymousPermits` 字段(`int`,default `-1` 表示不启用分级,既有调用方零影响);`RateLimitAspect` 在 `evalKey` 后判断 `bucketKey.contains(":anon:")` 切桶。配置见 `ChatController.chatMessage`。
+
 **为什么不顺手给 `/seat-map` 加限流:** 那是抢票链路的读路径,加限流会改变其容量特征,必须回到 `docs/压测报告-v2.md` 重新验证 P99。聊天是第一个会"机器速度"调用读接口的客户端,应当**在聊天层消化掉这个风险**(靠 §5.2 的结论化工具 + `SessionInfoCacheService` 的 30 分钟 TTL),而不是改动被测过的接口。
+
+**已知行为细节(spec #17 测试发现):** SpEL `T(UserContext).userId() ?: 'anon' + ':chat'` 在 userId 非空时返回纯 `userId.toString()`(因 SpEL 的 `+` 优先级高于 `?:`),登录桶 key 为 `cinema:ratelimit:{userId}`;匿名桶 key 为 `cinema:ratelimit:anon:chat`。两个桶维度**不对称**(匿名有 `:chat` 后缀,登录没有),但功能上正确(每个用户独立桶,匿名共用一个桶)。修复需重写 SpEL 表达式(spec §6.3 修订非本次范围)。
+
+### 6.3.1 前端 LOGIN_REQUIRED 引导登录(spec #17)
+
+当匿名用户调用 `getMyOrders` / `getMyOrder` 这类需登录的工具时,`ChatTools` 返 `Map.of("error", "LOGIN_REQUIRED")`,经 `ToolArgumentsErrorHandler` 转自然语言回复(spec §5.4 (a))。前端 `ChatWidget.vue` 在收到 reply 后用 `detectLoginRequired(reply)`(纯函数 `src/utils/loginRequiredDetector.ts`)检测,若命中且当前**匿名**,弹 `ElMessageBox.confirm` 询问是否跳转 `/login?redirect=<current>`。检测正则:`/请先登录|LOGIN_REQUIRED|登录后/`,覆盖自然语言 + 工具层透出两种场景。
+
+**UX 边界:** 仅匿名用户触发弹窗(登录用户不应被骚扰);用户点"稍后"或关闭 ElMessageBox 不动作,不影响对话流。
 
 ---
 

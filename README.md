@@ -19,10 +19,10 @@
 | **延迟关单** | Redis ZSet 延迟队列(主链路 5s 扫描) + 定时补偿任务(1min 兜底),双保险 |
 | **冷启动守护** | 服务重启/Redis flush 后锁座前自动从 DB 重建 Bitmap,杜绝"看似可选实则已售" |
 | **交易闭环** | 锁座 → 支付 → 退票(状态机 PAID→REFUNDING→REFUNDED) + 电子票(HMAC 签名,24h 过期,一次性验票) |
-| **工程严谨** | 115 个 JUnit5 + Mockito 单元测试覆盖核心链路;`@RateLimit`/`@Idempotent` AOP 注解;OrderService 拆 4 service + 1 core(单文件 ≤ 300 行) |
+| **工程严谨** | 118 个 JUnit5 + Mockito 单元测试覆盖核心链路;`@RateLimit`/`@Idempotent` AOP 注解;OrderService 拆 4 service + 1 core(单文件 ≤ 300 行) |
 | **数据可视化** | 管理端经营看板(4 卡片 + 3 图 + 1 表);实时数据大屏(WebSocket 推送锁座事件) |
 | **前端体验** | 全局路由守卫(未登录/非管理员自动拦截) · 影片搜索/筛选 · 注册确认密码 · 移动端适配 · 座位图重构 |
-| **对话助手** | LangChain4j + DeepSeek 全局浮窗;7 个只读工具(`searchMovies` / `getSeatSummary` / `findContiguousSeats` 等);返回行动卡片(SEAT_SUGGESTION)跳选座页预选;**只读不写**(ADR-0002),零副作用 |
+| **对话助手** | LangChain4j + DeepSeek 全局浮窗;7 个只读工具(`searchMovies` / `getSeatSummary` / `findContiguousSeats` 等);返回行动卡片(SEAT_SUGGESTION)跳选座页预选;**只读不写**(ADR-0002),零副作用;**限流分桶**匿名 2/min / 登录 10/min(spec #17);LOGIN_REQUIRED 引导匿名用户登录 |
 
 ---
 
@@ -63,7 +63,7 @@
 | 关键路径单测 | ✅ P0 E2 | **115 个 JUnit5 + Mockito 用例**(25 个测试类,2026-09-21 实测) |
 | 营收明细导出 Excel | ✅ | `GET /api/admin/revenue/export`,独立 axios 实例走 blob,看板导出对话框 |
 | 错误码体系 | ✅ | 0/4xxxx/5xxxx + data 携带附加信息 |
-| **对话式订票助手** | ✅ 2026-09-21 | LangChain4j + DeepSeek;7 只读工具;行动卡片 SEAT_SUGGESTION;@RateLimit 10/min;key-missing 走 50000 短路 |
+| **对话式订票助手** | ✅ 2026-09-21 | LangChain4j + DeepSeek;7 只读工具;行动卡片 SEAT_SUGGESTION;@RateLimit 分桶(匿名 2/min,登录 10/min);LOGIN_REQUIRED 引导登录;key-missing 走 50000 短路 |
 
 ---
 
@@ -165,7 +165,7 @@ pnpm test
 | GET | `/api/orders/my` | 我的订单(分页) | 需登录 |
 | GET | `/api/orders/{orderNo}` | 订单详情 | 需登录 |
 | GET | `/api/tickets/verify` | 验票(公开,P0 N2) | 公开 |
-| POST | `/api/chat/message` | 对话式订票助手(2026-09-21):`{chatSessionId, message, context}` → `{reply, cards[], followUps[]}` | 公开(env `DEEPSEEK_API_KEY` 未设则 50000 短路;10/min `@RateLimit`) |
+| POST | `/api/chat/message` | 对话式订票助手(2026-09-21):`{chatSessionId, message, context}` → `{reply, cards[], followUps[]}` | 公开(env `DEEPSEEK_API_KEY` 未设则 50000 短路;`@RateLimit` 分桶:匿名 2/min,登录 10/min) |
 
 ### 管理端
 
@@ -284,7 +284,7 @@ F:/test/work/
 - [x] P0-9  O3 管理端经营看板
 - [x] P0-10 D1 实时数据大屏(/ws/admin)
 - [x] UX-1  前端体验升级(全局路由守卫 / 注册确认密码 / 移动端适配 / 座位图重构 / 11 处 UI 修复 + 404 兜底页)
-- [x] CHAT-1 对话式订票助手全链路(T1-T9,2026-09-21):LangChain4j + DeepSeek + 7 只读工具 + 行动卡片 SEAT_SUGGESTION + 多跳记忆 + @RateLimit 10/min + env-driven key 注入
+- [x] CHAT-1 对话式订票助手全链路(T1-T9,2026-09-21):LangChain4j + DeepSeek + 7 只读工具 + 行动卡片 SEAT_SUGGESTION + 多跳记忆 + @RateLimit 分桶(匿名 2/min,登录 10/min) + env-driven key 注入 + LOGIN_REQUIRED 引导登录
 - [x] CHAT-2 锁座调用路径零触动 + ADR-0002 反射白名单(`ChatToolsStructureTest` 兜底)
 
 ---
@@ -370,7 +370,8 @@ export DEEPSEEK_API_KEY=sk-xxx         # bash (source)
 - **UX**: 普通用户访问 `/admin` → 拦截回首页 ✓ | 已登录访问 `/login` → 跳首页 ✓
 - **UX**: 注册确认密码不一致 → 前端拦下,不发请求 ✓
 - **CHAT**: env 注入 DEEPSEEK_API_KEY 后,curl `/api/chat/message` 200 + LLM 真打 3-4s + cards[] 11 字段 SEAT_SUGGESTION 完整 ✓
-- **CHAT**: 无 key 启动 → `50000` + "对话功能未配置"(短路);`@RateLimit` 11 次/min 触发 `42900` ✓
+- **CHAT**: 无 key 启动 → `50000` + "对话功能未配置"(短路);`@RateLimit` 匿名 2/min / 登录 11 次/min 触发 `42900` ✓
+- **CHAT**: 匿名问 "我的订单" → 前端 ChatWidget 检测 LOGIN_REQUIRED → 弹 ElMessageBox 引导跳转 `/login?redirect=<current>` ✓
 - **CHAT**: redis 副作用 0(ADR-0002 锁死);锁座调用路径 0 行触动 ✓
 - **CHAT**: `ChatToolsStructureTest` 反射白名单兜底禁 lockSeats/pay/cancel/refund/forceRecover ✓
 
@@ -398,7 +399,7 @@ export DEEPSEEK_API_KEY=sk-xxx         # bash (source)
 ## 测试文件
 
 - `cinema-server/src/test/java/...` — **115 个 JUnit5 + Mockito 单元测试**(25 个测试类,E2 + 营收导出 + 对话助手全链路)
-- `cinema-web/tests/` — **74 个 Vitest 单元测试**(6 个 `.test.ts` 文件)
+- `cinema-web/tests/` — **81 个 Vitest 单元测试**(7 个 `.test.ts` 文件)
 - `test/load_test.py` — 三场景 Python 压测驱动
 - `test/concurrency_strict.py` — 防超卖专项
 - `test/concurrency_test.py` — 并发基础压测

@@ -28,6 +28,18 @@ public @interface RateLimit {
     /** 桶内允许的请求数 */
     int permits() default 1;
 
+    /**
+     * 匿名用户专用 permits(spec #17 限流分桶).
+     * <p>仅在 SpEL key 解析后包含 {@code :anon:} 标记(即 {@code UserContext.userId()==null}
+     * 短路 {@code 'anon'} 字面量的产物)时生效。
+     * <ul>
+     *   <li>default {@code -1} 表示不启用分级,使用 {@link #permits()} — 既有调用方零影响</li>
+     *   <li>设置 {@code >= 0} 时启用分级,匿名用户走 anonymousPermits,登录用户走 permits</li>
+     *   <li>设为 {@code 0} 等价"完全拒绝匿名"</li>
+     * </ul>
+     */
+    int anonymousPermits() default -1;
+
     /** 时间窗口大小 */
     int window() default 1;
 

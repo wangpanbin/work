@@ -41,6 +41,7 @@ public class ChatController {
     @RateLimit(
             key = "T(com.cinema.common.context.UserContext).userId() ?: 'anon' + ':chat'",
             permits = 10,
+            anonymousPermits = 2,
             window = 1,
             unit = TimeUnit.MINUTES,
             message = "对话请求过于频繁,请稍后再试")
