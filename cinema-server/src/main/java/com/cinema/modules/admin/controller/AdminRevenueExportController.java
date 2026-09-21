@@ -53,13 +53,18 @@ public class AdminRevenueExportController {
         byte[] bytes = exportService.renderBytes(query);
 
         // 3. 设置响应头 + 写流 (第一次写 OutputStream 才 commit response)
-        String filename = "营收报表_" + query.getFrom() + "_至_" + query.getTo() + ".xlsx";
-        String encoded = URLEncoder.encode(filename, StandardCharsets.UTF_8)
+        //    Header value 按 RFC 7230 §3.2.4 默认 ISO-8859-1; 汉字 (U+8425 营, U+81F3 至 ...) 直接
+        //    拼进 filename="..." 段会让 Tomcat 在 MessageBytes.toBytes() 抛 IAE.
+        //    修法: ASCII fallback 用纯英文+日期, 完整中文名走 RFC 5987 filename*=UTF-8'' 段
+        //    (现代浏览器 / Chrome / Firefox / Safari / Edge / wget 都支持).
+        String displayName = "营收报表_" + query.getFrom() + "_至_" + query.getTo() + ".xlsx";
+        String asciiFallback = "revenue_" + query.getFrom() + "_" + query.getTo() + ".xlsx";
+        String encoded = URLEncoder.encode(displayName, StandardCharsets.UTF_8)
                 .replace("+", "%20");
         response.setContentType(CONTENT_TYPE);
         response.setCharacterEncoding("UTF-8");
         response.setHeader("Content-Disposition",
-                "attachment; filename=\"" + filename + "\"; filename*=UTF-8''" + encoded);
+                "attachment; filename=\"" + asciiFallback + "\"; filename*=UTF-8''" + encoded);
 
         try (OutputStream os = response.getOutputStream()) {
             os.write(bytes);
