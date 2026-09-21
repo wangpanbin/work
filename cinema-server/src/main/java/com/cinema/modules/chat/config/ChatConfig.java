@@ -1,9 +1,12 @@
 package com.cinema.modules.chat.config;
 
 import com.cinema.modules.chat.agent.CinemaAssistant;
+import com.cinema.modules.chat.memory.ChatMemoryStore;
 import com.cinema.modules.chat.tools.ChatTools;
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.data.message.ToolExecutionResultMessage;
+import dev.langchain4j.memory.ChatMemory;
+import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.service.AiServices;
@@ -12,37 +15,27 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.time.Clock;
 import java.time.Duration;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * T1 cycle 4 — 对话助手 Bean 装配 + 3 个 ErrorHandler(spec §4.5 + §5.4 + §8).
+ * T3 cycle 1 — 对话助手 Bean 装配(spec §4.5 + §8).
  *
- * <p>两个 Bean + 三个 ErrorHandler:
+ * <p>三个 Bean:
  * <ul>
  *   <li>{@code ChatModel} — @ConditionalOnExpression 控制 api-key 非空才注册(cycle 1)</li>
- *   <li>{@code CinemaAssistant} — @ConditionalOnBean(ChatModel.class) 控制 ChatModel 存在时才注册
- *       (cycle 3),AiServices.builder() 把 ChatModel 包装成代理实例,
- *       并挂上三个 ErrorHandler(spec §5.4 — 默认行为有 stack trace 泄漏 / 无效重试 / 幻觉工具名等坑,
- *       必须显式覆盖)</li>
+ *   <li>{@code CinemaAssistant} — @ConditionalOnBean(ChatModel.class) 控制 ChatModel 存在时才注册,
+ *       AiServices.builder() 把 ChatModel 包装成代理实例,并挂上 3 个 ErrorHandler +
+ *       7 个工具 + ChatMemoryProvider(T3 接入串行化/记忆)</li>
+ *   <li>{@code ChatMemoryStore} — 内存存储,按 chatSessionId 分桶,MessageWindowChatMemory
+ *       窗口 10 条消息</li>
+ *   <li>{@code Clock} — 系统 UTC 默认,T3 测试可覆盖</li>
  * </ul>
- *
- * <p>三个 ErrorHandler(spec §5.4 必须替换默认行为):
- * <ol>
- *   <li><b>toolArgumentsErrorHandler</b> — 工具参数错误:默认抛异常浪费 LLM 轮次,
- *       改为返 error.getMessage() 文本让模型知道哪里错</li>
- *   <li><b>toolExecutionErrorHandler</b> — 工具执行异常:默认把 stack trace 原文
- *       发给 LLM,会泄漏内部信息 / 凭据 / PII。改为返固定脱敏文本</li>
- *   <li><b>hallucinatedToolNameStrategy</b> — 模型调用不存在的工具名:
- *       默认抛异常,改为返 ToolExecutionResultMessage 让模型知道该工具不存在</li>
- * </ol>
- *
- * <p>T2 ticket #9 接入 .tools(ChatTools),T3 ticket #10 接入 .chatMemoryProvider。
- *
- * <p>不用 langchain4j-spring-boot-starter (理由见 spec §3.2 — 仍是 beta,且会扫描
- * 所有 {@code @Component} 上的 {@code @Tool} 注入每一个 AI Service).
  */
 @Slf4j
 @Configuration
@@ -66,12 +59,45 @@ public class ChatConfig {
                 .build();
     }
 
+    /**
+     * ChatMemoryStore 默认实现:ConcurrentHashMap + MessageWindowChatMemory 窗口 10 条
+     * (spec §4.4 窗口大小下限,允许完整工具调用链组不被截断).
+     */
+    @Bean
+    public ChatMemoryStore chatMemoryStore() {
+        ConcurrentHashMap<String, ChatMemory> map = new ConcurrentHashMap<>();
+        return new ChatMemoryStore() {
+            @Override
+            public ChatMemory get(String chatSessionId) {
+                return map.computeIfAbsent(chatSessionId,
+                        k -> MessageWindowChatMemory.builder()
+                                .id(chatSessionId)
+                                .maxMessages(10)
+                                .build());
+            }
+
+            @Override
+            public void evict(String chatSessionId) {
+                ChatMemory m = map.remove(chatSessionId);
+                if (m != null) m.clear();
+            }
+        };
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public Clock clock() {
+        return Clock.systemUTC();
+    }
+
     @Bean
     @ConditionalOnBean(ChatModel.class)
-    public CinemaAssistant cinemaAssistant(ChatModel chatModel, ChatTools chatTools) {
-        log.info("[chat] 注册 CinemaAssistant Bean (AiServices.builder + 3 个 ErrorHandler + 7 个工具)");
+    public CinemaAssistant cinemaAssistant(ChatModel chatModel, ChatTools chatTools, ChatMemoryStore memoryStore) {
+        log.info("[chat] 注册 CinemaAssistant Bean (AiServices.builder + 3 个 ErrorHandler + 7 个工具 + ChatMemoryProvider)");
         return AiServices.builder(CinemaAssistant.class)
                 .chatModel(chatModel)
+                // T3: ChatMemoryProvider(spec §4.4 + Q1 决策:按 id 分桶,30min evict)
+                .chatMemoryProvider(memoryId -> memoryStore.get((String) memoryId))
                 // T2 ticket #9: 7 个只读工具(反射白名单 ChatToolsStructureTest 兜底)
                 .tools(chatTools)
                 // spec §5.4 (a) 工具参数错误: 不抛异常浪费 LLM 轮次
@@ -90,7 +116,6 @@ public class ChatConfig {
                     return ToolExecutionResultMessage.from(req,
                             "没有名为 " + req.name() + " 的工具,请从可用工具中选择");
                 })
-                // .chatMemoryProvider(...)  // T3 ticket #10 接入
                 .build();
     }
 }

@@ -1,38 +1,64 @@
 package com.cinema.modules.chat.service;
 
 import com.cinema.modules.chat.agent.CinemaAssistant;
+import com.cinema.modules.chat.memory.ChatMemoryStore;
 import com.cinema.modules.chat.vo.ChatResponseVO;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * T1 cycle 3 — 对话 orchestrator 雏形(spec §4.1).
+ * T3 cycle 1 — 对话 orchestrator 完整版(spec §4.1 + §4.3 + §4.4 + Q1/Q6).
  *
- * <p>cycle 3 阶段只实现两条路径:
+ * <p>新增相对 cycle 3:
  * <ul>
- *   <li>Bean 不存在 → {@code Optional.empty()}(Controller 翻译为 50000)</li>
- *   <li>Bean 存在 → 调 {@code assistant.chat(...)} 转 {@link ChatResponseVO}</li>
+ *   <li>{@code serializationLocks} — ConcurrentHashMap<String, ReentrantLock>,按 chatSessionId 串行化
+ *       (防止并发损坏 ChatMemory,LangChain4j 官方警告)</li>
+ *   <li>{@code lastAccessAt} — ConcurrentHashMap<String, Long>,30min idle 检测用</li>
+ *   <li>{@code Clock} — 可注入,默认 {@code Clock.systemUTC()},测试用 {@code Clock.fixed(...)}</li>
+ *   <li>{@code evict(id)} — 同步清 serializationLocks + memoryStore + lastAccessAt(spec Q6)</li>
+ *   <li>{@code evictIfIdle(id, now)} — 入口检查 idle 并 evict(spec Q1:30min)</li>
+ *   <li>{@code evictIdleSessions()} — @Scheduled(fixedDelay=60s) 后台扫(spec §4.4)</li>
  * </ul>
- *
- * <p>不持有串行化锁(T3 ticket #10 接入) / 不持有 ChatMemory(T3 接入).
- *
- * <p>用 {@link ObjectProvider} 而非 {@code @Autowired} 注入 — Bean 不存在时启动不失败,
- * {@code getIfAvailable()} 返回 {@code null} 走空路径(spec §8 验收).
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class ChatAssistantService {
 
+    private static final long IDLE_TIMEOUT_MILLIS = 30 * 60 * 1000L; // 30 min
+
     private final ObjectProvider<CinemaAssistant> assistantProvider;
+    private final ChatMemoryStore memoryStore;
+    private final Clock clock;
+    private final ConcurrentHashMap<String, ReentrantLock> serializationLocks = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Long> lastAccessAt = new ConcurrentHashMap<>();
+
+    @Autowired
+    public ChatAssistantService(ObjectProvider<CinemaAssistant> assistantProvider,
+                                ChatMemoryStore memoryStore) {
+        this(assistantProvider, memoryStore, Clock.systemUTC());
+    }
+
+    /** 测试用三参数构造器,允许注入 fixed Clock + mock memoryStore. */
+    public ChatAssistantService(ObjectProvider<CinemaAssistant> assistantProvider,
+                                ChatMemoryStore memoryStore,
+                                Clock clock) {
+        this.assistantProvider = assistantProvider;
+        this.memoryStore = memoryStore;
+        this.clock = clock;
+    }
 
     /**
-     * 调 Assistant 并转为 ChatResponseVO.
+     * 调 Assistant 并转为 ChatResponseVO(spec §4.3).
      *
      * @return {@code Optional.empty()} 表示 Bean 未注册(对应 50000 短路路径),
      *         {@code Optional.of(vo)} 表示正常回复
@@ -43,11 +69,54 @@ public class ChatAssistantService {
             log.info("[chat] CinemaAssistant Bean 未注册, 走 50000 路径");
             return Optional.empty();
         }
-        String reply = assistant.chat(chatSessionId, message);
-        return Optional.of(ChatResponseVO.builder()
-                .reply(reply)
-                .cards(List.of())
-                .followUps(List.of())
-                .build());
+
+        // 1. 入口检查 idle 并 evict(spec Q1:空闲 30min 才新建桶)
+        evictIfIdle(chatSessionId);
+
+        // 2. 拿串行化锁(同 chatSessionId 串行,不同并行 — LangChain4j 官方警告)
+        ReentrantLock lock = serializationLocks.computeIfAbsent(chatSessionId, k -> new ReentrantLock());
+        lock.lock();
+        try {
+            String reply = assistant.chat(chatSessionId, message);
+            lastAccessAt.put(chatSessionId, clock.millis());
+            return Optional.of(ChatResponseVO.builder()
+                    .reply(reply)
+                    .cards(List.of())
+                    .followUps(List.of())
+                    .build());
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /** spec §4.3 + Q6: 串行化 map 与 ChatMemory 必须同生命周期清理 */
+    public void evict(String chatSessionId) {
+        log.info("[chat] evict chatSessionId={}", chatSessionId);
+        serializationLocks.remove(chatSessionId);
+        memoryStore.evict(chatSessionId);
+        lastAccessAt.remove(chatSessionId);
+    }
+
+    /** spec Q1: 空闲 30min 自动 evict */
+    private void evictIfIdle(String chatSessionId) {
+        Long last = lastAccessAt.get(chatSessionId);
+        if (last == null || clock.millis() - last > IDLE_TIMEOUT_MILLIS) {
+            evict(chatSessionId);
+        }
+    }
+
+    /** spec §4.4 后台扫: fixedDelay=60s,清理 30min 未访问的桶 */
+    @Scheduled(fixedDelay = 60_000)
+    public void evictIdleSessions() {
+        long cutoff = clock.millis() - IDLE_TIMEOUT_MILLIS;
+        List<String> expired = new ArrayList<>();
+        lastAccessAt.forEach((sid, last) -> {
+            if (last < cutoff) expired.add(sid);
+        });
+        if (expired.isEmpty()) return;
+        log.info("[chat] evictIdleSessions 清理 {} 个过期会话", expired.size());
+        for (String sid : expired) {
+            evict(sid);
+        }
     }
 }
