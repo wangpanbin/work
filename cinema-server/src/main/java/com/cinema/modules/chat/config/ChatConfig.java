@@ -1,6 +1,7 @@
 package com.cinema.modules.chat.config;
 
 import com.cinema.modules.chat.agent.CinemaAssistant;
+import com.cinema.modules.chat.tools.ChatTools;
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.model.chat.ChatModel;
@@ -67,10 +68,12 @@ public class ChatConfig {
 
     @Bean
     @ConditionalOnBean(ChatModel.class)
-    public CinemaAssistant cinemaAssistant(ChatModel chatModel) {
-        log.info("[chat] 注册 CinemaAssistant Bean (AiServices.builder + 3 个 ErrorHandler)");
+    public CinemaAssistant cinemaAssistant(ChatModel chatModel, ChatTools chatTools) {
+        log.info("[chat] 注册 CinemaAssistant Bean (AiServices.builder + 3 个 ErrorHandler + 7 个工具)");
         return AiServices.builder(CinemaAssistant.class)
                 .chatModel(chatModel)
+                // T2 ticket #9: 7 个只读工具(反射白名单 ChatToolsStructureTest 兜底)
+                .tools(chatTools)
                 // spec §5.4 (a) 工具参数错误: 不抛异常浪费 LLM 轮次
                 .toolArgumentsErrorHandler((error, ctx) -> {
                     log.warn("[chat] 工具参数错误: {}", error.getMessage());
@@ -88,7 +91,6 @@ public class ChatConfig {
                             "没有名为 " + req.name() + " 的工具,请从可用工具中选择");
                 })
                 // .chatMemoryProvider(...)  // T3 ticket #10 接入
-                // .tools(...)              // T2 ticket #9 接入 ChatTools
                 .build();
     }
 }
