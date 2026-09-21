@@ -1,5 +1,6 @@
 package com.cinema.modules.chat.controller;
 
+import com.cinema.common.annotation.RateLimit;
 import com.cinema.common.result.R;
 import com.cinema.modules.chat.dto.ChatRequestDTO;
 import com.cinema.modules.chat.service.ChatAssistantService;
@@ -12,16 +13,21 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 /**
- * T1 cycle 3 — 对话入口 Controller(spec §6.1).
+ * T5 — 对话入口 Controller(spec §6.1 + §6.3).
  *
- * <p>cycle 3 重构:从 cycle 2 直接用 {@code ObjectProvider<ChatModel>}
- * 切换到 {@link ChatAssistantService}(后者也是可选 Bean 路径 —
- * 服务内部用 {@code ObjectProvider<CinemaAssistant>}). 行为不变:
- * 无 key → 50000 + "对话功能未配置".
+ * <p>鉴权 + 限流:
+ * <ul>
+ *   <li>{@code /api/chat/**} 不在 {@code AuthRequiredInterceptor} 覆盖路径(spec §6.1)
+ *       → 无 token 也可调,工具层 null userId 自动降级</li>
+ *   <li>{@code @RateLimit} 限制匿名用户共用 10/min 桶(可接受 — spec Q3 决策);
+ *       登录用户各自 10/min</li>
+ * </ul>
  *
- * <p>cycle 5 (T1) 接入 {@code @RateLimit} + {@code @Idempotent}.
+ * <p>SpEL key 用 {@code ?:} 短路 userId==null 时返回字面量 {@code 'anon'},
+ * 避开 {@code T(...).userId()} 抛 NPE(1.x 对称行为,spec §5.4 (d) 提到).
  */
 @Slf4j
 @RestController
@@ -32,6 +38,12 @@ public class ChatController {
     private final ChatAssistantService chatAssistantService;
 
     @PostMapping("/message")
+    @RateLimit(
+            key = "T(com.cinema.common.context.UserContext).userId() ?: 'anon' + ':chat'",
+            permits = 10,
+            window = 1,
+            unit = TimeUnit.MINUTES,
+            message = "对话请求过于频繁,请稍后再试")
     public R<ChatResponseVO> chatMessage(@RequestBody ChatRequestDTO dto) {
         Optional<ChatResponseVO> voOpt = chatAssistantService.chat(
                 dto.getChatSessionId(), dto.getMessage());
