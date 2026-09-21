@@ -4,7 +4,7 @@
 
 - 架构与实现细节见 [docs/实现方案.md](docs/实现方案.md)
 - P0 增量设计 spec: [docs/superpowers/specs/2026-08-31-p0-increment-design.md](docs/superpowers/specs/2026-08-31-p0-increment-design.md)
-- **规划中(未实现)**: 对话式订票助手 spec: [docs/superpowers/specs/2026-09-21-chat-assistant-design.md](docs/superpowers/specs/2026-09-21-chat-assistant-design.md) · 决策记录 [docs/adr/](docs/adr/)
+- **对话式订票助手**(已落地):设计 spec [docs/superpowers/specs/2026-09-21-chat-assistant-design.md](docs/superpowers/specs/2026-09-21-chat-assistant-design.md) · 决策记录 [docs/adr/](docs/adr/) · code review [docs/agents/chat-assistant-code-review.md](docs/agents/chat-assistant-code-review.md)
 - 领域词汇表: [CONTEXT.md](CONTEXT.md)
 - 原始方案见 [plan.md](plan.md)
 
@@ -19,9 +19,10 @@
 | **延迟关单** | Redis ZSet 延迟队列(主链路 5s 扫描) + 定时补偿任务(1min 兜底),双保险 |
 | **冷启动守护** | 服务重启/Redis flush 后锁座前自动从 DB 重建 Bitmap,杜绝"看似可选实则已售" |
 | **交易闭环** | 锁座 → 支付 → 退票(状态机 PAID→REFUNDING→REFUNDED) + 电子票(HMAC 签名,24h 过期,一次性验票) |
-| **工程严谨** | 29 个 JUnit5 + Mockito 单元测试覆盖核心链路;`@RateLimit`/`@Idempotent` AOP 注解;OrderService 拆 4 service + 1 core(单文件 ≤ 300 行) |
+| **工程严谨** | 115 个 JUnit5 + Mockito 单元测试覆盖核心链路;`@RateLimit`/`@Idempotent` AOP 注解;OrderService 拆 4 service + 1 core(单文件 ≤ 300 行) |
 | **数据可视化** | 管理端经营看板(4 卡片 + 3 图 + 1 表);实时数据大屏(WebSocket 推送锁座事件) |
 | **前端体验** | 全局路由守卫(未登录/非管理员自动拦截) · 影片搜索/筛选 · 注册确认密码 · 移动端适配 · 座位图重构 |
+| **对话助手** | LangChain4j + DeepSeek 全局浮窗;7 个只读工具(`searchMovies` / `getSeatSummary` / `findContiguousSeats` 等);返回行动卡片(SEAT_SUGGESTION)跳选座页预选;**只读不写**(ADR-0002),零副作用 |
 
 ---
 
@@ -56,12 +57,13 @@
 
 | 功能 | 状态 | 备注 |
 | --- | --- | --- |
-| 接口限流(`@RateLimit`) | ✅ P0 E4 | Redis 滑动窗口 Lua,锁座/支付/退票分级限流 |
+| 接口限流(`@RateLimit`) | ✅ P0 E4 | Redis 滑动窗口 Lua,锁座/支付/退票/聊天分级限流 |
 | 幂等键(`@Idempotent`) | ✅ P0 E5 | SETNX,锁座/支付前置挡重试 |
 | OrderService 拆分 | ✅ P0 E1 | 4 service + 1 core,单文件 ≤ 300 行 |
-| 关键路径单测 | ✅ P0 E2 | 29 个 JUnit5 + Mockito 用例(8 个测试类) |
+| 关键路径单测 | ✅ P0 E2 | **115 个 JUnit5 + Mockito 用例**(25 个测试类,2026-09-21 实测) |
 | 营收明细导出 Excel | ✅ | `GET /api/admin/revenue/export`,独立 axios 实例走 blob,看板导出对话框 |
 | 错误码体系 | ✅ | 0/4xxxx/5xxxx + data 携带附加信息 |
+| **对话式订票助手** | ✅ 2026-09-21 | LangChain4j + DeepSeek;7 只读工具;行动卡片 SEAT_SUGGESTION;@RateLimit 10/min;key-missing 走 50000 短路 |
 
 ---
 
@@ -69,10 +71,11 @@
 
 | 端 | 技术 |
 | --- | --- |
-| 后端 | JDK 21 · Spring Boot 3.5 · MyBatis-Plus 3.5.12 · Redis 8(Bitmap/Lua/ZSet/PubSub) · WebSocket · JWT · AspectJ AOP · HMAC-SHA256 |
+| 后端 | JDK 21 · Spring Boot 3.5 · MyBatis-Plus 3.5.12 · Redis 8(Bitmap/Lua/ZSet/PubSub) · WebSocket · JWT · AspectJ AOP · HMAC-SHA256 · **LangChain4j 1.20.0(对话助手)** |
 | 前端 | Vue 3 · Vite · TypeScript · Element Plus · Pinia · Axios · dayjs |
 | 中间件 | MySQL 8(本机) · Redis 8(本机,127.0.0.1:6379) |
-| 测试 | JUnit5 · Mockito · AssertJ · Python 压测脚本 · JMeter 5.6.3(可选) |
+| LLM | DeepSeek(OpenAI 兼容端点,env 注入 API key) |
+| 测试 | JUnit5 · Mockito · AssertJ · Python 压测脚本 · JMeter 5.6.3(可选) · Vitest 3.x(前端) |
 
 > 本机无 Docker/RabbitMQ:延迟关单采用 **Redis ZSet 延迟队列**(接口抽象,`DelayQueue` 可替换为 RabbitMQ 实现,见 `docs/实现方案.md §5`)。
 
@@ -99,11 +102,17 @@ cp src/main/resources/application-dev.yml.example src/main/resources/application
 #   编辑 application-dev.yml, 将 <MYSQL_PASSWORD> 改为真实密码
 #   (该文件已被 .gitignore 排除)
 
+# 可选:启用对话助手(不设则 /api/chat/message 走 50000 短路)
+# Linux/Mac: echo 'export DEEPSEEK_API_KEY=sk-xxx' >> ~/.bashrc && source ~/.bashrc
+# Windows cmd: setx DEEPSEEK_API_KEY "sk-xxx"  (需新开 cmd)
+# Windows PS: [Environment]::SetEnvironmentVariable("DEEPSEEK_API_KEY","sk-xxx","User")  (需新开 PS)
+
 mvn spring-boot:run
 ```
 
 - 接口文档: http://localhost:8080/swagger-ui.html
 - 测试账号: `user1 / 123456`、`user2 / 123456`、`admin / 123456`(后端启动时自动初始化密码)
+- 启动日志关注: `c.cinema.modules.chat.config.ChatConfig : [chat] 注册 CinemaAssistant Bean ...`(env 有 key 时)
 
 ### 3. 启动前端(5173)
 
@@ -124,7 +133,12 @@ pnpm dev
 ```bash
 cd cinema-server
 mvn test
-# Tests run: 22, Failures: 0, Errors: 0
+# Tests run: 115, Failures: 0, Errors: 0
+# (跨 25 个测试类,2026-09-21 实测)
+
+cd ../cinema-web
+pnpm test
+# Test Files: 6 passed, Tests: 74 passed (vitest 3.x)
 ```
 
 ---
@@ -151,6 +165,7 @@ mvn test
 | GET | `/api/orders/my` | 我的订单(分页) | 需登录 |
 | GET | `/api/orders/{orderNo}` | 订单详情 | 需登录 |
 | GET | `/api/tickets/verify` | 验票(公开,P0 N2) | 公开 |
+| POST | `/api/chat/message` | 对话式订票助手(2026-09-21):`{chatSessionId, message, context}` → `{reply, cards[], followUps[]}` | 公开(env `DEEPSEEK_API_KEY` 未设则 50000 短路;10/min `@RateLimit`) |
 
 ### 管理端
 
@@ -211,6 +226,7 @@ F:/test/work/
 │       │   ├── seat/         座位图
 │       │   ├── order/        订单(E1 拆分: Lock/Pay/Cancel/Query + Core) + 电子票 Ticket
 │       │   ├── payment/      模拟支付/退款(MockPayment / MockRefund)
+│       │   ├── chat/         对话助手(T9 落地:ChatConfig + CinemaAssistant + ChatTools 7 个 + ChatController + ReplyCardParser)
 │       │   └── admin/        管理端(CRUD + Dashboard O3)
 │       ├── infra/                        基础设施
 │       │   ├── delay/        DelayQueue(Redis ZSet 实现)
@@ -268,28 +284,62 @@ F:/test/work/
 - [x] P0-9  O3 管理端经营看板
 - [x] P0-10 D1 实时数据大屏(/ws/admin)
 - [x] UX-1  前端体验升级(全局路由守卫 / 注册确认密码 / 移动端适配 / 座位图重构 / 11 处 UI 修复 + 404 兜底页)
+- [x] CHAT-1 对话式订票助手全链路(T1-T9,2026-09-21):LangChain4j + DeepSeek + 7 只读工具 + 行动卡片 SEAT_SUGGESTION + 多跳记忆 + @RateLimit 10/min + env-driven key 注入
+- [x] CHAT-2 锁座调用路径零触动 + ADR-0002 反射白名单(`ChatToolsStructureTest` 兜底)
 
 ---
 
-## 规划中(尚未实现,以下内容**不能当成本项目现有能力**)
+## 已实现 — 对话式订票助手(2026-09-21 落地)
 
-> 本节与上文所有章节的区别:**上文描述的都是已落地、可运行、可验证的功能;本节是已定稿的设计,代码尚未编写。**
-
-### 对话式订票助手(chat assistant)
+> **状态**:T1-T9 全链路完成(issue #8-#16 全 close,共 9 个 TDD micro-commit + 1 fixup);**锁座调用路径零触动**(`git diff cinema-server/src/main/java/com/cinema/modules/order/` 0 行);**redis 副作用 0**(`chat:*` / `user:locked:*` / `seat:bitmap:*` / `seat:locked:*` 聊天前后全 0)。
 
 给系统加一个对话入口,让用户能用自然语言查影片/场次/余座/订单,并拿到**可执行的座位建议**。
 
 - **设计文档**:[docs/superpowers/specs/2026-09-21-chat-assistant-design.md](docs/superpowers/specs/2026-09-21-chat-assistant-design.md)
-- **技术选型**:LangChain4j(Java)嵌入 `cinema-server`,进程内直调既有领域 Service;模型走 DeepSeek 的 OpenAI 兼容端点
-- **估时**:~4 天
+- **技术选型**:LangChain4j 1.20.0(Java)嵌入 `cinema-server`,进程内直调既有领域 Service;模型走 DeepSeek 的 OpenAI 兼容端点
+- **代码评审**:[docs/agents/chat-assistant-code-review.md](docs/agents/chat-assistant-code-review.md) — Standards + Spec 双轴 13 项 + live curl 验证矩阵
 
-三条已定稿的核心约束:
+三条核心约束:
 
 | 约束 | 内容 | 依据 |
 | --- | --- | --- |
 | **只读 + 只建议** | 助手**不锁座、不支付、不退票**。它返回「行动卡片」建议,执行权始终在用户手里,落在既有 `/seat/:sessionId` → `POST /orders/lock` 那一跳 | [ADR-0002](docs/adr/0002-action-cards-do-not-execute-writes.md) |
 | **不引入 RAG** | 不接 Embedding / 向量库;事实只能来自只读工具查 MySQL / Redis | [ADR-0003](docs/adr/0003-no-rag-for-chat-assistant.md) |
 | **不流式** | 纯 Servlet MVC 栈,非流式单次返回;卡片必须有整块结构化载荷 | [ADR-0001](docs/adr/0001-langchain4j-embedded-in-server.md) |
+
+### 7 个只读工具(LLM 可调)
+
+| 工具 | 后端调用 | 用途 |
+| --- | --- | --- |
+| `searchMovies(keyword?, genre?, region?)` | `MovieService.search` | 影片检索 |
+| `getMovieDetail(movieId)` | `MovieService.detail` | 影片详情 |
+| `listSessions(movieId, date?)` | `SessionService.listByMovieAndDate` | 某片某日场次 |
+| `getSeatSummary(sessionId, userId?)` | `SeatService.seatMap` | 摘要(总数/可选/已售 + 连座片段) |
+| `findContiguousSeats(sessionId, userId?, count, preferRow?)` | `SeatService.seatMap` | 找 N 连座返回座位索引 |
+| `getMyOrders(userId, status?, page?, size?)` | `OrderQueryService.myOrders` | **userId 必非空,否则 LOGIN_REQUIRED** |
+| `getMyOrder(orderNo, userId)` | `OrderQueryService.detail` | 同上 |
+
+`ChatToolsStructureTest` 反射白名单兜底 — 任何 `lockSeats` / `pay` / `cancel` / `refund` / `forceRecover` / 管理端写方法被 `@Tool` 注解即测试红。
+
+### 行动卡片(`cards[]`)
+
+LLM 在 reply 末尾输出 fenced ` ```json-cards ``` ` 块,后端 `ReplyCardParser` 解析后填 `ChatResponseVO.cards` + `followUps`,前端 `ChatMessage.vue` 按 `v-if="response.cards.length"` 渲染可点击的 `ActionCard`。点击跳 `/seat/{sessionId}?preselect=52,53`,由既有 `applyPreselect`(纯函数,13/13 用例覆盖)做追加语义 + 超 maxSelect 按最小索引剔除。
+
+**约束**:卡片不携带任何可直接提交的载荷,只携带 `{sessionId, seatIndexes}` 建议(ADR-0002 硬约束)。
+
+### 启用(env-driven)
+
+```bash
+# 设环境变量后启动后端,ChatConfig @ConditionalOnExpression 自动激活
+setx DEEPSEEK_API_KEY "sk-xxx"        # cmd (新开)
+[Environment]::SetEnvironmentVariable("DEEPSEEK_API_KEY","sk-xxx","User")  # PowerShell (新开)
+export DEEPSEEK_API_KEY=sk-xxx         # bash (source)
+# 然后 mvn spring-boot:run,看到 "[chat] 注册 CinemaAssistant Bean" 即接通
+```
+
+未设 key 时:`/api/chat/message` 返 `50000` + "对话功能未配置"(这是设计:不挂外部 key 也能让 server 起来)。
+
+**为什么不引入 RAG**:本项目 4 个领域对象(movie/session/seat/order)总数小、单工具查询 < 50ms,RAG 收益不抵复杂度;详见 ADR-0003。
 
 为什么"不让助手直接锁座"不是保守而是必要 — 三条代码级证据(`OrderLockService` 的 `closeIfUnpaid` 会静默释放用户已锁座位;锁座的 `@Idempotent` 键含精确座位组合;`lock_seat.lua` 冲突语义为整单失败)详见 spec §2.3。
 
@@ -319,6 +369,10 @@ F:/test/work/
 - **UX**: 未登录访问 `/seat*`/`/payment`/`/orders` → 跳 `/login` 并带 redirect ✓
 - **UX**: 普通用户访问 `/admin` → 拦截回首页 ✓ | 已登录访问 `/login` → 跳首页 ✓
 - **UX**: 注册确认密码不一致 → 前端拦下,不发请求 ✓
+- **CHAT**: env 注入 DEEPSEEK_API_KEY 后,curl `/api/chat/message` 200 + LLM 真打 3-4s + cards[] 11 字段 SEAT_SUGGESTION 完整 ✓
+- **CHAT**: 无 key 启动 → `50000` + "对话功能未配置"(短路);`@RateLimit` 11 次/min 触发 `42900` ✓
+- **CHAT**: redis 副作用 0(ADR-0002 锁死);锁座调用路径 0 行触动 ✓
+- **CHAT**: `ChatToolsStructureTest` 反射白名单兜底禁 lockSeats/pay/cancel/refund/forceRecover ✓
 
 ---
 
@@ -343,7 +397,8 @@ F:/test/work/
 
 ## 测试文件
 
-- `cinema-server/src/test/java/...` — 29 个 JUnit5 + Mockito 单元测试(8 个测试类,E2 + 营收导出)
+- `cinema-server/src/test/java/...` — **115 个 JUnit5 + Mockito 单元测试**(25 个测试类,E2 + 营收导出 + 对话助手全链路)
+- `cinema-web/tests/` — **74 个 Vitest 单元测试**(6 个 `.test.ts` 文件)
 - `test/load_test.py` — 三场景 Python 压测驱动
 - `test/concurrency_strict.py` — 防超卖专项
 - `test/concurrency_test.py` — 并发基础压测
@@ -354,7 +409,8 @@ F:/test/work/
 - `docs/压测报告.md` — 完整压测报告(W5)
 - `docs/压测报告-v2.md` — P0 后回归压测报告
 - `docs/superpowers/specs/2026-08-31-p0-increment-design.md` — P0 增量设计 spec
-- `docs/superpowers/specs/2026-09-21-chat-assistant-design.md` — 对话式订票助手设计 spec(**规划中,未实现**)
+- `docs/superpowers/specs/2026-09-21-chat-assistant-design.md` — 对话式订票助手设计 spec(**已实现**)
 - `docs/adr/` — 架构决策记录(ADR-0001/0002/0003)
+- `docs/agents/chat-assistant-code-review.md` — 对话助手双轴 code review
 
 > `test/` 目录与根目录测试脚本均属本地测试产物,已由 `.gitignore` 排除,不进入版本库。
