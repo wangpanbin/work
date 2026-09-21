@@ -49,7 +49,12 @@ public class DashboardTrendQuery {
         List<Map<String, Object>> raw = orderMapper.weeklyTrend();
         Map<String, Long> byDate = new HashMap<>();
         for (Map<String, Object> row : raw) {
-            String date = (String) row.get("date");
+            // B-01 修复: MySQL Connector/J 把 DATE(paid_at) 映射成 java.sql.Date 而非 String,
+            // 之前 (String) 强转会抛 ClassCastException 让 /api/admin/dashboard/summary 直接 500.
+            // 这里 toString() 兼容 String / java.sql.Date / java.util.Date, JDK 默认格式就是
+            // "YYYY-MM-DD", 与下方 today.minusDays(i).toString() 完全一致, 不会破坏 padding key.
+            Object dateObj = row.get("date");
+            String date = dateObj == null ? null : dateObj.toString();
             Number amount = (Number) row.get("amount");
             byDate.put(date, amount == null ? 0L : amount.longValue());
         }
