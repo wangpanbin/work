@@ -2,6 +2,7 @@ import axios from 'axios'
 import request from './request'
 import type { Hall, Session } from '../types/admin-types'
 import type { Movie, PageData } from '../types'
+import { AUTH_TOKEN_KEY } from '../constants/auth'
 
 /** O3 经营看板汇总 */
 export interface DashboardSummary {
@@ -152,7 +153,7 @@ export interface RevenueExportQuery {
 export async function exportRevenue(query: RevenueExportQuery): Promise<Blob> {
   const instance = axios.create({ baseURL: '/api', timeout: 30000 })
   instance.interceptors.request.use((config) => {
-    const token = localStorage.getItem('cinema_token')
+    const token = localStorage.getItem(AUTH_TOKEN_KEY)
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }

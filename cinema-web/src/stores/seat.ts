@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { decodeBitmap } from '../utils/bitmap'
 import type { SeatMap } from '../api/seat'
+import { computeApplyEvent } from './seatEventReducer'
 
 /**
  * 座位图 store (Phase D-⑬ 优化)
@@ -78,38 +79,23 @@ export const useSeatStore = defineStore('seat', () => {
   /** WS 事件应用: 本地位图同步. 注意: ref 包裹的 Uint8Array 必须整体替换才能触发响应式. */
   function applyEvent(type: string, seats: number[]) {
     if (seats.length === 0) return
-    const newLockBits = new Uint8Array(lockBits.value)
-    const newSoldBits = new Uint8Array(soldBits.value)
-    // P0-2: 收集本轮被抢走的座位中, 原本在 selected 里的
-    const newFlashes = new Set(conflictFlash.value)
-    for (const s of seats) {
-      if (s < 0 || s >= newLockBits.length) continue
-      if (type === 'LOCKED') {
-        newLockBits[s] = 1
-        if (selected.value.has(s)) {
-          newFlashes.add(s)
-          selected.value.delete(s)
-        }
-      } else if (type === 'RELEASED') {
-        newLockBits[s] = 0
-      } else if (type === 'SOLD') {
-        newLockBits[s] = 1
-        newSoldBits[s] = 1
-        if (selected.value.has(s)) {
-          newFlashes.add(s)
-          selected.value.delete(s)
-        }
-      }
-    }
-    lockBits.value = newLockBits
-    soldBits.value = newSoldBits
-    if (newFlashes.size > 0) {
-      conflictFlash.value = newFlashes
+    // 位图 + selected/conflictFlash 状态机抽出到 computeApplyEvent (纯函数, 易测)
+    const r = computeApplyEvent(
+      lockBits.value, soldBits.value,
+      selected.value, conflictFlash.value,
+      type, seats,
+    )
+    lockBits.value = r.newLockBits
+    soldBits.value = r.newSoldBits
+    selected.value = r.newSelected
+    if (r.hasConflict) {
+      conflictFlash.value = r.newConflictFlash
       // 1.8s 后清掉, 让闪烁/高亮恢复普通 LOCKED_OTHER 样式
+      const flashed = r.newConflictFlash
       window.setTimeout(() => {
         const cur = new Set(conflictFlash.value)
         let changed = false
-        for (const idx of newFlashes) {
+        for (const idx of flashed) {
           if (cur.delete(idx)) changed = true
         }
         if (changed) conflictFlash.value = cur

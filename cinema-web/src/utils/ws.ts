@@ -7,6 +7,7 @@
  * 并对被他人抢走的已选座位做"刚被抢"的临时标记.
  */
 import { ref } from 'vue'
+import { parseWsMessage } from './wsMessage'
 
 export type SeatEvent = {
   type: 'LOCKED' | 'RELEASED' | 'SOLD'
@@ -48,19 +49,13 @@ export function createSeatWs(
     ws = new WebSocket(`${proto}://${host}:${port}/ws/seat/${sessionId}`)
 
     ws.onmessage = (msg) => {
-      try {
-        const payload = msg.data
-        if (payload === 'PONG') return
-        const evt = JSON.parse(payload) as SeatEvent
-        if (evt && evt.type && Array.isArray(evt.seats)) {
-          onEvent(evt)
-          // P0-2: 收到 LOCKED/SOLD 时把 seats 暂存到 lastConflict, 让 UI 提示
-          if (evt.type === 'LOCKED' || evt.type === 'SOLD') {
-            lastConflict.value = evt.seats
-          }
-        }
-      } catch {
-        // 忽略解析错误
+      const payload = msg.data
+      const evt = parseWsMessage(payload)
+      if (!evt) return
+      onEvent(evt)
+      // P0-2: 收到 LOCKED/SOLD 时把 seats 暂存到 lastConflict, 让 UI 提示
+      if (evt.type === 'LOCKED' || evt.type === 'SOLD') {
+        lastConflict.value = evt.seats
       }
     }
 

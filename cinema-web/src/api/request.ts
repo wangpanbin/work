@@ -1,8 +1,7 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import router from '../router'
-
-const TOKEN_KEY = 'cinema_token'
+import { AUTH_TOKEN_KEY, AUTH_USER_KEY, AUTH_CODES } from '../constants/auth'
 
 const request = axios.create({
   baseURL: '/api',
@@ -10,7 +9,7 @@ const request = axios.create({
 })
 
 request.interceptors.request.use((config) => {
-  const token = localStorage.getItem(TOKEN_KEY)
+  const token = localStorage.getItem(AUTH_TOKEN_KEY)
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
@@ -24,9 +23,9 @@ request.interceptors.response.use(
       if (body.code === 0) {
         return body.data
       }
-      if (body.code === 40101 || body.code === 40102) {
-        localStorage.removeItem(TOKEN_KEY)
-        localStorage.removeItem('cinema_user')   // P0-1: 同步清掉 user 缓存, 守卫能立刻判定为未登录
+      if (body.code === AUTH_CODES.UNAUTHORIZED || body.code === AUTH_CODES.TOKEN_EXPIRED) {
+        localStorage.removeItem(AUTH_TOKEN_KEY)
+        localStorage.removeItem(AUTH_USER_KEY)   // P0-1: 同步清掉 user 缓存, 守卫能立刻判定为未登录
         if (router.currentRoute.value.path !== '/login') {
           ElMessage.warning(body.msg || '请先登录')
           // 带上 redirect, 登录成功后能回到原页面

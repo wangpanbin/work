@@ -1,11 +1,12 @@
 import request from './request'
 import type { PageData } from '../types'
+import type { OrderStatusCode } from '../views/order/constants'
 
 export interface OrderVO {
   orderNo: string
   // 雪花 ID 走 string, 避免 JS Number 精度截断
   sessionId: string
-  status: number
+  status: OrderStatusCode
   statusText: string
   movieTitle: string
   hallName: string
@@ -30,7 +31,7 @@ export function lockSeats(data: { sessionId: string | number; seatIndexes: numbe
   return request.post('/orders/lock', data) as Promise<LockResult>
 }
 
-export function myOrders(params: { status?: number; page?: number; size?: number }): Promise<PageData<OrderVO>> {
+export function myOrders(params: { status?: OrderStatusCode; page?: number; size?: number }): Promise<PageData<OrderVO>> {
   return request.get('/orders/my', { params }) as Promise<PageData<OrderVO>>
 }
 

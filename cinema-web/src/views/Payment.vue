@@ -7,6 +7,7 @@ import QRCode from 'qrcode'
 import { orderDetail, pay, cancel, refund, getTicket } from '../api/order'
 import type { OrderVO, TicketVO } from '../api/order'
 import Countdown from '../components/Countdown.vue'
+import { ORDER_STATUS_VIEW, BUTTON_BY_ACTION, type OrderStatusCode } from './order/constants'
 
 const route = useRoute()
 const router = useRouter()
@@ -59,16 +60,10 @@ const sessionNotStarted = computed(() => {
   return dayjs(order.value.startTime).isAfter(dayjs())
 })
 
-/** 状态机文案：覆盖所有 5 个状态, 避免 REFUNDED 还显示"支付成功"的尴尬 */
-const statusBlock = computed(() => {
-  const s = order.value?.status
-  if (s === 0) return { kind: 'pending', text: '' }
-  if (s === 1) return { kind: 'paid', text: '支付成功,祝您观影愉快!' }
-  if (s === 2) return { kind: 'cancelled', text: '订单已取消' }
-  if (s === 3) return { kind: 'refunding', text: '退款处理中,请稍候…' }
-  if (s === 4) return { kind: 'refunded', text: '已退款,座位已释放' }
-  return { kind: 'unknown', text: '' }
-})
+/** 当前订单的状态视图(取常量里的元数据), 模板内复用 bannerCopy / tagType / actions */
+function viewOf(status: OrderStatusCode) {
+  return ORDER_STATUS_VIEW[status]
+}
 
 async function onPay() {
   submitting.value = true
@@ -181,7 +176,7 @@ function goSeat() {
         </div>
         <div class="header-status">
           <el-tag
-            :type="order.status === 1 ? 'success' : order.status === 2 || order.status === 4 ? 'info' : order.status === 3 ? 'warning' : 'warning'"
+            :type="viewOf(order.status).tagType"
             size="large" effect="dark"
           >
             {{ order.statusText }}
@@ -236,50 +231,62 @@ function goSeat() {
 
       <div class="divider"></div>
 
-      <!-- Actions: 按状态分支 -->
-      <!-- 待支付: 取消 + 支付 -->
-      <div class="actions" v-if="order.status === 0">
-        <el-button type="danger" plain @click="onCancel" :disabled="submitting" class="cancel-btn">取消订单</el-button>
-        <el-button
-          type="primary" size="large" @click="expired ? redirectToOrders() : onPay()"
-          :loading="submitting" class="pay-btn"
-        >
-          {{ expired ? '已超时,重新选座' : '确认支付' }}
-        </el-button>
-      </div>
-      <!-- 已取消: 重新选座 -->
-      <div v-else-if="order.status === 2" class="actions">
-        <el-button type="primary" @click="goSeat">重新选座</el-button>
-      </div>
-      <!-- 退款中: 进度条 + 等待 -->
-      <div v-else-if="order.status === 3" class="actions">
-        <div class="status-banner status-refunding">
+      <!-- Actions: 统一布局 = 可选 banner/success + 按钮迭代 -->
+      <div class="actions" :class="{ success: order.status === 1 }">
+        <!-- Banner: REFUNDING -->
+        <div v-if="order.status === 3" class="status-banner status-refunding">
           <div class="spinner"></div>
-          <span>{{ statusBlock.text }}</span>
+          <span>{{ viewOf(order.status).bannerCopy }}</span>
         </div>
-      </div>
-      <!-- 已退款: 重新选座 -->
-      <div v-else-if="order.status === 4" class="actions">
-        <div class="status-banner status-refunded">
+        <!-- Banner: REFUNDED -->
+        <div v-else-if="order.status === 4" class="status-banner status-refunded">
           <div class="banner-icon">↩</div>
-          <span>{{ statusBlock.text }}</span>
+          <span>{{ viewOf(order.status).bannerCopy }}</span>
         </div>
-        <el-button type="primary" @click="goSeat">重新选座</el-button>
-      </div>
-      <!-- 已支付: 取票 + 退票(开场前) -->
-      <div v-else class="actions success">
-        <div class="success-content">
+        <!-- Success content: PAID -->
+        <div v-else-if="order.status === 1" class="success-content">
           <div class="success-icon">✓</div>
-          <span>{{ statusBlock.text }}</span>
+          <span>{{ viewOf(order.status).bannerCopy }}</span>
         </div>
-        <div class="paid-buttons">
-          <el-button type="warning" plain :disabled="submitting" @click="onRefund">
-            申请退票
-          </el-button>
-          <el-button type="primary" @click="onShowTicket">
-            🎟️ 查看电子票
-          </el-button>
-        </div>
+
+        <!-- 按钮按 availableActions 迭代 -->
+        <template v-for="action in viewOf(order.status).availableActions" :key="action">
+          <el-button
+            v-if="action === 'pay'"
+            type="primary" size="large"
+            :loading="submitting"
+            class="pay-btn"
+            @click="expired ? redirectToOrders() : onPay()"
+          >{{ expired ? '已超时,重新选座' : BUTTON_BY_ACTION.pay.label }}</el-button>
+          <el-button
+            v-else-if="action === 'cancel'"
+            type="danger" plain
+            :disabled="submitting"
+            class="cancel-btn"
+            @click="onCancel"
+          >{{ BUTTON_BY_ACTION.cancel.label }}</el-button>
+          <el-button
+            v-else-if="action === 'refund'"
+            type="warning" plain
+            :disabled="submitting"
+            @click="onRefund"
+          >{{ BUTTON_BY_ACTION.refund.label }}</el-button>
+          <el-button
+            v-else-if="action === 'viewDetail'"
+            type="primary"
+            @click="onShowTicket"
+          >{{ BUTTON_BY_ACTION.viewDetail.label }}</el-button>
+          <el-button
+            v-else-if="action === 'viewTicket'"
+            type="primary"
+            @click="onShowTicket"
+          >🎟️ {{ BUTTON_BY_ACTION.viewTicket.label }}</el-button>
+          <el-button
+            v-else-if="action === 'rebook'"
+            type="primary"
+            @click="goSeat"
+          >{{ BUTTON_BY_ACTION.rebook.label }}</el-button>
+        </template>
       </div>
     </div>
 
