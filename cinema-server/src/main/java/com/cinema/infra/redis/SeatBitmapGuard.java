@@ -1,19 +1,9 @@
 package com.cinema.infra.redis;
 
-import com.cinema.modules.order.entity.Order;
-import com.cinema.modules.order.entity.OrderItem;
-import com.cinema.modules.order.enums.OrderStatus;
-import com.cinema.modules.order.mapper.OrderItemMapper;
-import com.cinema.modules.order.mapper.OrderMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * P5 冷启动守护: 服务重启 / Redis flush 后,锁座前若发现位图为空, 从 DB 重建.
@@ -22,6 +12,10 @@ import java.util.stream.Collectors;
  *   <li>RECOVER_SCRIPT 用 SETBIT 原子设置, 与 lock_seat.lua 同 SETBIT 命令互不冲突</li>
  *   <li>两个恢复请求并发时只会重复设同样的 bit (1), 不影响最终状态</li>
  * </ul>
+ *
+ * <p>#2 收尾: 重建向量 (查 orders + items + lock/sold 分区) 的 28 行重复代码
+ * 已抽到 {@link SeatBitmapRebuilder}. Guard 只保留"是否需要恢复"的策略
+ * (EXISTS 短路 / 清空位图 / 返回码), Rebuilder 负责"事实" (分区规则).
  */
 @Slf4j
 @Component
@@ -29,8 +23,7 @@ import java.util.stream.Collectors;
 public class SeatBitmapGuard {
 
     private final StringRedisTemplate redisTemplate;
-    private final OrderMapper orderMapper;
-    private final OrderItemMapper orderItemMapper;
+    private final SeatBitmapRebuilder rebuilder;
     private final SeatLuaService seatLuaService;
 
     /**
@@ -46,38 +39,14 @@ public class SeatBitmapGuard {
             return false;
         }
 
-        // 查 DB: 该场次所有未完结订单(status=0 待支付, status=1 已支付)
-        List<Order> orders = orderMapper.selectList(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Order>()
-                        .eq(Order::getSessionId, sessionId)
-                        .in(Order::getStatus, OrderStatus.PENDING_PAY.getCode(), OrderStatus.PAID.getCode()));
-        if (orders.isEmpty()) {
+        SeatBitmapRebuilder.SeatVectors v = rebuilder.collectSeatVectors(sessionId);
+        if (!v.hasOrders()) {
             // DB 也没数据, 位图就是空, 无需恢复
             return false;
         }
 
-        // 一次查 order_item 复用给两个 list
-        Set<Long> orderIds = orders.stream().map(Order::getId).collect(Collectors.toSet());
-        List<OrderItem> items = orderItemMapper.selectList(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<OrderItem>()
-                        .in(OrderItem::getOrderId, orderIds));
-
-        // lock bitmap: status=0 + 1 全部
-        List<Integer> lockSeats = items.stream().map(OrderItem::getSeatIndex).distinct().sorted().toList();
-        // sold bitmap: 仅 status=1
-        Set<Long> paidOrderIds = orders.stream()
-                .filter(o -> o.getStatus() == OrderStatus.PAID.getCode())
-                .map(Order::getId)
-                .collect(Collectors.toSet());
-        List<Integer> soldSeats = items.stream()
-                .filter(it -> paidOrderIds.contains(it.getOrderId()))
-                .map(OrderItem::getSeatIndex)
-                .distinct()
-                .sorted()
-                .toList();
-
         long t0 = System.currentTimeMillis();
-        RecoverResult result = seatLuaService.recoverSeats(lockKey, soldKey, lockSeats, soldSeats);
+        RecoverResult result = seatLuaService.recoverSeats(lockKey, soldKey, v.lock(), v.sold());
         long cost = System.currentTimeMillis() - t0;
         log.info("[bitmap-recover] sid={} lock={} sold={} cost={}ms", sessionId, result.lock(), result.sold(), cost);
         return true;
@@ -90,38 +59,18 @@ public class SeatBitmapGuard {
         String lockKey = RedisKeys.sessionLock(sessionId);
         String soldKey = RedisKeys.sessionSold(sessionId);
 
-        List<Order> orders = orderMapper.selectList(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Order>()
-                        .eq(Order::getSessionId, sessionId)
-                        .in(Order::getStatus, OrderStatus.PENDING_PAY.getCode(), OrderStatus.PAID.getCode()));
-        if (orders.isEmpty()) {
+        SeatBitmapRebuilder.SeatVectors v = rebuilder.collectSeatVectors(sessionId);
+        if (!v.hasOrders()) {
             log.info("[bitmap-recover:force] sid={} 无有效订单, 清空位图", sessionId);
             redisTemplate.delete(lockKey);
             redisTemplate.delete(soldKey);
             return new RecoverResult(0, 0);
         }
 
-        Set<Long> orderIds = orders.stream().map(Order::getId).collect(Collectors.toSet());
-        List<OrderItem> items = orderItemMapper.selectList(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<OrderItem>()
-                        .in(OrderItem::getOrderId, orderIds));
-
-        List<Integer> lockSeats = items.stream().map(OrderItem::getSeatIndex).distinct().sorted().toList();
-        Set<Long> paidOrderIds = orders.stream()
-                .filter(o -> o.getStatus() == OrderStatus.PAID.getCode())
-                .map(Order::getId)
-                .collect(Collectors.toSet());
-        List<Integer> soldSeats = items.stream()
-                .filter(it -> paidOrderIds.contains(it.getOrderId()))
-                .map(OrderItem::getSeatIndex)
-                .distinct()
-                .sorted()
-                .toList();
-
         // 强制模式: 先清空再恢复
         redisTemplate.delete(lockKey);
         redisTemplate.delete(soldKey);
-        RecoverResult result = seatLuaService.recoverSeats(lockKey, soldKey, lockSeats, soldSeats);
+        RecoverResult result = seatLuaService.recoverSeats(lockKey, soldKey, v.lock(), v.sold());
         log.info("[bitmap-recover:force] sid={} lock={} sold={}", sessionId, result.lock(), result.sold());
         return result;
     }

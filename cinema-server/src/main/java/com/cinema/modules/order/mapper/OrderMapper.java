@@ -2,6 +2,8 @@ package com.cinema.modules.order.mapper;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.cinema.modules.admin.dashboard.SessionOccupancyRow;
+import com.cinema.modules.admin.dto.DashboardSummaryVO;
 import com.cinema.modules.order.entity.Order;
 import com.cinema.modules.order.vo.RevenueRowVO;
 import org.apache.ibatis.annotations.Mapper;
@@ -66,20 +68,20 @@ public interface OrderMapper extends BaseMapper<Order> {
             "GROUP BY DATE(paid_at) ORDER BY date ASC")
     java.util.List<java.util.Map<String, Object>> weeklyTrend();
 
-    /** TOP 5 影片(本周按票房) */
+    /** TOP 5 影片(本周按票房) — 列名 title/revenue/orders 直接映射 DashboardSummaryVO.TopMovie */
     @org.apache.ibatis.annotations.Select("SELECT m.title, IFNULL(SUM(o.total_amount), 0) AS revenue, COUNT(*) AS orders " +
             "FROM `order` o JOIN session s ON o.session_id = s.id " +
             "JOIN movie m ON s.movie_id = m.id " +
             "WHERE o.status = 1 AND o.paid_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) " +
             "GROUP BY m.id, m.title ORDER BY revenue DESC LIMIT 5")
-    java.util.List<java.util.Map<String, Object>> topMoviesWeek();
+    java.util.List<DashboardSummaryVO.TopMovie> topMoviesWeek();
 
-    /** 场次上座率(本周): 每个 session_id 的已售座位数 */
+    /** 场次上座率(本周): 每个 session_id 的已售座位数 — 列名 sessionId/sold 映射 SessionOccupancyRow */
     @org.apache.ibatis.annotations.Select("SELECT s.id AS sessionId, IFNULL(SUM(o.seat_count), 0) AS sold " +
             "FROM session s LEFT JOIN `order` o ON o.session_id = s.id AND o.status = 1 " +
             "WHERE s.start_time BETWEEN DATE_SUB(NOW(), INTERVAL 7 DAY) AND DATE_ADD(NOW(), INTERVAL 1 DAY) " +
             "GROUP BY s.id ORDER BY sold DESC LIMIT 20")
-    java.util.List<java.util.Map<String, Object>> sessionOccupancyWeek();
+    java.util.List<SessionOccupancyRow> sessionOccupancyWeek();
 
     // ====================== T1 营收导出 ======================
 

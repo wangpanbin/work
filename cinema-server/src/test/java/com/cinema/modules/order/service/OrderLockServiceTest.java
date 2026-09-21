@@ -1,14 +1,17 @@
 package com.cinema.modules.order.service;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.cinema.common.exception.BizException;
 import com.cinema.infra.delay.DelayQueue;
 import com.cinema.infra.redis.LuaLockResult;
+import com.cinema.infra.redis.RedisKeys;
 import com.cinema.infra.redis.SeatBitmapGuard;
 import com.cinema.infra.redis.SeatLuaService;
 import com.cinema.infra.ws.AdminEventPublisher;
 import com.cinema.infra.ws.SeatEventPublisher;
 import com.cinema.modules.order.dto.LockSeatsDTO;
 import com.cinema.modules.order.entity.Order;
+import com.cinema.modules.order.enums.OrderStatus;
 import com.cinema.modules.order.mapper.OrderItemMapper;
 import com.cinema.modules.order.mapper.OrderMapper;
 import com.cinema.modules.order.service.core.OrderCore;
@@ -146,6 +149,83 @@ class OrderLockServiceTest {
                 .hasMessageContaining("已开场");
 
         verify(seatLuaService, never()).lockSeats(anyString(), anyString(), anyList());
+    }
+
+    /**
+     * 死分支收尾 (候选 #5): 用户已有 PENDING_PAY 订单, lockSeats 应走 closePending 关闭旧单。
+     * 同时断言 redisTemplate.hasKey 从未被调用——证明死分支已被清理。
+     */
+    @Test
+    @DisplayName("已有 PENDING_PAY: lockSeats 关闭旧单, 不调用 redis.hasKey")
+    void lockSeats_closesPreviousPending_whenUserAlreadyHasPendingOrder() {
+        Long userId = 100L, sessionId = 1L;
+        LockSeatsDTO dto = new LockSeatsDTO();
+        dto.setSessionId(sessionId);
+        dto.setSeatIndexes(List.of(10));
+
+        // 用户已有待支付单
+        Order pending = new Order();
+        pending.setId(999L);
+        pending.setOrderNo("OLD-ORDER");
+        pending.setUserId(userId);
+        pending.setSessionId(sessionId);
+        pending.setStatus(OrderStatus.PENDING_PAY.getCode());
+
+        when(orderCore.requirePurchasableSession(sessionId))
+                .thenReturn(newSession(sessionId, LocalDateTime.now().plusHours(3)));
+        when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(pending);
+        // closePending 链路
+        when(orderMapper.casCancel("OLD-ORDER")).thenReturn(1);
+        when(orderCore.seatIndexesOf(pending)).thenReturn(List.of(5, 6));
+        // 新锁链路
+        when(seatLuaService.lockSeats(anyString(), anyString(), anyList()))
+                .thenReturn(new LuaLockResult(true, List.of()));
+        when(orderMapper.insert(any(Order.class))).thenAnswer(inv -> {
+            Order o = inv.getArgument(0);
+            o.setId(123L);
+            o.setOrderNo("ORD-NEW");
+            return 1;
+        });
+
+        service.lockSeats(userId, dto);
+
+        // closePending 真的跑了
+        verify(orderMapper).casCancel("OLD-ORDER");
+        verify(redisTemplate).delete(RedisKeys.userPending(userId, sessionId));
+        // 死分支清理: hasKey 必须从未被调用
+        verify(redisTemplate, never()).hasKey(anyString());
+    }
+
+    /**
+     * 死分支收尾 (候选 #5): 用户无 PENDING_PAY 订单时, lockSeats 应直接走新锁链路。
+     * 同时断言 redisTemplate.hasKey 从未被调用——证明死分支已被清理。
+     */
+    @Test
+    @DisplayName("无 PENDING_PAY: lockSeats 跳过 close 路径, 不调用 redis.hasKey")
+    void lockSeats_skipsClosePath_whenNoPendingOrder() {
+        Long userId = 100L, sessionId = 1L;
+        LockSeatsDTO dto = new LockSeatsDTO();
+        dto.setSessionId(sessionId);
+        dto.setSeatIndexes(List.of(10));
+
+        when(orderCore.requirePurchasableSession(sessionId))
+                .thenReturn(newSession(sessionId, LocalDateTime.now().plusHours(3)));
+        when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
+        when(seatLuaService.lockSeats(anyString(), anyString(), anyList()))
+                .thenReturn(new LuaLockResult(true, List.of()));
+        when(orderMapper.insert(any(Order.class))).thenAnswer(inv -> {
+            Order o = inv.getArgument(0);
+            o.setId(123L);
+            o.setOrderNo("ORD-NEW");
+            return 1;
+        });
+
+        service.lockSeats(userId, dto);
+
+        // closePending 没跑
+        verify(orderMapper, never()).casCancel(anyString());
+        // 死分支清理: hasKey 必须从未被调用
+        verify(redisTemplate, never()).hasKey(anyString());
     }
 
     private Session newSession(Long id, LocalDateTime start) {

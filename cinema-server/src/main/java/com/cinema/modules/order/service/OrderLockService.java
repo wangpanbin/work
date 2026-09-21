@@ -71,8 +71,9 @@ public class OrderLockService {
         // P5: 锁座前兜底, 若位图缺失则从 DB 重建(防服务重启后超卖)
         seatBitmapGuard.ensureBitmaps(sessionId);
 
-        // 幂等防重: Redis 短路, 命中再去 DB 确认
-        Order pending = findPendingOrderShortCircuit(userId, sessionId);
+        // 幂等防重: 查用户当前 PENDING_PAY 订单; Redis user:pending 仅作为 lockSeats 写入提示,
+        // 实际查询以 DB 为权威源(Redis value 在本仓库从未被读取,见 #5 收尾)。
+        Order pending = findUserPendingOrder(userId, sessionId);
         if (pending != null) {
             orderCore.clearUserLockedHash(userId, sessionId);
             // 复用 OrderCore.getOwnedOrder 之外的快速关闭: 直接关闭旧单
@@ -189,18 +190,11 @@ public class OrderLockService {
     }
 
     /**
-     * 锁座前 Redis 短路查待支付单
+     * 查用户在某场次的 PENDING_PAY 订单(锁座前幂等防重)。
+     * <p>Redis user:pending 仅作为 lockSeats 写入提示; 本查询以 DB 为权威源
+     * (Redis value 在本仓库从未被读取, 原 findPendingOrderShortCircuit 的 hasKey 分支是死分支, 见 #5 收尾)。
      */
-    private Order findPendingOrderShortCircuit(Long userId, Long sessionId) {
-        String pendingKey = RedisKeys.userPending(userId, sessionId);
-        Boolean exists = redisTemplate.hasKey(pendingKey);
-        if (!Boolean.TRUE.equals(exists)) {
-            return orderMapper.selectOne(new LambdaQueryWrapper<Order>()
-                    .eq(Order::getUserId, userId)
-                    .eq(Order::getSessionId, sessionId)
-                    .eq(Order::getStatus, OrderStatus.PENDING_PAY.getCode())
-                    .last("LIMIT 1"));
-        }
+    private Order findUserPendingOrder(Long userId, Long sessionId) {
         return orderMapper.selectOne(new LambdaQueryWrapper<Order>()
                 .eq(Order::getUserId, userId)
                 .eq(Order::getSessionId, sessionId)
