@@ -87,6 +87,64 @@ class ChatAssistantServiceTest {
         assertThat(result.get().getFollowUps()).isEmpty();
     }
 
+    // ============ T9 新增契约(spec §6.1 + #16 acceptance)============
+
+    @Test
+    @DisplayName("LLM reply 含 ```json-cards``` fence → chat() 提取 cards + followUps + 剥离 fence")
+    void givenLLMReplyWithCardFence_whenChat_thenExtractsCardsAndFollowUps() {
+        String replyWithFence = "今晚 8 点《流浪地球》19 号厅还有 42 座。\n\n"
+                + "```json-cards\n"
+                + "{\"cards\":[{\"type\":\"SEAT_SUGGESTION\",\"sessionId\":\"1001\","
+                + "\"movieTitle\":\"流浪地球\",\"hallName\":\"19 号厅\","
+                + "\"startTime\":\"2026-09-21 20:00:00\",\"price\":45.00,"
+                + "\"seatIndexes\":[52,53],\"seatDesc\":\"5排4座、5排5座\","
+                + "\"totalAmount\":90.00,\"actionLabel\":\"去选座确认\"}],"
+                + "\"followUps\":[\"换一个场次\",\"只看 VIP 厅\"]}\n"
+                + "```";
+        when(assistant.chat("sid-t9", "推荐座位")).thenReturn(replyWithFence);
+
+        Optional<ChatResponseVO> result = service.chat("sid-t9", "推荐座位");
+        assertThat(result).isPresent();
+        ChatResponseVO vo = result.get();
+        // 1) reply 剥离 fence
+        assertThat(vo.getReply()).doesNotContain("```json-cards");
+        assertThat(vo.getReply()).doesNotContain("SEAT_SUGGESTION");
+        assertThat(vo.getReply()).startsWith("今晚 8 点");
+        // 2) cards 提取 1 张
+        assertThat(vo.getCards()).hasSize(1);
+        assertThat(vo.getCards().get(0).getSessionId()).isEqualTo("1001");
+        assertThat(vo.getCards().get(0).getSeatIndexes()).containsExactly(52, 53);
+        // 3) followUps 提取 2 个
+        assertThat(vo.getFollowUps()).containsExactly("换一个场次", "只看 VIP 厅");
+    }
+
+    @Test
+    @DisplayName("LLM reply 含坏 JSON fence → chat() 静默回退 cards=[], fence 仍剥离")
+    void givenLLMReplyWithBadJsonFence_whenChat_thenSilentFallback() {
+        String replyBad = "回答\n```json-cards\n{not valid}\n```";
+        when(assistant.chat("sid-t9-bad", "x")).thenReturn(replyBad);
+
+        Optional<ChatResponseVO> result = service.chat("sid-t9-bad", "x");
+        assertThat(result).isPresent();
+        assertThat(result.get().getCards()).isEmpty();
+        assertThat(result.get().getFollowUps()).isEmpty();
+        // fence 仍剥离(UX 优先,不让用户看到 broken 块)
+        assertThat(result.get().getReply()).doesNotContain("```json-cards");
+        assertThat(result.get().getReply()).doesNotContain("not valid");
+    }
+
+    @Test
+    @DisplayName("LLM reply 无 fence → chat() 走原路径(cards=[],reply 原样)")
+    void givenLLMReplyWithoutFence_whenChat_thenOriginalReplyUnchanged() {
+        String plain = "今晚 8 点有 3 场《流浪地球》。";
+        when(assistant.chat("sid-t9-plain", "hi")).thenReturn(plain);
+
+        Optional<ChatResponseVO> result = service.chat("sid-t9-plain", "hi");
+        assertThat(result).isPresent();
+        assertThat(result.get().getReply()).isEqualTo(plain);
+        assertThat(result.get().getCards()).isEmpty();
+    }
+
     // ============ T3 新增测试 ============
 
     @Test

@@ -79,10 +79,14 @@ public class ChatAssistantService {
         try {
             String reply = assistant.chat(chatSessionId, message);
             lastAccessAt.put(chatSessionId, clock.millis());
+            // T9: 解析 LLM 在 reply 末尾 fence 的 ```json-cards ... ``` 块,
+            // 提取 cards + followUps + 剥离 fence 后的 reply(spec §6.1 + #16 acceptance).
+            // 解析失败静默回退到 cards=List.of(),不抛(spec §5.4 容错路径).
+            ReplyCardParser.ParseResult parsed = ReplyCardParser.parse(reply);
             return Optional.of(ChatResponseVO.builder()
-                    .reply(reply)
-                    .cards(List.of())
-                    .followUps(List.of())
+                    .reply(parsed.strippedReply())
+                    .cards(parsed.cards())
+                    .followUps(parsed.followUps())
                     .build());
         } finally {
             lock.unlock();
