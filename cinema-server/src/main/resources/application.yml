@@ -29,6 +29,15 @@ cinema:
     # 生产环境务必更换(至少32字节)并从环境变量注入
     secret: cinema-dev-secret-key-change-me-32bytes-min!!
     expire-hours: 72
+  chat:
+    # 对话助手 LLM 配置(env 驱动;ChatConfig @ConditionalOnExpression 仅在 key 非空时注册 ChatModel Bean)
+    # 设置 `DEEPSEEK_API_KEY` 环境变量后,/api/chat/message 才会接通 LLM(否则 50000 + "对话功能未配置" 短路)
+    # 示例(setx DEEPSEEK_API_KEY "sk-xxx" 后重启 cmd / PowerShell,USER 级别即可)
+    api-key: ${DEEPSEEK_API_KEY:}
+    base-url: ${CINEMA_CHAT_BASE_URL:https://api.deepseek.com/v1}
+    model-name: ${CINEMA_CHAT_MODEL_NAME:deepseek-chat}
+    timeout-seconds: ${CINEMA_CHAT_TIMEOUT_SECONDS:90}
+    max-retries: ${CINEMA_CHAT_MAX_RETRIES:2}
 
 springdoc:
   swagger-ui:

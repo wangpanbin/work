@@ -9,6 +9,15 @@ spring:
       host: 127.0.0.1
       port: 6379
 
+# 对话助手 LLM 配置(可选;不设则 50000 "对话功能未配置" 短路)
+# 推荐: 用 setx DEEPSEEK_API_KEY "sk-xxx" 在 USER 级别设环境变量,
+# 然后启动 `mvn spring-boot:run` 时 Spring 会自动从 ${DEEPSEEK_API_KEY} 读取
+# 不推荐: 把 key 写在此文件 — 虽然 application-dev.yml 已被 .gitignore 排除,
+# 但本机密钥入文件会让 dotenv/容器化部署无法复用
+# cinema:
+#   chat:
+#     api-key: sk-your-deepseek-key-here
+
 logging:
   level:
     com.cinema: debug
