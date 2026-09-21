@@ -10,6 +10,7 @@ const router = createRouter({
     { path: '/seat/:sessionId', name: 'seat-select', component: () => import('../views/SeatSelect.vue') },
     { path: '/payment', name: 'payment', component: () => import('../views/Payment.vue') },
     { path: '/orders', name: 'order-list', component: () => import('../views/OrderList.vue') },
+    { path: '/chat', name: 'chat', component: () => import('../views/Chat.vue') },
     { path: '/admin', name: 'admin-home', component: () => import('../views/admin/AdminHome.vue'),
       children: [
         { path: 'dashboard', name: 'admin-dashboard', component: () => import('../views/admin/Dashboard.vue') },
@@ -39,7 +40,7 @@ router.beforeEach((to, from, next) => {
     return next('/')
   }
 
-  const needAuth = to.path.startsWith('/seat') || to.path === '/payment' || to.path === '/orders'
+  const needAuth = to.path.startsWith('/seat') || to.path === '/payment' || to.path === '/orders' || to.path === '/chat'
   if (needAuth && !userStore.isLogin) {
     return next({ path: '/login', query: { redirect: to.fullPath } })
   }

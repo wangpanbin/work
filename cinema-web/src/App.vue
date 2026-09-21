@@ -29,6 +29,7 @@ async function logout() {
 // P2-#15: 移动端 dropdown 菜单项
 const mobileMenu = computed(() => {
   const items: { key: string; label: string; icon: string; danger?: boolean; adminOnly?: boolean; needLogin?: boolean }[] = [
+    { key: '/chat', label: '智能助手', icon: '💬', needLogin: true },
     { key: '/orders', label: '我的订单', icon: '🎫', needLogin: true },
     { key: '/admin', label: '管理端', icon: '⚙', adminOnly: true },
     { key: 'logout', label: '退出登录', icon: '⏻', danger: true, needLogin: true },
@@ -66,6 +67,16 @@ function onMobileSelect(key: string | number) {
         >
           <span class="chip-icon">⚙</span>
           <span class="chip-text">管理端</span>
+        </el-button>
+        <el-button
+          v-if="userStore.isLogin"
+          class="header-chip chip-icon-text"
+          size="default"
+          style="--el-button-bg-color: rgba(16,185,129,0.12); --el-button-border-color: rgba(16,185,129,0.4); --el-button-text-color: #10b981; --el-button-hover-bg-color: rgba(16,185,129,0.2); --el-button-hover-border-color: #10b981; --el-button-hover-text-color: #10b981"
+          @click="router.push('/chat')"
+        >
+          <span class="chip-icon">💬</span>
+          <span class="chip-text">智能助手</span>
         </el-button>
         <el-button
           v-if="userStore.isLogin"
