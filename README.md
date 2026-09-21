@@ -4,6 +4,8 @@
 
 - 架构与实现细节见 [docs/实现方案.md](docs/实现方案.md)
 - P0 增量设计 spec: [docs/superpowers/specs/2026-08-31-p0-increment-design.md](docs/superpowers/specs/2026-08-31-p0-increment-design.md)
+- **规划中(未实现)**: 对话式订票助手 spec: [docs/superpowers/specs/2026-09-21-chat-assistant-design.md](docs/superpowers/specs/2026-09-21-chat-assistant-design.md) · 决策记录 [docs/adr/](docs/adr/)
+- 领域词汇表: [CONTEXT.md](CONTEXT.md)
 - 原始方案见 [plan.md](plan.md)
 
 ---
@@ -17,7 +19,7 @@
 | **延迟关单** | Redis ZSet 延迟队列(主链路 5s 扫描) + 定时补偿任务(1min 兜底),双保险 |
 | **冷启动守护** | 服务重启/Redis flush 后锁座前自动从 DB 重建 Bitmap,杜绝"看似可选实则已售" |
 | **交易闭环** | 锁座 → 支付 → 退票(状态机 PAID→REFUNDING→REFUNDED) + 电子票(HMAC 签名,24h 过期,一次性验票) |
-| **工程严谨** | 22 个 JUnit5 + Mockito 单元测试覆盖核心链路;`@RateLimit`/`@Idempotent` AOP 注解;OrderService 拆 4 service + 1 core(单文件 ≤ 300 行) |
+| **工程严谨** | 29 个 JUnit5 + Mockito 单元测试覆盖核心链路;`@RateLimit`/`@Idempotent` AOP 注解;OrderService 拆 4 service + 1 core(单文件 ≤ 300 行) |
 | **数据可视化** | 管理端经营看板(4 卡片 + 3 图 + 1 表);实时数据大屏(WebSocket 推送锁座事件) |
 | **前端体验** | 全局路由守卫(未登录/非管理员自动拦截) · 影片搜索/筛选 · 注册确认密码 · 移动端适配 · 座位图重构 |
 
@@ -57,7 +59,8 @@
 | 接口限流(`@RateLimit`) | ✅ P0 E4 | Redis 滑动窗口 Lua,锁座/支付/退票分级限流 |
 | 幂等键(`@Idempotent`) | ✅ P0 E5 | SETNX,锁座/支付前置挡重试 |
 | OrderService 拆分 | ✅ P0 E1 | 4 service + 1 core,单文件 ≤ 300 行 |
-| 关键路径单测 | ✅ P0 E2 | 22 个 JUnit5 + Mockito 用例 |
+| 关键路径单测 | ✅ P0 E2 | 29 个 JUnit5 + Mockito 用例(8 个测试类) |
+| 营收明细导出 Excel | ✅ | `GET /api/admin/revenue/export`,独立 axios 实例走 blob,看板导出对话框 |
 | 错误码体系 | ✅ | 0/4xxxx/5xxxx + data 携带附加信息 |
 
 ---
@@ -158,6 +161,7 @@ mvn test
 | CRUD | `/api/admin/sessions` | 场次管理 | 管理员 |
 | POST | `/api/admin/sessions/bitmaps/recover?sessionId=` | 手动恢复位图(P0 P5) | 管理员 |
 | GET | `/api/admin/dashboard/summary` | 经营看板汇总(P0 O3) | 管理员 |
+| GET | `/api/admin/revenue/export?from=&to=&mode=` | 营收明细导出 xlsx(**不走 `R<T>` 包装**,直接返回二进制流) | 管理员 |
 
 ### WebSocket
 
@@ -254,7 +258,7 @@ F:/test/work/
 - [x] W4 前端选座/支付/订单页 + 路由联通
 - [x] W5 管理端 CRUD(电影/影厅/场次) + Python+JMeter 压测三场景 + docs/压测报告.md
 - [x] P0-1  E1 拆 `OrderService` 为 4 service + 1 core
-- [x] P0-2  E2 补 22 个关键路径单测
+- [x] P0-2  E2 补关键路径单测(现有 29 个)
 - [x] P0-3  P5 bitmap 冷启动重建 + 管理端手动恢复
 - [x] P0-4  E4 `@RateLimit` 注解 + Redis 滑动窗口
 - [x] P0-5  E5 `@Idempotent` 注解 + Redis SETNX
@@ -264,6 +268,32 @@ F:/test/work/
 - [x] P0-9  O3 管理端经营看板
 - [x] P0-10 D1 实时数据大屏(/ws/admin)
 - [x] UX-1  前端体验升级(全局路由守卫 / 注册确认密码 / 移动端适配 / 座位图重构 / 11 处 UI 修复 + 404 兜底页)
+
+---
+
+## 规划中(尚未实现,以下内容**不能当成本项目现有能力**)
+
+> 本节与上文所有章节的区别:**上文描述的都是已落地、可运行、可验证的功能;本节是已定稿的设计,代码尚未编写。**
+
+### 对话式订票助手(chat assistant)
+
+给系统加一个对话入口,让用户能用自然语言查影片/场次/余座/订单,并拿到**可执行的座位建议**。
+
+- **设计文档**:[docs/superpowers/specs/2026-09-21-chat-assistant-design.md](docs/superpowers/specs/2026-09-21-chat-assistant-design.md)
+- **技术选型**:LangChain4j(Java)嵌入 `cinema-server`,进程内直调既有领域 Service;模型走 DeepSeek 的 OpenAI 兼容端点
+- **估时**:~4 天
+
+三条已定稿的核心约束:
+
+| 约束 | 内容 | 依据 |
+| --- | --- | --- |
+| **只读 + 只建议** | 助手**不锁座、不支付、不退票**。它返回「行动卡片」建议,执行权始终在用户手里,落在既有 `/seat/:sessionId` → `POST /orders/lock` 那一跳 | [ADR-0002](docs/adr/0002-action-cards-do-not-execute-writes.md) |
+| **不引入 RAG** | 不接 Embedding / 向量库;事实只能来自只读工具查 MySQL / Redis | [ADR-0003](docs/adr/0003-no-rag-for-chat-assistant.md) |
+| **不流式** | 纯 Servlet MVC 栈,非流式单次返回;卡片必须有整块结构化载荷 | [ADR-0001](docs/adr/0001-langchain4j-embedded-in-server.md) |
+
+为什么"不让助手直接锁座"不是保守而是必要 — 三条代码级证据(`OrderLockService` 的 `closeIfUnpaid` 会静默释放用户已锁座位;锁座的 `@Idempotent` 键含精确座位组合;`lock_seat.lua` 冲突语义为整单失败)详见 spec §2.3。
+
+**同时新增的领域文档:** `CONTEXT.md` 补充了 7 个选座领域术语(座位索引 / 选座 / 锁座 / 锁座冲突 / 待支付订单 / 场次上下文 / 行动卡片);`docs/adr/` 为本次首次建立。
 
 ---
 
@@ -313,7 +343,7 @@ F:/test/work/
 
 ## 测试文件
 
-- `cinema-server/src/test/java/...` — 22 个 JUnit5 + Mockito 单元测试(E2)
+- `cinema-server/src/test/java/...` — 29 个 JUnit5 + Mockito 单元测试(8 个测试类,E2 + 营收导出)
 - `test/load_test.py` — 三场景 Python 压测驱动
 - `test/concurrency_strict.py` — 防超卖专项
 - `test/concurrency_test.py` — 并发基础压测
@@ -324,5 +354,7 @@ F:/test/work/
 - `docs/压测报告.md` — 完整压测报告(W5)
 - `docs/压测报告-v2.md` — P0 后回归压测报告
 - `docs/superpowers/specs/2026-08-31-p0-increment-design.md` — P0 增量设计 spec
+- `docs/superpowers/specs/2026-09-21-chat-assistant-design.md` — 对话式订票助手设计 spec(**规划中,未实现**)
+- `docs/adr/` — 架构决策记录(ADR-0001/0002/0003)
 
 > `test/` 目录与根目录测试脚本均属本地测试产物,已由 `.gitignore` 排除,不进入版本库。

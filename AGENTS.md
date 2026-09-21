@@ -19,8 +19,8 @@ Test accounts seeded by backend on startup: `user1/123456`, `user2/123456`, `adm
 
 ## Commands
 
-- Frontend: `pnpm dev` · `pnpm build` · `pnpm type-check` (`vue-tsc --noEmit`). **No test script exists** for the frontend — verify via `pnpm type-check`.
-- Backend: `mvn spring-boot:run` · `mvn test` (22 JUnit5+Mockito unit tests).
+- Frontend: `pnpm dev` · `pnpm build` · `pnpm type-check` (`vue-tsc --noEmit`) · `pnpm test` (vitest 3.x, `tests/**/*.test.ts`). First test file: `tests/views/order/constants.test.ts` (15 用例覆盖 ORDER_STATUS 5 态 + 跨态 round-trip).
+- Backend: `mvn spring-boot:run` · `mvn test` (29 JUnit5+Mockito unit tests across 8 classes).
 - There is no linter configured in either module.
 
 ## Conventions & gotchas
@@ -51,4 +51,8 @@ Five canonical roles: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-fo
 
 ### Domain docs
 
-Single-context layout. See `docs/agents/domain.md`.
+Single-context layout. See `docs/agents/domain.md`. `CONTEXT.md` currently covers the **revenue-export** vocabulary plus the **seat-selection** terms (座位索引 / 选座 / 锁座 / 锁座冲突 / 待支付订单 / 场次上下文 / 行动卡片). Decisions live in `docs/adr/`.
+
+### 对话式订票助手 (chat assistant)
+
+Design spec: `docs/superpowers/specs/2026-09-21-chat-assistant-design.md`. The assistant is **read-only + advisory by design** — it returns 「行动卡片」 suggestions and never locks seats, creates orders, or pays (ADR-0002). It rides LangChain4j inside `cinema-server` (ADR-0001) and deliberately does not use RAG (ADR-0003).

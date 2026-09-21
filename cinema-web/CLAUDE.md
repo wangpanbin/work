@@ -11,9 +11,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `pnpm dev` — 启动 Vite 开发服,5173 端口
 - `pnpm build` — 生产构建到 `dist/`
 - `pnpm preview` — 预览生产构建
-- `pnpm type-check` — `vue-tsc --noEmit`,作为改动后唯一的静态校验入口
+- `pnpm type-check` — `vue-tsc --noEmit`,静态校验入口
+- `pnpm test` / `pnpm test:watch` — vitest 3.x,用例在 `tests/**/*.test.ts`(见 `vite.config.ts` 的 `test.include`)
 
-**没有 linter,没有前端单元测试脚本**。任何改动以 `pnpm type-check` 通过为准;行为验证靠人工跑 `pnpm dev` 或浏览器 E2E(用 `playwright-cli` 技能)。E2E 脚本 `../test_webapp_e2e.py` 与产物 `_report*` 都已被 `.gitignore` 排除,不进版本库。
+**没有 linter**。静态校验走 `pnpm type-check`,单测走 `pnpm test`(当前用例:`tests/views/order/constants.test.ts`,覆盖 ORDER_STATUS 5 态与跨态 round-trip);**行为**验证仍靠人工跑 `pnpm dev` 或浏览器 E2E(用 `playwright-cli` 技能)。E2E 脚本 `../test_webapp_e2e.py` 与产物 `_report*` 都已被 `.gitignore` 排除,不进版本库。
 
 ## 架构概览
 
