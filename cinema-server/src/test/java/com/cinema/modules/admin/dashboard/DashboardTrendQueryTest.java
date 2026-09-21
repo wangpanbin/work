@@ -87,6 +87,42 @@ class DashboardTrendQueryTest {
         out.forEach(m -> assertThat(((Number) m.get("amount")).longValue()).isEqualTo(0L));
     }
 
+    /**
+     * B-01 回归: MySQL Connector/J 把 DATE(paid_at) 映射成 java.sql.Date(不是 String).
+     * 修复前 weeklyTrend() 第 52 行 (String) row.get("date") 直接抛 ClassCastException,
+     * 整个 /api/admin/dashboard/summary 返回 50000. 修复后 service 端必须接受
+     * java.sql.Date 类型, 把 toString() 当 ISO 日期 key 用(YYYY-MM-DD),
+     * 与 wire format 契约一致.
+     */
+    @Test
+    @DisplayName("B-01 回归: weeklyTrend 接受 mapper 返 java.sql.Date 类型,不抛 CCE 且正常 padding")
+    void weeklyTrend_acceptsSqlDateColumnType() {
+        // 模拟 MySQL Connector/J 对 DATE 类型的真实映射: java.sql.Date
+        Map<String, Object> r1 = rowOfSqlDate(LocalDate.now().minusDays(1), 250L);
+        Map<String, Object> r2 = rowOfSqlDate(LocalDate.now(), 175L);
+        when(orderMapper.weeklyTrend()).thenReturn(List.of(r1, r2));
+
+        List<Map<String, Object>> out = query.weeklyTrend();
+
+        assertThat(out).hasSize(7);
+        // java.sql.Date.toString() == "YYYY-MM-DD", padding key 直接匹配
+        assertThat(out.get(6).get("date")).isEqualTo(LocalDate.now().toString());
+        assertThat(((Number) out.get(6).get("amount")).longValue()).isEqualTo(175L);
+        assertThat(((Number) out.get(5).get("amount")).longValue()).isEqualTo(250L);
+        // 其余 5 天是 0
+        long zeroCount = out.stream()
+                .filter(m -> ((Number) m.get("amount")).longValue() == 0L)
+                .count();
+        assertThat(zeroCount).isEqualTo(5);
+    }
+
+    private static Map<String, Object> rowOfSqlDate(LocalDate date, long amount) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("date", java.sql.Date.valueOf(date));
+        m.put("amount", amount);
+        return m;
+    }
+
     // ---------- topMoviesWeek ----------
 
     @Test
