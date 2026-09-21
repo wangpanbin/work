@@ -2,6 +2,7 @@ package com.cinema.modules.chat.tools;
 
 import com.cinema.common.exception.BizException;
 import com.cinema.infra.redis.cache.SessionInfoCacheService;
+import com.cinema.modules.chat.service.KnowledgeService;
 import com.cinema.modules.movie.service.MovieService;
 import com.cinema.modules.order.service.OrderQueryService;
 import com.cinema.modules.seat.service.SeatService;
@@ -38,12 +39,13 @@ class ChatToolsValidationTest {
     @Mock private SeatService seatService;
     @Mock private OrderQueryService orderQueryService;
     @Mock private SessionInfoCacheService sessionInfoCacheService;
+    @Mock private KnowledgeService knowledgeService; // spec #20
 
     private ChatTools chatTools;
 
     @BeforeEach
     void setUp() {
-        chatTools = new ChatTools(movieService, sessionService, seatService, orderQueryService, sessionInfoCacheService);
+        chatTools = new ChatTools(movieService, sessionService, seatService, orderQueryService, sessionInfoCacheService, knowledgeService);
     }
 
     @Test

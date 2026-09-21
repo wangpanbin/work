@@ -17,14 +17,14 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>用反射枚举所有 {@code @Tool} 标注方法,断言:
  * <ul>
- *   <li>恰好 7 个 — 与 spec §5.1 表格完全对齐</li>
+ *   <li>恰好 8 个 — 与 spec §5.1 + spec #20 表格对齐(T2 7 + spec #20 searchFaq 1)</li>
  *   <li>全是白名单里的方法 — 多写任何一个工具(包括"很方便的 lockSeats")都会让测试红</li>
  *   <li>没有写方法(无 lockSeats / pay / cancel / refund / forceRecover / 管理端写接口)</li>
  * </ul>
  */
 class ChatToolsStructureTest {
 
-    /** spec §5.1 工具白名单,与 T1 ticket #8 acceptance + ADR-0002 严格对齐 */
+    /** spec §5.1 + spec #20 工具白名单,与 T1 ticket #8 acceptance + ADR-0002 严格对齐 */
     private static final Set<String> WHITELIST = Set.of(
             "searchMovies",
             "getMovieDetail",
@@ -32,7 +32,8 @@ class ChatToolsStructureTest {
             "getSeatSummary",
             "findContiguousSeats",
             "getMyOrders",
-            "getMyOrder"
+            "getMyOrder",
+            "searchFaq"
     );
 
     /** spec §2.3 证据:禁止出现在工具清单里的写操作关键字,出现就 reject */
@@ -42,16 +43,16 @@ class ChatToolsStructureTest {
     );
 
     @Test
-    @DisplayName("@Tool 标注的方法数 == 7(与 spec §5.1 表格对齐)")
+    @DisplayName("@Tool 标注的方法数 == 8(与 spec §5.1 + spec #20 表格对齐)")
     void exactlySevenToolMethods() {
         long count = Arrays.stream(ChatTools.class.getDeclaredMethods())
                 .filter(m -> m.isAnnotationPresent(Tool.class))
                 .count();
-        assertThat(count).isEqualTo(7L);
+        assertThat(count).isEqualTo(8L);
     }
 
     @Test
-    @DisplayName("@Tool 方法集合 == spec §5.1 白名单(任何新增/改名/删除都会让测试红)")
+    @DisplayName("@Tool 方法集合 == spec §5.1 + spec #20 白名单(任何新增/改名/删除都会让测试红)")
     void toolMethodNamesExactlyMatchWhitelist() {
         Set<String> actual = new HashSet<>();
         Arrays.stream(ChatTools.class.getDeclaredMethods())

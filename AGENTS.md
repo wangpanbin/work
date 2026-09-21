@@ -21,7 +21,7 @@ Test accounts seeded by backend on startup: `user1/123456`, `user2/123456`, `adm
 ## Commands
 
 - Frontend: `pnpm dev` · `pnpm build` · `pnpm type-check` (`vue-tsc --noEmit`) · `pnpm test` (vitest 3.x, `tests/**/*.test.ts`,81 用例跨 7 个 `.test.ts` 文件). First test file: `tests/views/order/constants.test.ts` (15 用例覆盖 ORDER_STATUS 5 态 + 跨态 round-trip).
-- Backend: `mvn spring-boot:run` · `mvn test` (118 JUnit5+Mockito unit tests across 24 classes,2026-09-21 实测;早期数字 29/8 → 69/17 → 105/24 过期).
+- Backend: `mvn spring-boot:run` · `mvn test` (127 JUnit5+Mockito unit tests across 24 classes,2026-09-21 实测;早期数字 29/8 → 69/17 → 105/24 → 118/24 过期).
 - There is no linter configured in either module.
 
 ## Conventions & gotchas

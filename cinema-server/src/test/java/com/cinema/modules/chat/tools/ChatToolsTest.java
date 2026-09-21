@@ -2,6 +2,7 @@ package com.cinema.modules.chat.tools;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cinema.infra.redis.cache.SessionInfoCacheService;
+import com.cinema.modules.chat.service.KnowledgeService;
 import com.cinema.modules.movie.entity.Movie;
 import com.cinema.modules.movie.service.MovieService;
 import com.cinema.modules.order.entity.Order;
@@ -32,7 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 /**
- * T2 cycle 1 — ChatTools 7 个只读工具 happy path(spec §5.1, ADR-0002).
+ * T2 cycle 1 — ChatTools 8 个只读工具 happy path(spec §5.1, ADR-0002).
  *
  * <p>每个工具一个测试,验证方法签名 + 复用既有 Service。
  * Mockito 风格(沿用仓库既有),不引入 Spring context。
@@ -46,12 +47,13 @@ class ChatToolsTest {
     @Mock private SeatService seatService;
     @Mock private OrderQueryService orderQueryService;
     @Mock private SessionInfoCacheService sessionInfoCacheService;
+    @Mock private KnowledgeService knowledgeService; // spec #20
 
     private ChatTools chatTools;
 
     @BeforeEach
     void setUp() {
-        chatTools = new ChatTools(movieService, sessionService, seatService, orderQueryService, sessionInfoCacheService);
+        chatTools = new ChatTools(movieService, sessionService, seatService, orderQueryService, sessionInfoCacheService, knowledgeService);
     }
 
     @Test
@@ -181,5 +183,28 @@ class ChatToolsTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> map = (Map<String, Object>) result;
         assertThat(map.get("error")).isEqualTo("LOGIN_REQUIRED");
+    }
+
+    // ============ spec #20 ID-5 searchFaq ============
+
+    @Test
+    @DisplayName("searchFaq(query) → KnowledgeService.searchFaq 透传 + trim")
+    void searchFaq_delegatesToKnowledgeService() {
+        List<Map<String, String>> expected = List.of(
+                Map.of("question", "怎么买票?", "answer", "购票流程...", "score", "100.0")
+        );
+        when(knowledgeService.searchFaq("怎么买票")).thenReturn(expected);
+
+        List<Map<String, String>> result = chatTools.searchFaq("  怎么买票  ");
+
+        assertThat(result).isSameAs(expected);
+    }
+
+    @Test
+    @DisplayName("searchFaq(empty) → 返空 List,不调 KnowledgeService")
+    void searchFaq_empty_returnsEmptyWithoutCallingService() {
+        assertThat(chatTools.searchFaq("")).isEmpty();
+        assertThat(chatTools.searchFaq(null)).isEmpty();
+        assertThat(chatTools.searchFaq("   ")).isEmpty();
     }
 }

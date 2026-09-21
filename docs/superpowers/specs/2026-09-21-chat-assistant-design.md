@@ -268,6 +268,7 @@ cinema-web/src/
 | `findContiguousSeats(Long sessionId, Long userId, int count, Integer preferRow)` | `SeatService.seatMap` + 位图解析 | 找 N 连座,返回座位索引;userId 同上 |
 | `getMyOrders(Long userId, Integer status, Integer page, Integer size)` | `OrderQueryService.myOrders` | **userId 必须非 null**;LLM 若传 null,工具层直接返回 `Map.of("error", "LOGIN_REQUIRED")`,由 §5.4(a) `ToolArgumentsErrorHandler` 转自然语言回复("请先登录后再查看订单"),不抛异常 — 抛了反而浪费一次 LLM 轮次 |
 | `getMyOrder(String orderNo, Long userId)` | `OrderQueryService.detail` | 同上 |
+| `searchFaq(String query)` | `KnowledgeService.searchFaq` | **FAQ 通用问答** (spec #20):18 条 `qa_knowledge` 种子数据(怎么买票/退票/取票/查订单/管理后台/退款周期等),LLM 自主判断调用;命中返 top-3 `{question, answer, score}`,不命中返空 List |
 
 **禁止出现在工具清单里的方法**(即使技术上可行):任何 `lockSeats` / `pay` / `cancel` / `refund` / `forceRecover` / 管理端写接口。
 

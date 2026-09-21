@@ -19,10 +19,10 @@
 | **延迟关单** | Redis ZSet 延迟队列(主链路 5s 扫描) + 定时补偿任务(1min 兜底),双保险 |
 | **冷启动守护** | 服务重启/Redis flush 后锁座前自动从 DB 重建 Bitmap,杜绝"看似可选实则已售" |
 | **交易闭环** | 锁座 → 支付 → 退票(状态机 PAID→REFUNDING→REFUNDED) + 电子票(HMAC 签名,24h 过期,一次性验票) |
-| **工程严谨** | 118 个 JUnit5 + Mockito 单元测试覆盖核心链路;`@RateLimit`/`@Idempotent` AOP 注解;OrderService 拆 4 service + 1 core(单文件 ≤ 300 行) |
+| **工程严谨** | 127 个 JUnit5 + Mockito 单元测试覆盖核心链路;`@RateLimit`/`@Idempotent` AOP 注解;OrderService 拆 4 service + 1 core(单文件 ≤ 300 行) |
 | **数据可视化** | 管理端经营看板(4 卡片 + 3 图 + 1 表);实时数据大屏(WebSocket 推送锁座事件) |
 | **前端体验** | 全局路由守卫(未登录/非管理员自动拦截) · 影片搜索/筛选 · 注册确认密码 · 移动端适配 · 座位图重构 |
-| **对话助手** | LangChain4j + DeepSeek 全局浮窗;7 个只读工具(`searchMovies` / `getSeatSummary` / `findContiguousSeats` 等);返回行动卡片(SEAT_SUGGESTION)跳选座页预选;**只读不写**(ADR-0002),零副作用;**限流分桶**匿名 2/min / 登录 10/min(spec #17);LOGIN_REQUIRED 引导匿名用户登录 |
+| **对话助手** | LangChain4j + DeepSeek 全局浮窗;8 个只读工具(`searchMovies` / `getSeatSummary` / `findContiguousSeats` / `searchFaq` 等);返回行动卡片(SEAT_SUGGESTION)跳选座页预选;**只读不写**(ADR-0002),零副作用;**限流分桶**匿名 2/min / 登录 10/min(spec #17);LOGIN_REQUIRED 引导匿名用户登录;FAQ 知识库兜底通用问答(spec #20) |
 
 ---
 
@@ -63,7 +63,7 @@
 | 关键路径单测 | ✅ P0 E2 | **115 个 JUnit5 + Mockito 用例**(25 个测试类,2026-09-21 实测) |
 | 营收明细导出 Excel | ✅ | `GET /api/admin/revenue/export`,独立 axios 实例走 blob,看板导出对话框 |
 | 错误码体系 | ✅ | 0/4xxxx/5xxxx + data 携带附加信息 |
-| **对话式订票助手** | ✅ 2026-09-21 | LangChain4j + DeepSeek;7 只读工具;行动卡片 SEAT_SUGGESTION;@RateLimit 分桶(匿名 2/min,登录 10/min);LOGIN_REQUIRED 引导登录;key-missing 走 50000 短路 |
+| **对话式订票助手** | ✅ 2026-09-21 | LangChain4j + DeepSeek;8 只读工具(含 FAQ searchFaq);行动卡片 SEAT_SUGGESTION;@RateLimit 分桶(匿名 2/min,登录 10/min);LOGIN_REQUIRED 引导登录;FAQ 知识库 18 条种子数据;key-missing 走 50000 短路 |
 
 ---
 
@@ -91,6 +91,8 @@ mysql -uroot -p < sql/02_init_data.sql
 mysql -uroot -p < sql/03_p0_increment.sql   # P0 增量: movie 加列 + refund_log + ticket
 # 可选: 更多演示影片(12 部含真实海报) + 未来 14 天场次; 必须带 --default-character-set=utf8mb4
 mysql -uroot -p --default-character-set=utf8mb4 < sql/04_extra_demo_data.sql
+# 可选: 对话助手 FAQ 知识库(18 条常见问答; 迁移 PR #15 数据,spec #20)
+mysql -uroot -p < sql/06_qa_knowledge.sql
 ```
 
 ### 2. 配置并启动后端(8080)
@@ -202,7 +204,8 @@ F:/test/work/
 │   ├── 01_schema.sql                    建库建表
 │   ├── 02_init_data.sql                 演示数据(3 部影片 + 3 天场次)
 │   ├── 03_p0_increment.sql              P0 增量: movie 扩列 + refund_log + ticket
-│   └── 04_extra_demo_data.sql           扩展演示: 12 部影片(带 TMDB 海报) + 14 天场次
+│   ├── 04_extra_demo_data.sql           扩展演示: 12 部影片(带 TMDB 海报) + 14 天场次
+│   └── 06_qa_knowledge.sql              对话助手 FAQ 知识库(18 条常见问答,spec #20)
 ├── cinema-server/                       Spring Boot 后端(按领域分包)
 │   ├── pom.xml
 │   └── src/main/java/com/cinema/
@@ -284,7 +287,7 @@ F:/test/work/
 - [x] P0-9  O3 管理端经营看板
 - [x] P0-10 D1 实时数据大屏(/ws/admin)
 - [x] UX-1  前端体验升级(全局路由守卫 / 注册确认密码 / 移动端适配 / 座位图重构 / 11 处 UI 修复 + 404 兜底页)
-- [x] CHAT-1 对话式订票助手全链路(T1-T9,2026-09-21):LangChain4j + DeepSeek + 7 只读工具 + 行动卡片 SEAT_SUGGESTION + 多跳记忆 + @RateLimit 分桶(匿名 2/min,登录 10/min) + env-driven key 注入 + LOGIN_REQUIRED 引导登录
+- [x] CHAT-1 对话式订票助手全链路(T1-T9,2026-09-21):LangChain4j + DeepSeek + 8 只读工具(含 FAQ searchFaq) + 行动卡片 SEAT_SUGGESTION + 多跳记忆 + @RateLimit 分桶(匿名 2/min,登录 10/min) + env-driven key 注入 + LOGIN_REQUIRED 引导登录 + FAQ 知识库兜底
 - [x] CHAT-2 锁座调用路径零触动 + ADR-0002 反射白名单(`ChatToolsStructureTest` 兜底)
 
 ---

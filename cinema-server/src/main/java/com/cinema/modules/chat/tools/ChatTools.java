@@ -3,6 +3,7 @@ package com.cinema.modules.chat.tools;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cinema.common.exception.BizException;
 import com.cinema.infra.redis.cache.SessionInfoCacheService;
+import com.cinema.modules.chat.service.KnowledgeService;
 import com.cinema.modules.movie.entity.Movie;
 import com.cinema.modules.movie.service.MovieService;
 import com.cinema.modules.order.service.OrderQueryService;
@@ -20,6 +21,7 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,7 +29,7 @@ import java.util.Map;
 /**
  * T2 cycle 1 — 对话助手只读工具集(spec §5.1,ADR-0002).
  *
- * <p><b>只读 + 只推荐</b>:7 个 {@code @Tool} 方法全部走既有只读 Service,
+ * <p><b>只读 + 只推荐</b>:8 个 {@code @Tool} 方法全部走既有只读 Service + 知识库,
  * <b>不暴露任何写方法</b>(无 lockSeats / pay / cancel / refund / forceRecover / 管理端写接口).
  * spec §9.4 第 5 条 + ADR-0002 的硬性约束,反射白名单断言兜底.
  *
@@ -42,6 +44,10 @@ import java.util.Map;
  * 在 {@code userId==null} 时直接返 {@code Map.of("error","LOGIN_REQUIRED")},
  * 由 §5.4(a) {@code ToolArgumentsErrorHandler} 路径转自然语言回复("请先登录"),
  * 不抛异常(避免浪费一次 LLM 轮次).
+ *
+ * <p><b>FAQ 工具</b>(spec #20):{@code searchFaq} 走 {@code KnowledgeService.searchFaq},
+ * 18 条 qa_knowledge 种子数据(怎么买票/退票/取票/管理后台/退款周期等通用问答),
+ * LLM 自主判断是否调用。
  */
 @Slf4j
 @Component
@@ -53,6 +59,7 @@ public class ChatTools {
     private final SeatService seatService;
     private final OrderQueryService orderQueryService;
     private final SessionInfoCacheService sessionInfoCacheService;
+    private final KnowledgeService knowledgeService;
 
     // ============ 影片 / 场次类(4 个)============
 
@@ -229,6 +236,25 @@ public class ChatTools {
         }
         log.debug("[chat-tools] getMyOrder orderNo={}, userId={}", orderNo, userId);
         return orderQueryService.detail(orderNo, userId);
+    }
+
+    // ============ FAQ 通用问答类(spec #20 ID-5)============
+
+    /**
+     * 搜索影院常见问答知识库。
+     *
+     * <p><b>调用条件(给 LLM 看)</b>:用户问流程/规则类问题(怎么买票/退票/取票/管理后台/退款周期/开场规则/问候等),
+     * <b>不是</b>具体某部电影/场次/座位/订单。命中时返 top-3 按匹配度排序的
+     * {question, answer, score},LLM 据此组织自然语言回复;未命中返空 List,LLM 自行决定是否调用其他工具。
+     */
+    @Tool("搜索影院常见问答知识库(怎么买票/退票/取票/查订单/管理后台等通用问题)。"
+            + "当用户问流程/规则类问题(不是具体某部电影/场次/座位/订单),调用此工具获取权威答案。"
+            + "返回结果按匹配度排序,LLM 应组织成自然语言回复。")
+    public List<Map<String, String>> searchFaq(
+            @P("用户问题文本,完整传入以提高匹配率") String query) {
+        if (query == null || query.isBlank()) return Collections.emptyList();
+        log.debug("[chat-tools] searchFaq query='{}'", query);
+        return knowledgeService.searchFaq(query.trim());
     }
 
     // ============ 入参白名单校验 helper(spec §5.5)============
