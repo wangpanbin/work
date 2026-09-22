@@ -28,6 +28,8 @@ export default {
     chipLogin: '登录 / 注册',
     localeSwitchTo: 'EN',
     mobileMenuLocale: 'English',
+    localeSwitchAria: '切换语言',
+    menuAria: '用户菜单',
     logoutTitle: '退出登录',
     logoutConfirm: '确定退出当前登录状态?',
     logoutConfirmOk: '确定退出',

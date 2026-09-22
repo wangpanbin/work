@@ -3,9 +3,11 @@ import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import { useUserStore } from './stores/user'
+import { useI18nStore } from './stores/i18n'
 import ChatWidget from './components/chat/ChatWidget.vue'
 
 const userStore = useUserStore()
+const i18nStore = useI18nStore()
 const router = useRouter()
 
 onMounted(() => {
@@ -15,9 +17,9 @@ onMounted(() => {
 // P2-#17: 登出前确认, 防止误触
 async function logout() {
   try {
-    await ElMessageBox.confirm('确定退出当前登录状态?', '退出登录', {
-      confirmButtonText: '确定退出',
-      cancelButtonText: '再看看',
+    await ElMessageBox.confirm($t('app.logoutConfirm'), $t('app.logoutTitle'), {
+      confirmButtonText: $t('app.logoutConfirmOk'),
+      cancelButtonText: $t('app.logoutConfirmCancel'),
       type: 'warning',
     })
   } catch {
@@ -27,12 +29,13 @@ async function logout() {
   router.push('/login')
 }
 
-// P2-#15: 移动端 dropdown 菜单项
+// P2-#15: 移动端 dropdown 菜单项(label 在此用 $t 取值,避免硬编码)
 const mobileMenu = computed(() => {
-  const items: { key: string; label: string; icon: string; danger?: boolean; adminOnly?: boolean; needLogin?: boolean }[] = [
-    { key: '/orders', label: '我的订单', icon: '🎫', needLogin: true },
-    { key: '/admin', label: '管理端', icon: '⚙', adminOnly: true },
-    { key: 'logout', label: '退出登录', icon: '⏻', danger: true, needLogin: true },
+  const items: { key: string; label: string; icon: string; danger?: boolean; adminOnly?: boolean; needLogin?: boolean; localeSwitch?: boolean }[] = [
+    { key: 'toggleLocale', label: $t('app.mobileMenuLocale'), icon: '🌐' },
+    { key: '/orders', label: $t('app.chipOrders'), icon: '🎫', needLogin: true },
+    { key: '/admin', label: $t('app.chipAdmin'), icon: '⚙', adminOnly: true },
+    { key: 'logout', label: $t('app.chipLogout'), icon: '⏻', danger: true, needLogin: true },
   ]
   return items.filter((i) => {
     if (i.adminOnly && userStore.user?.role !== 1) return false
@@ -44,10 +47,16 @@ const mobileMenu = computed(() => {
 function onMobileSelect(key: string | number) {
   if (key === 'logout') {
     logout()
+  } else if (key === 'toggleLocale') {
+    i18nStore.toggleLocale()
   } else {
     router.push(String(key))
   }
 }
+
+// 模板里要直接调 $t — 在 <script setup> 下需要从 vue-i18n 拿一下
+import { useI18n } from 'vue-i18n'
+const { t: $t } = useI18n()
 </script>
 
 <template>
@@ -59,6 +68,16 @@ function onMobileSelect(key: string | number) {
       </div>
       <!-- 桌面端: 横向 chip 列表 -->
       <div class="user-area desktop-only">
+        <!-- T9: 语言切换 chip(spec §4.3)— 点击立即切换,刷新保持 -->
+        <el-button
+          class="header-chip chip-locale chip-icon-text"
+          size="default"
+          :aria-label="$t('app.chipLocaleAria', 'Switch language')"
+          @click="i18nStore.toggleLocale()"
+        >
+          <span class="chip-icon">🌐</span>
+          <span class="chip-text">{{ $t('app.localeSwitchTo') }}</span>
+        </el-button>
         <el-button
           v-if="userStore.isLogin && userStore.user?.role === 1"
           class="header-chip chip-warning chip-icon-text"
@@ -66,7 +85,7 @@ function onMobileSelect(key: string | number) {
           @click="router.push('/admin')"
         >
           <span class="chip-icon">⚙</span>
-          <span class="chip-text">管理端</span>
+          <span class="chip-text">{{ $t('app.chipAdmin') }}</span>
         </el-button>
         <el-button
           v-if="userStore.isLogin"
@@ -75,7 +94,7 @@ function onMobileSelect(key: string | number) {
           @click="router.push('/orders')"
         >
           <span class="chip-icon">🎫</span>
-          <span class="chip-text">我的订单</span>
+          <span class="chip-text">{{ $t('app.chipOrders') }}</span>
         </el-button>
         <template v-if="userStore.user">
           <span class="header-chip chip-user nickname chip-icon-text">
@@ -84,11 +103,11 @@ function onMobileSelect(key: string | number) {
           </span>
           <el-button class="header-chip chip-danger chip-icon-text" size="default" @click="logout">
             <span class="chip-icon">⏻</span>
-            <span class="chip-text">退出</span>
+            <span class="chip-text">{{ $t('app.chipLogout') }}</span>
           </el-button>
         </template>
         <el-button v-else class="header-chip chip-login chip-icon-text" size="default" @click="router.push('/login')">
-          <span class="chip-text">登录 / 注册</span>
+          <span class="chip-text">{{ $t('app.chipLogin') }}</span>
         </el-button>
       </div>
 
@@ -96,7 +115,7 @@ function onMobileSelect(key: string | number) {
       <div class="user-area mobile-only">
         <template v-if="userStore.user">
           <el-dropdown trigger="click" @command="onMobileSelect">
-            <el-button class="avatar-btn" circle size="default" aria-label="用户菜单">
+            <el-button class="avatar-btn" circle size="default" :aria-label="$t('app.chipLocaleAria', 'User menu')">
               <span class="chip-icon">👤</span>
             </el-button>
             <template #dropdown>
@@ -112,7 +131,7 @@ function onMobileSelect(key: string | number) {
           </el-dropdown>
         </template>
         <el-button v-else class="header-chip chip-login" size="default" @click="router.push('/login')">
-          登录
+          {{ $t('app.chipLogin') }}
         </el-button>
       </div>
     </el-header>
@@ -191,6 +210,19 @@ function onMobileSelect(key: string | number) {
 .avatar-btn:hover {
   background: rgba(245, 158, 11, 0.25);
   border-color: var(--accent-gold);
+}
+
+/* --- T9: 语言切换 chip 样式 ---
+   中性配色,避免与 chip-warning/danger/primary 重复 */
+.chip-locale {
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  color: rgb(165, 168, 255);
+}
+.chip-locale:hover {
+  background: rgba(99, 102, 241, 0.22);
+  border-color: rgba(99, 102, 241, 0.7);
+  color: rgb(199, 201, 255);
 }
 .dropdown-user {
   padding: 10px 16px;

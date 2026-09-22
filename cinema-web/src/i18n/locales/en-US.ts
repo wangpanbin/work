@@ -28,6 +28,8 @@ const messages: SameShape<typeof zhCN> = {
     chipLogin: 'Sign in / Register',
     localeSwitchTo: '中文',
     mobileMenuLocale: '中文',
+    localeSwitchAria: 'Switch language',
+    menuAria: 'User menu',
     logoutTitle: 'Sign out',
     logoutConfirm: 'Sign out of your current account?',
     logoutConfirmOk: 'Sign out',
