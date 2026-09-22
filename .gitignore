@@ -52,3 +52,9 @@ _report_*.png
 .playwright-cli/
 .playwright/
 cinema-server/.factorypath
+
+# 本地产物/临时目录
+.scratch/
+META-INF/
+cinema-server/.tmp/
+opennlp/
