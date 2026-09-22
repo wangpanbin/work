@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { search as searchMovies } from '../api/movie'
 import { useMovieCache } from '../stores/movieCache'
 import type { Movie } from '../types'
 
 const router = useRouter()
+const { t } = useI18n()
 const movies = ref<Movie[]>([])
 const loading = ref(false)
 const cache = useMovieCache()
@@ -15,7 +17,7 @@ const keyword = ref('')
 const genre = ref('')
 const region = ref('')
 // 静态可选项(后端搜索走 LIKE, 这里只负责 UI 入口)
-// 真实电影类型/地区动态值需要后端额外提供 /api/movies/filters, 此处用常见值占位
+// value 用中文(后端契约),label 走 category 字典
 const genreOptions = ['动作', '喜剧', '科幻', '爱情', '悬疑', '动画', '战争', '剧情']
 const regionOptions = ['中国大陆', '美国', '日本', '韩国', '欧洲', '印度', '泰国']
 let debounceTimer: number | null = null
@@ -79,23 +81,23 @@ onMounted(() => {
       <div class="hero-bg"></div>
       <div class="hero-overlay"></div>
       <div class="hero-content">
-        <div class="hero-badge">NOW SHOWING</div>
-        <h1 class="hero-title">光影世界 · 星光璀璨</h1>
-        <p class="hero-subtitle">精选热映大片，尊享极致观影体验</p>
+        <div class="hero-badge">{{ t('home.heroBadge') }}</div>
+        <h1 class="hero-title">{{ t('home.heroTitle') }}</h1>
+        <p class="hero-subtitle">{{ t('home.heroSubtitle') }}</p>
         <div class="hero-stats">
           <div class="stat">
             <span class="stat-num">{{ movies.length }}</span>
-            <span class="stat-label">部热映影片</span>
+            <span class="stat-label">{{ t('home.statMovies') }}</span>
           </div>
           <div class="stat-divider"></div>
           <div class="stat">
             <span class="stat-num">4K</span>
-            <span class="stat-label">超清画质</span>
+            <span class="stat-label">{{ t('home.statResolution') }}</span>
           </div>
           <div class="stat-divider"></div>
           <div class="stat">
             <span class="stat-num">3D</span>
-            <span class="stat-label">沉浸体验</span>
+            <span class="stat-label">{{ t('home.statImmersive') }}</span>
           </div>
         </div>
       </div>
@@ -111,7 +113,7 @@ onMounted(() => {
     <!-- Movie Grid Section -->
     <section class="movies-section">
       <div class="section-header">
-        <h2 class="section-title">🎬 热映影片</h2>
+        <h2 class="section-title">{{ t('home.sectionTitle') }}</h2>
         <div class="section-decoration">
           <span class="deco-dot"></span>
           <span class="deco-line"></span>
@@ -124,23 +126,23 @@ onMounted(() => {
         <el-input
           v-model="keyword"
           class="search-input"
-          placeholder="搜索片名 / 关键词"
+          :placeholder="t('home.searchPlaceholder')"
           clearable
           :prefix-icon="'Search'"
           @input="onSearchInput"
           @clear="onFilterChange"
         />
-        <el-select v-model="genre" class="filter-select" placeholder="类型" clearable @change="onFilterChange">
-          <el-option v-for="g in genreOptions" :key="g" :label="g" :value="g" />
+        <el-select v-model="genre" class="filter-select" :placeholder="t('home.filterGenre')" clearable @change="onFilterChange">
+          <el-option v-for="g in genreOptions" :key="g" :label="t(`category.genre.${g}`)" :value="g" />
         </el-select>
-        <el-select v-model="region" class="filter-select" placeholder="地区" clearable @change="onFilterChange">
-          <el-option v-for="r in regionOptions" :key="r" :label="r" :value="r" />
+        <el-select v-model="region" class="filter-select" :placeholder="t('home.filterRegion')" clearable @change="onFilterChange">
+          <el-option v-for="r in regionOptions" :key="r" :label="t(`category.region.${r}`)" :value="r" />
         </el-select>
-        <el-button v-if="keyword || genre || region" class="filter-clear" @click="clearFilters">重置</el-button>
-        <span class="filter-meta">{{ movies.length }} 部影片</span>
+        <el-button v-if="keyword || genre || region" class="filter-clear" @click="clearFilters">{{ t('home.filterClear') }}</el-button>
+        <span class="filter-meta">{{ t('home.filterMeta', { count: movies.length }) }}</span>
       </div>
 
-      <el-empty v-if="!loading && movies.length === 0" description="暂无匹配影片,试试清空筛选条件" />
+      <el-empty v-if="!loading && movies.length === 0" :description="t('home.empty')" />
 
       <div v-else class="movie-grid">
         <div
@@ -167,7 +169,7 @@ onMounted(() => {
                 </svg>
               </div>
               <div class="overlay-info">
-                <span class="view-detail">查看详情 →</span>
+                <span class="view-detail">{{ t('home.viewDetail') }}</span>
               </div>
             </div>
           </div>
@@ -179,7 +181,7 @@ onMounted(() => {
                   <circle cx="12" cy="12" r="10"/>
                   <polyline points="12 6 12 12 16 14"/>
                 </svg>
-                {{ m.duration }} 分钟
+                {{ t('home.minutes', { n: m.duration }) }}
               </span>
               <span v-if="m.description" class="meta-item desc-truncate">{{ m.description }}</span>
             </div>

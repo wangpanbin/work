@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { useUserStore } from '../stores/user'
 import { register } from '../api/user'
@@ -8,35 +9,40 @@ import { register } from '../api/user'
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
+const { t } = useI18n()
 
 const activeTab = ref<'login' | 'register'>('login')
 const loading = ref(false)
 
 const loginFormRef = ref<FormInstance>()
 const loginForm = reactive({ username: '', password: '' })
-const loginRules: FormRules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
-}
+
+// FormRules 必须用 computed:message 字段绑定的字符串在 setup 时计算,
+// 若用普通对象赋值,locale 切换后 el-form-item 不会重新计算 message。
+// computed() 让 rules 在 locale 变化时自动重算。
+const loginRules = computed<FormRules>(() => ({
+  username: [{ required: true, message: t('login.username'), trigger: 'blur' }],
+  password: [{ required: true, message: t('login.password'), trigger: 'blur' }],
+}))
 
 const registerFormRef = ref<FormInstance>()
 const registerForm = reactive({ username: '', password: '', confirmPassword: '', nickname: '', phone: '' })
-const registerRules: FormRules = {
+const registerRules = computed<FormRules>(() => ({
   username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' },
-    { pattern: /^[a-zA-Z0-9_]{4,20}$/, message: '4-20位字母/数字/下划线', trigger: 'blur' },
+    { required: true, message: t('login.username'), trigger: 'blur' },
+    { pattern: /^[a-zA-Z0-9_]{4,20}$/, message: t('login.usernameReg'), trigger: 'blur' },
   ],
   password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, max: 32, message: '6-32位', trigger: 'blur' },
+    { required: true, message: t('login.password'), trigger: 'blur' },
+    { min: 6, max: 32, message: t('login.passwordReg'), trigger: 'blur' },
   ],
   // P1-#8: 确认密码, 提交前再次校验用户输入无错
   confirmPassword: [
-    { required: true, message: '请再次输入密码', trigger: 'blur' },
+    { required: true, message: t('login.confirmPasswordReg'), trigger: 'blur' },
     {
       validator: (_rule, value, callback) => {
         if (value !== registerForm.password) {
-          callback(new Error('两次输入的密码不一致'))
+          callback(new Error(t('login.passwordMismatch')))
         } else {
           callback()
         }
@@ -44,14 +50,14 @@ const registerRules: FormRules = {
       trigger: 'blur',
     },
   ],
-}
+}))
 
 async function handleLogin() {
   await loginFormRef.value?.validate()
   loading.value = true
   try {
     await userStore.login(loginForm.username, loginForm.password)
-    ElMessage.success('登录成功')
+    ElMessage.success(t('login.successLogin'))
     // 登录成功后: 优先回 redirect, 防止从抢票页踢出后回不去
     const redirect = String(route.query.redirect || '')
     // 安全校验: 只接受站内相对路径, 防止 open redirect
@@ -59,15 +65,12 @@ async function handleLogin() {
     router.push(safeRedirect)
   } catch (e: unknown) {
     // P1-#11: 拦截器已弹通用 ElMessage, 这里针对"被限流"特殊码给更详细的 alert 提示
-    // 后端 ResultCode.RATE_LIMIT = 42900, 触发条件: @RateLimit 注解拒绝 (RateLimitAspect)
-    // 当前登录接口 AuthController#login 暂未加 @RateLimit, 此分支为将来留位
-    // 真正的"账号被锁"机制后端目前未实现, 不在客户端穷举
     const err = e as { code?: number }
     if (err.code === 42900) {
       await ElMessageBox.alert(
-        '登录请求过于频繁, 已被临时限流。\n请稍等 1-2 分钟后再试, 避免连续点击。',
-        '操作太频繁',
-        { confirmButtonText: '我知道了', type: 'warning' },
+        t('login.rateLimitContent'),
+        t('login.titleRateLimit'),
+        { confirmButtonText: t('login.rateLimitOk'), type: 'warning' },
       )
     }
   } finally {
@@ -80,9 +83,9 @@ async function handleLogin() {
 async function onForgotPassword() {
   try {
     await ElMessageBox.alert(
-      '密码找回功能正在开发中, 暂时请联系影院工作人员协助重置。\n带来的不便敬请谅解。',
-      '找回密码',
-      { confirmButtonText: '我知道了', type: 'info' },
+      t('login.forgotContent'),
+      t('login.titleForgot'),
+      { confirmButtonText: t('login.forgotOk'), type: 'info' },
     )
   } catch {
     // 用户点了取消 — 没事
@@ -96,7 +99,7 @@ async function handleRegister() {
     // 提交前剥离 confirmPassword, 避免发给后端未知字段
     const { confirmPassword: _omit, ...payload } = registerForm
     await register(payload)
-    ElMessage.success('注册成功,请登录')
+    ElMessage.success(t('login.successRegister'))
     loginForm.username = registerForm.username
     activeTab.value = 'login'
   } finally {
@@ -117,51 +120,51 @@ async function handleRegister() {
     <div class="login-wrapper">
       <div class="login-brand">
         <div class="brand-logo">🎬</div>
-        <div class="brand-name">星辉影城</div>
-        <div class="brand-subtitle">STAR CINEMA</div>
+        <div class="brand-name">{{ t('login.brandName') }}</div>
+        <div class="brand-subtitle">{{ t('login.brandSubtitle') }}</div>
       </div>
 
       <el-card class="login-card">
         <el-tabs v-model="activeTab" stretch class="login-tabs">
-          <el-tab-pane label="欢迎回来" name="login">
+          <el-tab-pane :label="t('login.tabLogin')" name="login">
             <el-form ref="loginFormRef" :model="loginForm" :rules="loginRules" label-width="0" @keyup.enter="handleLogin">
               <el-form-item prop="username">
-                <el-input v-model="loginForm.username" placeholder="用户名" size="large" />
+                <el-input v-model="loginForm.username" :placeholder="t('login.username')" size="large" />
               </el-form-item>
               <el-form-item prop="password">
-                <el-input v-model="loginForm.password" type="password" show-password placeholder="密码" size="large" />
+                <el-input v-model="loginForm.password" type="password" show-password :placeholder="t('login.password')" size="large" />
               </el-form-item>
               <el-button type="primary" size="large" class="submit-btn" :loading="loading" @click="handleLogin">
-                立即登录
+                {{ t('login.submitLogin') }}
               </el-button>
               <p class="tip">
-                首次使用? <a href="#" @click.prevent="activeTab = 'register'">注册新账号</a>
+                {{ t('login.tipFirstUse') }} <a href="#" @click.prevent="activeTab = 'register'">{{ t('login.tipRegister') }}</a>
                 <span class="tip-sep">·</span>
-                <a href="#" @click.prevent="onForgotPassword">忘记密码?</a>
+                <a href="#" @click.prevent="onForgotPassword">{{ t('login.tipForgot') }}</a>
               </p>
             </el-form>
           </el-tab-pane>
 
-          <el-tab-pane label="加入我们" name="register">
+          <el-tab-pane :label="t('login.tabRegister')" name="register">
             <el-form ref="registerFormRef" :model="registerForm" :rules="registerRules" label-width="0">
               <el-form-item prop="username">
-                <el-input v-model="registerForm.username" placeholder="用户名(4-20位字母数字下划线)" size="large" />
+                <el-input v-model="registerForm.username" :placeholder="t('login.usernameReg')" size="large" />
               </el-form-item>
               <el-form-item prop="password">
-                <el-input v-model="registerForm.password" type="password" show-password placeholder="密码(6-32位)" size="large" />
+                <el-input v-model="registerForm.password" type="password" show-password :placeholder="t('login.passwordReg')" size="large" />
               </el-form-item>
               <!-- P1-#8: 确认密码, 避免输错注册后无法登录 -->
               <el-form-item prop="confirmPassword">
-                <el-input v-model="registerForm.confirmPassword" type="password" show-password placeholder="确认密码" size="large" @keyup.enter="handleRegister" />
+                <el-input v-model="registerForm.confirmPassword" type="password" show-password :placeholder="t('login.confirmPassword')" size="large" @keyup.enter="handleRegister" />
               </el-form-item>
               <el-form-item prop="nickname">
-                <el-input v-model="registerForm.nickname" placeholder="昵称(可选)" size="large" />
+                <el-input v-model="registerForm.nickname" :placeholder="t('login.nickname')" size="large" />
               </el-form-item>
               <el-form-item prop="phone">
-                <el-input v-model="registerForm.phone" placeholder="手机号(可选)" size="large" />
+                <el-input v-model="registerForm.phone" :placeholder="t('login.phone')" size="large" />
               </el-form-item>
               <el-button type="primary" size="large" class="submit-btn" :loading="loading" @click="handleRegister">
-                创建账号
+                {{ t('login.submitRegister') }}
               </el-button>
             </el-form>
           </el-tab-pane>
@@ -169,7 +172,7 @@ async function handleRegister() {
       </el-card>
 
       <div class="login-footer">
-        <span class="footer-text">© 2026 星辉影城 · 光影世界 星光璀璨</span>
+        <span class="footer-text">{{ t('login.footerCopy') }}</span>
       </div>
     </div>
   </div>
