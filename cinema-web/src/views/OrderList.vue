@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useI18n } from 'vue-i18n'
 import dayjs from 'dayjs'
 import { myOrders, cancel, refund } from '../api/order'
 import type { OrderVO } from '../api/order'
@@ -12,6 +13,7 @@ import {
   type OrderStatusCode,
 } from './order/constants'
 
+const { t } = useI18n()
 const orders = ref<OrderVO[]>([])
 const loading = ref(false)
 const activeStatus = ref<OrderStatusCode | null>(null)
@@ -30,7 +32,6 @@ async function load() {
 }
 
 // P2-#16: 并发拉各状态 size=1 计数, 让 tab 角标有数据
-// 用户首次进入页面能立刻看到"待支付 3 单、退款中 1 单"等关键信息
 async function loadCounts() {
   try {
     const [all, ...byStatus] = await Promise.all([
@@ -49,19 +50,17 @@ function viewOf(status: OrderStatusCode) {
   return ORDER_STATUS_VIEW[status]
 }
 
-// vue-tsc 不会自动暴露 `readonly` 数组的 import; 用一个本地 const 重新挂上,
-// 让模板里 <el-radio-button v-for="f in ORDER_STATUS_FILTERS"> 能拿到类型。
 const FILTERS = ORDER_STATUS_FILTERS
 
 async function onCancel(o: OrderVO) {
   // P1-#7: 与 Payment.vue onCancel 保持一致, 加确认弹窗防误触
   try {
     await ElMessageBox.confirm(
-      `确定取消《${o.movieTitle}》( ${o.seatDesc} )? 取消后座位将立即释放, 此操作不可撤销。`,
-      '取消订单',
+      t('order.cancelConfirm', { movie: o.movieTitle, seats: o.seatDesc }),
+      t('order.cancelTitle'),
       {
-        confirmButtonText: '确定取消',
-        cancelButtonText: '再想想',
+        confirmButtonText: t('order.cancelOk'),
+        cancelButtonText: t('order.cancelCancel'),
         type: 'warning',
       },
     )
@@ -70,7 +69,7 @@ async function onCancel(o: OrderVO) {
   }
   try {
     await cancel(o.orderNo)
-    ElMessage.success('已取消')
+    ElMessage.success(t('order.cancelSuccess'))
     load()
   } catch {
     // 拦截器已弹错误
@@ -79,21 +78,21 @@ async function onCancel(o: OrderVO) {
 
 async function onRefund(o: OrderVO) {
   if (!o.startTime || !dayjs(o.startTime).isAfter(dayjs())) {
-    ElMessage.warning('场次已开场,无法退票')
+    ElMessage.warning(t('order.refundFailStarted'))
     return
   }
   try {
     await ElMessageBox.confirm(
-      `确定退票 ${o.movieTitle} (${o.seatDesc})?退款将原路返回,座位立即释放。`,
-      '申请退票',
-      { confirmButtonText: '确认退票', cancelButtonText: '取消', type: 'warning' },
+      t('order.refundConfirm', { movie: o.movieTitle, seats: o.seatDesc }),
+      t('order.refundTitle'),
+      { confirmButtonText: t('order.refundOk'), cancelButtonText: t('order.refundCancel'), type: 'warning' },
     )
   } catch {
     return
   }
   try {
     await refund(o.orderNo)
-    ElMessage.success('退款申请已提交')
+    ElMessage.success(t('order.refundSuccess'))
     load()
   } catch {
     // 拦截器已弹错误
@@ -110,22 +109,22 @@ onMounted(() => {
   <div v-loading="loading" class="order-list">
     <!-- Header -->
     <div class="page-header">
-      <h2 class="section-title">📋 我的订单</h2>
+      <h2 class="section-title">{{ t('order.pageTitle') }}</h2>
       <el-radio-group v-model="activeStatus" @change="load" class="filter-tabs">
         <el-radio-button :value="null">
-          全部<el-badge v-if="allCount > 0" :value="allCount" class="tab-badge" />
+          {{ t('order.tabAll') }}<el-badge v-if="allCount > 0" :value="allCount" class="tab-badge" />
         </el-radio-button>
         <el-radio-button
           v-for="f in FILTERS"
           :key="f.code"
           :value="f.code"
         >
-          {{ f.label }}<el-badge v-if="counts[f.code] > 0" :value="counts[f.code]" class="tab-badge" :type="f.tagType" />
+          {{ t(f.labelKey) }}<el-badge v-if="counts[f.code] > 0" :value="counts[f.code]" class="tab-badge" :type="f.tagType" />
         </el-radio-button>
       </el-radio-group>
     </div>
 
-    <el-empty v-if="!loading && orders.length === 0" description="暂无订单记录" />
+    <el-empty v-if="!loading && orders.length === 0" :description="t('order.empty')" />
 
     <div v-else class="orders-list">
       <div
@@ -139,7 +138,7 @@ onMounted(() => {
           <div class="order-icon">🎬</div>
           <div class="order-info">
             <h3 class="movie-title">
-              <span v-if="viewOf(o.status).pulse" class="dot-pulse" title="需要尽快支付"></span>
+              <span v-if="viewOf(o.status).pulse" class="dot-pulse" :title="t('order.pulseTitle')"></span>
               {{ o.movieTitle }}
             </h3>
             <div class="order-meta">
@@ -152,7 +151,7 @@ onMounted(() => {
           </div>
           <div class="order-status">
             <el-tag :type="viewOf(o.status).tagType" effect="dark" round>
-              {{ o.statusText }}
+              {{ o.statusText || t(viewOf(o.status).labelKey) }}
             </el-tag>
           </div>
         </div>
@@ -167,9 +166,9 @@ onMounted(() => {
             <span class="created-at">{{ dayjs(o.createdAt).format('YYYY-MM-DD HH:mm') }}</span>
           </div>
           <div class="footer-middle">
-            <span class="amount-label">{{ o.status === 4 ? '已退金额' : '合计' }}</span>
+            <span class="amount-label">{{ o.status === 4 ? t('order.amountRefunded') : t('order.amountTotal') }}</span>
             <span class="amount-value">
-              <span class="currency">￥</span>{{ o.totalAmount.toFixed(2) }}
+              <span class="currency">{{ t('order.currency') }}</span>{{ o.totalAmount.toFixed(2) }}
             </span>
           </div>
           <div class="footer-right">
@@ -179,42 +178,42 @@ onMounted(() => {
                 class="btn-action is-fixed"
                 type="primary"
                 @click="$router.push({ name: 'payment', query: { orderNo: o.orderNo } })"
-              >{{ BUTTON_BY_ACTION.pay.label }}</el-button>
+              >{{ t(BUTTON_BY_ACTION.pay.labelKey) }}</el-button>
               <el-button
                 v-else-if="action === 'cancel'"
                 class="btn-action is-fixed"
                 type="danger"
                 plain
                 @click="onCancel(o)"
-              >{{ BUTTON_BY_ACTION.cancel.label }}</el-button>
+              >{{ t(BUTTON_BY_ACTION.cancel.labelKey) }}</el-button>
               <el-button
                 v-else-if="action === 'viewDetail'"
                 class="btn-action is-fixed"
                 link
                 @click="$router.push({ name: 'payment', query: { orderNo: o.orderNo } })"
-              >{{ BUTTON_BY_ACTION.viewDetail.label }} →</el-button>
+              >{{ t(BUTTON_BY_ACTION.viewDetail.labelKey) }} →</el-button>
               <el-button
                 v-else-if="action === 'refund'"
                 class="btn-action is-fixed"
                 type="warning"
                 plain
                 @click="onRefund(o)"
-              >{{ BUTTON_BY_ACTION.refund.label }}</el-button>
+              >{{ t(BUTTON_BY_ACTION.refund.labelKey) }}</el-button>
               <el-button
                 v-else-if="action === 'rebook'"
                 class="btn-action is-fixed"
                 link
                 @click="$router.push(`/seat/${o.sessionId}`)"
-              >{{ BUTTON_BY_ACTION.rebook.label }} →</el-button>
+              >{{ t(BUTTON_BY_ACTION.rebook.labelKey) }} →</el-button>
               <!-- 'viewTicket' 在 OrderList 不渲染(Payment 专属动作) -->
             </template>
             <!-- REFUNDING 退款的 disabled tooltip: OrderList 局部 UI 细节, 不入 OrderStatusView -->
             <el-tooltip
               v-if="o.status === 3"
-              content="退款正在处理中, 通常 1-3 个工作日会到账。如超时未到账请联系影院工作人员。"
+              :content="t('order.refundingTip')"
               placement="top"
             >
-              <el-button class="btn-action is-fixed" disabled>退款处理中…</el-button>
+              <el-button class="btn-action is-fixed" disabled>{{ t('order.refundingBtn') }}</el-button>
             </el-tooltip>
           </div>
         </div>

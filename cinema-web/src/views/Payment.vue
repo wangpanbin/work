@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
 import QRCode from 'qrcode'
@@ -11,6 +12,7 @@ import { ORDER_STATUS_VIEW, BUTTON_BY_ACTION, type OrderStatusCode } from './ord
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 const orderNo = String(route.query.orderNo || '')
 const order = ref<OrderVO | null>(null)
 const submitting = ref(false)
@@ -23,7 +25,7 @@ const autoRedirected = ref(false)
 
 onMounted(async () => {
   if (!orderNo) {
-    ElMessage.error('订单号缺失')
+    ElMessage.error(t('payment.orderNoMissing'))
     router.push('/')
     return
   }
@@ -46,7 +48,7 @@ const expired = computed(() => remaining.value === 0 && order.value?.status === 
 function redirectToOrders() {
   if (autoRedirected.value) return
   autoRedirected.value = true
-  ElMessage.warning('订单已超时,即将跳转到订单列表,请重新选座')
+  ElMessage.warning(t('payment.expiredWarn'))
   setTimeout(() => router.push('/orders'), 3000)
 }
 
@@ -60,7 +62,7 @@ const sessionNotStarted = computed(() => {
   return dayjs(order.value.startTime).isAfter(dayjs())
 })
 
-/** 当前订单的状态视图(取常量里的元数据), 模板内复用 bannerCopy / tagType / actions */
+/** 当前订单的状态视图(取常量里的元数据), 模板内复用 bannerCopyKey / tagType / actions */
 function viewOf(status: OrderStatusCode) {
   return ORDER_STATUS_VIEW[status]
 }
@@ -69,7 +71,7 @@ async function onPay() {
   submitting.value = true
   try {
     await pay(orderNo)
-    ElMessage.success('支付成功!')
+    ElMessage.success(t('payment.paySuccess'))
     await load()
   } catch {
     // 拦截器已弹错误, 不再重复
@@ -80,18 +82,22 @@ async function onPay() {
 
 async function onCancel() {
   try {
-    await ElMessageBox.confirm('确定要取消该订单吗?取消后座位将释放。', '提示', {
-      confirmButtonText: '确定取消',
-      cancelButtonText: '再想想',
-      type: 'warning',
-    })
+    await ElMessageBox.confirm(
+      t('payment.cancelDialogConfirm'),
+      t('payment.cancelDialogTitle'),
+      {
+        confirmButtonText: t('payment.cancelDialogOk'),
+        cancelButtonText: t('payment.cancelDialogCancel'),
+        type: 'warning',
+      },
+    )
   } catch {
     return
   }
   submitting.value = true
   try {
     await cancel(orderNo)
-    ElMessage.success('订单已取消')
+    ElMessage.success(t('payment.cancelSuccess'))
     await load()
   } catch {
     // 拦截器已弹错误
@@ -102,14 +108,14 @@ async function onCancel() {
 
 async function onRefund() {
   if (!sessionNotStarted.value) {
-    ElMessage.warning('场次已开场,无法退票')
+    ElMessage.warning(t('order.refundFailStarted'))
     return
   }
   try {
     await ElMessageBox.confirm(
-      '确定申请退票吗?退款将原路返回, 座位会立即释放, 此操作不可撤销。',
-      '申请退票',
-      { confirmButtonText: '确认退票', cancelButtonText: '取消', type: 'warning' },
+      t('order.refundConfirm', { movie: order.value?.movieTitle || '', seats: order.value?.seatDesc || '' }),
+      t('order.refundTitle'),
+      { confirmButtonText: t('order.refundOk'), cancelButtonText: t('order.refundCancel'), type: 'warning' },
     )
   } catch {
     return
@@ -117,7 +123,7 @@ async function onRefund() {
   submitting.value = true
   try {
     await refund(orderNo)
-    ElMessage.success('退款申请已提交')
+    ElMessage.success(t('order.refundSuccess'))
     await load()
   } catch {
     // 拦截器已弹错误
@@ -146,7 +152,7 @@ async function onShowTicket() {
     })
   } catch {
     ticketDialog.value = false
-    ElMessage.error('生成二维码失败,请稍后重试')
+    ElMessage.error(t('payment.qrFailed'))
   } finally {
     ticketLoading.value = false
   }
@@ -200,15 +206,15 @@ function goSeat() {
       <!-- Order Details -->
       <div class="details">
         <div class="info-row">
-          <span class="label">订单号</span>
+          <span class="label">{{ t('payment.orderNo') }}</span>
           <span class="value mono">{{ order.orderNo }}</span>
         </div>
         <div class="info-row">
-          <span class="label">数量</span>
-          <span class="value">{{ order.seatCount }} 座</span>
+          <span class="label">{{ t('payment.seatCount') }}</span>
+          <span class="value">{{ order.seatCount }} {{ t('payment.seatUnit') }}</span>
         </div>
         <div v-if="order.status === 0" class="info-row">
-          <span class="label">支付倒计时</span>
+          <span class="label">{{ t('payment.countdown') }}</span>
           <span class="value" :class="{ urgent: remaining <= 60 }">
             <svg v-if="remaining <= 60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="margin-right:4px">
               <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
@@ -222,9 +228,9 @@ function goSeat() {
 
       <!-- Total -->
       <div class="total-row">
-        <span class="total-label">{{ order.status === 4 ? '已退金额' : '应付金额' }}</span>
+        <span class="total-label">{{ order.status === 4 ? t('order.amountRefunded') : t('payment.amountDue') }}</span>
         <span class="total-value">
-          <span class="currency">￥</span>
+          <span class="currency">{{ t('order.currency') }}</span>
           <span class="amount">{{ order.totalAmount.toFixed(2) }}</span>
         </span>
       </div>
@@ -236,17 +242,17 @@ function goSeat() {
         <!-- Banner: REFUNDING -->
         <div v-if="order.status === 3" class="status-banner status-refunding">
           <div class="spinner"></div>
-          <span>{{ viewOf(order.status).bannerCopy }}</span>
+          <span>{{ t(viewOf(order.status).bannerCopyKey) }}</span>
         </div>
         <!-- Banner: REFUNDED -->
         <div v-else-if="order.status === 4" class="status-banner status-refunded">
           <div class="banner-icon">↩</div>
-          <span>{{ viewOf(order.status).bannerCopy }}</span>
+          <span>{{ t(viewOf(order.status).bannerCopyKey) }}</span>
         </div>
         <!-- Success content: PAID -->
         <div v-else-if="order.status === 1" class="success-content">
           <div class="success-icon">✓</div>
-          <span>{{ viewOf(order.status).bannerCopy }}</span>
+          <span>{{ t(viewOf(order.status).bannerCopyKey) }}</span>
         </div>
 
         <!-- 按钮按 availableActions 迭代 -->
@@ -257,41 +263,41 @@ function goSeat() {
             :loading="submitting"
             class="pay-btn"
             @click="expired ? redirectToOrders() : onPay()"
-          >{{ expired ? '已超时,重新选座' : BUTTON_BY_ACTION.pay.label }}</el-button>
+          >{{ expired ? t('payment.expiredRebook') : t(BUTTON_BY_ACTION.pay.labelKey) }}</el-button>
           <el-button
             v-else-if="action === 'cancel'"
             type="danger" plain
             :disabled="submitting"
             class="cancel-btn"
             @click="onCancel"
-          >{{ BUTTON_BY_ACTION.cancel.label }}</el-button>
+          >{{ t(BUTTON_BY_ACTION.cancel.labelKey) }}</el-button>
           <el-button
             v-else-if="action === 'refund'"
             type="warning" plain
             :disabled="submitting"
             @click="onRefund"
-          >{{ BUTTON_BY_ACTION.refund.label }}</el-button>
+          >{{ t(BUTTON_BY_ACTION.refund.labelKey) }}</el-button>
           <el-button
             v-else-if="action === 'viewDetail'"
             type="primary"
             @click="onShowTicket"
-          >{{ BUTTON_BY_ACTION.viewDetail.label }}</el-button>
+          >{{ t(BUTTON_BY_ACTION.viewDetail.labelKey) }}</el-button>
           <el-button
             v-else-if="action === 'viewTicket'"
             type="primary"
             @click="onShowTicket"
-          >🎟️ {{ BUTTON_BY_ACTION.viewTicket.label }}</el-button>
+          >🎟️ {{ t(BUTTON_BY_ACTION.viewTicket.labelKey) }}</el-button>
           <el-button
             v-else-if="action === 'rebook'"
             type="primary"
             @click="goSeat"
-          >{{ BUTTON_BY_ACTION.rebook.label }}</el-button>
+          >{{ t(BUTTON_BY_ACTION.rebook.labelKey) }}</el-button>
         </template>
       </div>
     </div>
 
     <!-- 电子票弹窗 -->
-    <el-dialog v-model="ticketDialog" title="电子票" width="420px" align-center>
+    <el-dialog v-model="ticketDialog" :title="t('payment.ticketDialogTitle')" width="420px" align-center>
       <div v-loading="ticketLoading" class="ticket-dialog">
         <template v-if="ticketInfo">
           <div class="qr-frame">
@@ -300,9 +306,9 @@ function goSeat() {
               <div class="qr-stub-meta">{{ order?.hallName }} · {{ order?.startTime ? dayjs(order.startTime).format('MM-DD HH:mm') : '' }}</div>
               <div class="qr-stub-seats">{{ order?.seatDesc }}</div>
               <!-- P0-5: 用 qrcode 库渲染的真 QR, 验票端/手机扫码可直接入场 -->
-              <img v-if="ticketQrUrl" :src="ticketQrUrl" alt="电子票二维码" class="qr-real" />
-              <div class="qr-stub-exp">请出示给验票员扫码入场</div>
-              <div class="qr-stub-exp">过期时间: {{ ticketInfo.expAt }} · 一次性使用</div>
+              <img v-if="ticketQrUrl" :src="ticketQrUrl" :alt="t('payment.qrAlt')" class="qr-real" />
+              <div class="qr-stub-exp">{{ t('payment.ticketHintShow') }}</div>
+              <div class="qr-stub-exp">{{ t('payment.ticketHintExp', { exp: ticketInfo.expAt }) }}</div>
             </div>
           </div>
           <div class="ticket-payload">
@@ -323,13 +329,13 @@ function goSeat() {
               <span class="payload-value mono">{{ ticketInfo.expAt }}</span>
             </div>
             <div class="payload-hint">
-              验票端点：<code>GET /api/tickets/verify?payload=...&sig=...</code>（一次性, 第二次将返回"已使用"）
+              {{ t('payment.ticketHintVerify') }}<code>GET /api/tickets/verify?payload=...&sig=...</code>{{ t('payment.ticketHintOneShot') }}
             </div>
           </div>
         </template>
       </div>
       <template #footer>
-        <el-button @click="ticketDialog = false">关闭</el-button>
+        <el-button @click="ticketDialog = false">{{ t('common.cancel') }}</el-button>
       </template>
     </el-dialog>
   </div>
