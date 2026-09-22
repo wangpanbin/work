@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import {
   dashboardSummary,
@@ -16,6 +17,7 @@ import {
 } from './constants'
 
 const router = useRouter()
+const { t } = useI18n()
 const data = ref<DashboardSummary | null>(null)
 const loading = ref(false)
 
@@ -60,12 +62,12 @@ async function doExport() {
   try {
     const query: RevenueExportQuery = { from: r.from, to: r.to, mode: exportMode.value === 'custom' ? 'custom' : 'preset' }
     const blob = await exportRevenue(query)
-    const filename = `营收报表_${r.from}_至_${r.to}.xlsx`
+    const filename = `revenue_${r.from}_to_${r.to}.xlsx`
     downloadBlob(blob, filename)
-    ElMessage.success(`已导出 ${filename}`)
+    ElMessage.success(t('admin.exportSuccess', { name: filename }))
     exportDialogVisible.value = false
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : '导出失败'
+    const msg = err instanceof Error ? err.message : t('admin.exportFailed')
     exportError.value = msg
     ElMessage.error(msg)
   } finally {
@@ -196,7 +198,7 @@ onMounted(load)
               v-for="(def, key) in EXPORT_PRESETS"
               :key="key"
               :value="key"
-            >{{ def.label }}</el-radio-button>
+            >{{ t(def.labelKey) }}</el-radio-button>
           </el-radio-group>
         </div>
 

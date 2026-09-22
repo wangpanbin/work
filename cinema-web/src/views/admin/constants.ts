@@ -3,8 +3,8 @@
 export type ExportPreset = 'today' | '7d' | '30d' | 'month' | 'custom'
 
 export interface ExportPresetDef {
-  /** radio button 显示文本 */
-  label: string
+  /** i18n key — radio button 显示文本 (模板里 t(labelKey)) */
+  labelKey: string
   /** 预设区间计算 (from, to 含端点). null 表示由用户在 UI 中再选 (custom) */
   compute: ((today: Date) => { from: Date; to: Date }) | null
 }
@@ -12,11 +12,11 @@ export interface ExportPresetDef {
 /** 单一来源驱动 radio 渲染 + computedRange. 添加新预设只需在此注册, 不需改 Dashboard.vue. */
 export const EXPORT_PRESETS: Record<ExportPreset, ExportPresetDef> = {
   today: {
-    label: '今日',
+    labelKey: 'admin.exportToday',
     compute: (today) => ({ from: today, to: today }),
   },
   '7d': {
-    label: '最近 7 天',
+    labelKey: 'admin.export7d',
     compute: (today) => {
       const from = new Date(today)
       from.setDate(from.getDate() - 6)
@@ -24,7 +24,7 @@ export const EXPORT_PRESETS: Record<ExportPreset, ExportPresetDef> = {
     },
   },
   '30d': {
-    label: '最近 30 天',
+    labelKey: 'admin.export30d',
     compute: (today) => {
       const from = new Date(today)
       from.setDate(from.getDate() - 29)
@@ -32,14 +32,14 @@ export const EXPORT_PRESETS: Record<ExportPreset, ExportPresetDef> = {
     },
   },
   month: {
-    label: '本月',
+    labelKey: 'admin.exportMonth',
     compute: (today) => ({
       from: new Date(today.getFullYear(), today.getMonth(), 1),
       to: today,
     }),
   },
   custom: {
-    label: '自定义',
+    labelKey: 'admin.exportCustom',
     compute: null,
   },
 }

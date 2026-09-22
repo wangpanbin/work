@@ -1,24 +1,26 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useUserStore } from '../../stores/user'
 import { dashboardSummary, type DashboardSummary } from '../../api/admin'
 
 const userStore = useUserStore()
 const router = useRouter()
+const { t } = useI18n()
 
 const isAdmin = computed(() => userStore.user?.role === 1)
 const summary = ref<DashboardSummary | null>(null)
 
 // 移动端顶部导航项
-const navItems = [
-  { path: '/admin', label: '概览', icon: '🏠' },
-  { path: '/admin/dashboard', label: '经营看板', icon: '📊' },
-  { path: '/admin/live', label: '实时大屏', icon: '📡' },
-  { path: '/admin/movies', label: '影片', icon: '🎞' },
-  { path: '/admin/halls', label: '影厅', icon: '🛋' },
-  { path: '/admin/sessions', label: '场次', icon: '📅' },
-]
+const navItems = computed(() => [
+  { path: '/admin', labelKey: 'admin.mobileNavHome', icon: '🏠' },
+  { path: '/admin/dashboard', labelKey: 'admin.mobileNavDashboard', icon: '📊' },
+  { path: '/admin/live', labelKey: 'admin.mobileNavLive', icon: '📡' },
+  { path: '/admin/movies', labelKey: 'admin.mobileNavMovies', icon: '🎞' },
+  { path: '/admin/halls', labelKey: 'admin.mobileNavHalls', icon: '🛋' },
+  { path: '/admin/sessions', labelKey: 'admin.mobileNavSessions', icon: '📅' },
+])
 
 async function load() {
   try {
@@ -43,29 +45,29 @@ function logout() {
     <el-aside width="220px" class="aside">
       <div class="brand">
         <span class="brand-icon">🎬</span>
-        <span class="brand-text">管理端</span>
+        <span class="brand-text">{{ t('admin.asideBrand') }}</span>
       </div>
       <el-menu router :default-active="$route.path" mode="vertical" class="menu">
         <el-menu-item index="/admin/dashboard">
-          <span>📊</span>&nbsp;<span>经营看板</span>
+          <span>📊</span>&nbsp;<span>{{ t('admin.homeSidebar.dashboard') }}</span>
         </el-menu-item>
         <el-menu-item index="/admin/live">
-          <span>📡</span>&nbsp;<span>实时数据大屏</span>
+          <span>📡</span>&nbsp;<span>{{ t('admin.homeSidebar.live') }}</span>
         </el-menu-item>
         <el-menu-item index="/admin/movies">
-          <span>🎞</span>&nbsp;<span>影片管理</span>
+          <span>🎞</span>&nbsp;<span>{{ t('admin.homeSidebar.movies') }}</span>
         </el-menu-item>
         <el-menu-item index="/admin/halls">
-          <span>🛋</span>&nbsp;<span>影厅管理</span>
+          <span>🛋</span>&nbsp;<span>{{ t('admin.homeSidebar.halls') }}</span>
         </el-menu-item>
         <el-menu-item index="/admin/sessions">
-          <span>📅</span>&nbsp;<span>场次管理</span>
+          <span>📅</span>&nbsp;<span>{{ t('admin.homeSidebar.sessions') }}</span>
         </el-menu-item>
       </el-menu>
     </el-aside>
     <el-main class="content">
       <!-- 移动端顶部水平导航 (桌面端 CSS display:none 隐藏) -->
-      <nav class="mobile-nav" aria-label="admin-nav">
+      <nav class="mobile-nav" :aria-label="t('admin.mobileNavAria')">
         <router-link
           v-for="item in navItems"
           :key="item.path"
@@ -78,7 +80,7 @@ function logout() {
             :class="{ active: isActive || $route.path === item.path }"
             @click="navigate"
           >
-            {{ item.icon }} {{ item.label }}
+            {{ item.icon }} {{ t(item.labelKey) }}
           </a>
         </router-link>
       </nav>
@@ -88,38 +90,38 @@ function logout() {
         <div v-else class="welcome">
           <div class="welcome-hero">
             <div class="welcome-badge">ADMIN CONSOLE</div>
-            <h2>欢迎回来, {{ userStore.user?.nickname || userStore.user?.username }}</h2>
-            <p class="welcome-subtitle">从左侧导航开始管理影院运营 · 今日经营概况如下</p>
+            <h2>{{ t('admin.welcomeTitle', { name: userStore.user?.nickname || userStore.user?.username || '' }) }}</h2>
+            <p class="welcome-subtitle">{{ t('admin.welcomeSubtitle') }}</p>
           </div>
 
           <div v-if="summary" class="welcome-cards">
             <div class="card gold">
-              <div class="label">今日票房</div>
+              <div class="label">{{ t('admin.cardTodayRevenue') }}</div>
               <div class="value">¥{{ Number(summary.todayRevenue || 0).toFixed(2) }}</div>
             </div>
             <div class="card">
-              <div class="label">今日订单</div>
+              <div class="label">{{ t('admin.cardTodayOrders') }}</div>
               <div class="value">{{ summary.todayOrders || 0 }}</div>
             </div>
             <div class="card">
-              <div class="label">已支付 / 锁座</div>
-              <div class="value">{{ summary.todayPaid || 0 }} <small>/ {{ summary.todayPendingSeats || 0 }} 座</small></div>
+              <div class="label">{{ t('admin.welcomePaidLocked') }}</div>
+              <div class="value">{{ summary.todayPaid || 0 }} <small>/ {{ summary.todayPendingSeats || 0 }} {{ t('admin.welcomeSeats') }}</small></div>
             </div>
             <div class="card">
-              <div class="label">今日退票</div>
+              <div class="label">{{ t('admin.cardRefunded') }}</div>
               <div class="value">{{ summary.todayRefunded || 0 }}</div>
             </div>
           </div>
 
           <div class="welcome-actions">
             <el-button type="primary" size="large" @click="router.push('/admin/dashboard')">
-              📊 进入经营看板
+              📊 {{ t('admin.welcomeEnterDashboard') }}
             </el-button>
             <el-button @click="router.push('/admin/live')">
-              📡 实时数据大屏
+              📡 {{ t('admin.welcomeEnterLive') }}
             </el-button>
             <el-button @click="router.push('/admin/sessions')">
-              📅 管理场次
+              📅 {{ t('admin.welcomeEnterSessions') }}
             </el-button>
           </div>
         </div>

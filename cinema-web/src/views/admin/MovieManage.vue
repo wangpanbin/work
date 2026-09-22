@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, type FormInstance } from 'element-plus'
 import { moviePage, movieCreate, movieUpdate, movieDelete } from '../../api/admin'
 import type { Movie } from '../../types'
 
+const { t } = useI18n()
 const loading = ref(false)
 const list = ref<Movie[]>([])
 const keyword = ref('')
@@ -39,10 +41,10 @@ async function onSubmit() {
   await formRef.value?.validate()
   if (editing.value) {
     await movieUpdate(editing.value.id, form)
-    ElMessage.success('已更新')
+    ElMessage.success(t('admin.moviesUpdated'))
   } else {
     await movieCreate(form)
-    ElMessage.success('已创建')
+    ElMessage.success(t('admin.moviesCreated'))
   }
   dialogVisible.value = false
   load()
@@ -50,7 +52,7 @@ async function onSubmit() {
 
 async function onDelete(row: Movie) {
   await movieDelete(row.id)
-  ElMessage.success('已删除')
+  ElMessage.success(t('admin.moviesDeleted'))
   load()
 }
 
@@ -59,10 +61,10 @@ onMounted(load)
 
 <template>
   <div v-loading="loading">
-    <h2>影片管理</h2>
+    <h2>{{ t('admin.moviesTitle') }}</h2>
     <div class="toolbar">
-      <el-input v-model="keyword" placeholder="搜索片名" clearable style="width: 240px" @change="load" />
-      <el-button type="primary" @click="openCreate">新增影片</el-button>
+      <el-input v-model="keyword" :placeholder="t('admin.moviesSearchPlaceholder')" clearable style="width: 240px" @change="load" />
+      <el-button type="primary" @click="openCreate">{{ t('admin.moviesAdd') }}</el-button>
     </div>
 
     <el-table :data="list" stripe>
@@ -71,48 +73,48 @@ onMounted(load)
           <span class="id-cell" :title="String(row.id)">#{{ row.id }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="title" label="片名" />
-      <el-table-column prop="duration" label="时长(分钟)" width="120" />
-      <el-table-column prop="description" label="简介" show-overflow-tooltip />
-      <el-table-column label="状态" width="100">
+      <el-table-column prop="title" :label="t('admin.moviesTitleCol')" />
+      <el-table-column prop="duration" :label="t('admin.moviesDurationCol')" width="120" />
+      <el-table-column prop="description" :label="t('admin.moviesDescCol')" show-overflow-tooltip />
+      <el-table-column :label="t('admin.moviesStatusCol')" width="100">
         <template #default="{ row }">
-          <el-tag :type="row.status === 1 ? 'success' : 'info'">{{ row.status === 1 ? '热映' : '下架' }}</el-tag>
+          <el-tag :type="row.status === 1 ? 'success' : 'info'">{{ row.status === 1 ? t('admin.moviesStatusActive') : t('admin.moviesStatusInactive') }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="180">
+      <el-table-column :label="t('admin.moviesActionsCol')" width="180">
         <template #default="{ row }">
-          <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
-          <el-popconfirm title="确定删除?" @confirm="onDelete(row)">
-            <template #reference><el-button link type="danger">删除</el-button></template>
+          <el-button link type="primary" @click="openEdit(row)">{{ t('admin.moviesEdit') }}</el-button>
+          <el-popconfirm :title="t('admin.moviesConfirmDelete')" @confirm="onDelete(row)">
+            <template #reference><el-button link type="danger">{{ t('admin.moviesDelete') }}</el-button></template>
           </el-popconfirm>
         </template>
       </el-table-column>
     </el-table>
 
-    <el-dialog v-model="dialogVisible" :title="editing ? '编辑影片' : '新增影片'" width="540px">
+    <el-dialog v-model="dialogVisible" :title="editing ? t('admin.moviesEditTitle') : t('admin.moviesAddTitle')" width="540px">
       <el-form ref="formRef" :model="form" label-width="100px">
-        <el-form-item label="片名" prop="title" required>
+        <el-form-item :label="t('admin.moviesTitleCol')" prop="title" required>
           <el-input v-model="form.title" maxlength="128" />
         </el-form-item>
-        <el-form-item label="海报URL">
+        <el-form-item :label="t('admin.moviesPosterCol')">
           <el-input v-model="form.poster" />
         </el-form-item>
-        <el-form-item label="时长(分钟)" required>
+        <el-form-item :label="t('admin.moviesDurationCol')" required>
           <el-input-number v-model="form.duration" :min="1" :max="500" />
         </el-form-item>
-        <el-form-item label="简介">
+        <el-form-item :label="t('admin.moviesDescCol')">
           <el-input v-model="form.description" type="textarea" :rows="3" />
         </el-form-item>
-        <el-form-item label="状态">
+        <el-form-item :label="t('admin.moviesStatusCol')">
           <el-select v-model="form.status">
-            <el-option :value="1" label="热映" />
-            <el-option :value="0" label="下架" />
+            <el-option :value="1" :label="t('admin.moviesStatusActive')" />
+            <el-option :value="0" :label="t('admin.moviesStatusInactive')" />
           </el-select>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="onSubmit">保存</el-button>
+        <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" @click="onSubmit">{{ t('common.save') }}</el-button>
       </template>
     </el-dialog>
   </div>

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { dashboardSummary, type DashboardSummary } from '../../api/admin'
 
+const { t, locale } = useI18n()
 const data = ref<DashboardSummary | null>(null)
 const events = ref<Array<{ time: string; type: string; text: string }>>([])
 const connected = ref(false)
@@ -30,15 +32,15 @@ function connectWs() {
   ws = new WebSocket(url)
   ws.onopen = () => {
     connected.value = true
-    pushEvent('INFO', 'WebSocket 已连接')
+    pushEvent('INFO', t('admin.liveWsConnected'))
   }
   ws.onclose = () => {
     connected.value = false
-    pushEvent('WARN', 'WebSocket 断开,3s 后重连')
+    pushEvent('WARN', t('admin.liveWsClosed'))
     setTimeout(connectWs, 3000)
   }
   ws.onerror = () => {
-    pushEvent('ERR', 'WebSocket 错误')
+    pushEvent('ERR', t('admin.liveWsError'))
   }
   ws.onmessage = (e) => {
     try {
@@ -48,6 +50,8 @@ function connectWs() {
       const seats = (d.seats || []).join(',') || '-'
       const amt = d.amount != null ? ' ¥' + Number(d.amount).toFixed(2) : ''
       let text = ''
+      // 事件 text 是"业务事件描述" + 数据 ID — 这些是技术性描述,保留中文够用
+      // (完整多语言要后端配合发事件模板 + 语言 code,超出 i18n scope)
       if (t === 'LOCK') text = `用户 ${d.userId} 锁座 session=${d.sessionId} 座位 ${seats}`
       else if (t === 'SOLD') text = `用户 ${d.userId} 支付成功 session=${d.sessionId} 座位 ${seats}${amt}`
       else if (t === 'CANCEL') text = `用户 ${d.userId} 主动取消 session=${d.sessionId} 座位 ${seats}`
@@ -62,7 +66,8 @@ function connectWs() {
 }
 
 function pushEvent(type: string, text: string) {
-  const time = new Date().toLocaleTimeString()
+  // 时间格式跟随 i18n locale (spec §3.5)
+  const time = new Date().toLocaleTimeString(locale.value)
   events.value.unshift({ time, type, text })
   if (events.value.length > 50) events.value.length = 50
 }
@@ -82,41 +87,41 @@ onUnmounted(() => {
 <template>
   <div class="live">
     <div class="live-header">
-      <h2>📡 实时数据大屏</h2>
+      <h2>{{ t('admin.liveTitle') }}</h2>
       <div class="conn-status" :class="{ ok: connected, off: !connected }">
         <span class="dot"></span>
-        {{ connected ? '已连接' : '未连接' }}
+        {{ connected ? t('admin.liveConnected') : t('admin.liveDisconnected') }}
       </div>
     </div>
 
     <div v-if="data" class="cards">
       <div class="card gold">
-        <div class="card-label">今日票房</div>
+        <div class="card-label">{{ t('admin.cardTodayRevenue') }}</div>
         <div class="card-value">¥{{ fmtMoney(data.todayRevenue) }}</div>
       </div>
       <div class="card">
-        <div class="card-label">今日订单</div>
+        <div class="card-label">{{ t('admin.cardTodayOrders') }}</div>
         <div class="card-value">{{ fmt(data.todayOrders) }}</div>
       </div>
       <div class="card">
-        <div class="card-label">今日已支付</div>
+        <div class="card-label">{{ t('admin.cardTodayPaid') }}</div>
         <div class="card-value">{{ fmt(data.todayPaid) }}</div>
       </div>
       <div class="card">
-        <div class="card-label">今日锁座</div>
+        <div class="card-label">{{ t('admin.cardTodayLocked') }}</div>
         <div class="card-value">{{ fmt(data.todayPendingSeats) }}</div>
       </div>
     </div>
 
     <div class="panel">
-      <h3>实时事件流</h3>
+      <h3>{{ t('admin.liveEventsTitle') }}</h3>
       <div class="event-list">
         <div v-for="(e, i) in events" :key="i" class="event-row" :class="e.type">
           <span class="event-time">{{ e.time }}</span>
           <span class="event-type">{{ e.type }}</span>
           <span class="event-text">{{ e.text }}</span>
         </div>
-        <div v-if="!events.length" class="empty">暂无事件,试试在另一个浏览器窗口下单吧~</div>
+        <div v-if="!events.length" class="empty">{{ t('admin.liveEmptyHint') }}</div>
       </div>
     </div>
   </div>

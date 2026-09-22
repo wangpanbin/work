@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 import { sessionList, sessionCreate, sessionUpdate, sessionDelete, hallList } from '../../api/admin'
@@ -8,6 +9,7 @@ import type { Session } from '../../api/session'
 import type { Movie } from '../../types'
 import type { Hall } from '../../api/session'
 
+const { t } = useI18n()
 const list = ref<Session[]>([])
 const movies = ref<Movie[]>([])
 const halls = ref<Hall[]>([])
@@ -16,6 +18,9 @@ const editing = ref<Session | null>(null)
 const form = reactive({ movieId: 0, hallId: 0, startTime: '', price: 49.9, status: 1 })
 const movieMap = computed(() => Object.fromEntries(movies.value.map((m) => [m.id, m])))
 const hallMap = computed(() => Object.fromEntries(halls.value.map((h) => [h.id, h])))
+
+// 场次状态文案 (后端 0/1/2/3 → i18n key)
+const sessionStatusLabelKey = ['admin.sessionStatusPending', '', 'admin.sessionStatusStarted', 'admin.sessionStatusEnded']
 
 async function load() {
   list.value = await sessionList()
@@ -52,10 +57,10 @@ function openEdit(row: Session) {
 async function onSubmit() {
   if (editing.value) {
     await sessionUpdate(editing.value.id, { ...form, price: Number(form.price) })
-    ElMessage.success('已更新')
+    ElMessage.success(t('admin.sessionsUpdated'))
   } else {
     await sessionCreate({ ...form, price: Number(form.price) })
-    ElMessage.success('已创建')
+    ElMessage.success(t('admin.sessionsCreated'))
   }
   dialogVisible.value = false
   load()
@@ -63,7 +68,7 @@ async function onSubmit() {
 
 async function onDelete(row: Session) {
   await sessionDelete(row.id)
-  ElMessage.success('已删除')
+  ElMessage.success(t('admin.hallsDeleted'))
   load()
 }
 
@@ -75,66 +80,66 @@ onMounted(async () => {
 
 <template>
   <div>
-    <h2>场次管理</h2>
-    <el-button type="primary" @click="openCreate">新增场次</el-button>
+    <h2>{{ t('admin.sessionsTitle') }}</h2>
+    <el-button type="primary" @click="openCreate">{{ t('admin.sessionsAdd') }}</el-button>
 
     <el-table :data="list" stripe style="margin-top: 12px">
       <el-table-column prop="id" label="ID" width="80" />
-      <el-table-column label="影片">
+      <el-table-column :label="t('admin.sessionsMovieCol')">
         <template #default="{ row }">{{ movieMap[row.movieId]?.title || row.movieId }}</template>
       </el-table-column>
-      <el-table-column label="影厅">
+      <el-table-column :label="t('admin.sessionsHallLabelCol')">
         <template #default="{ row }">{{ hallMap[row.hallId]?.name || row.hallId }}</template>
       </el-table-column>
-      <el-table-column label="开映时间">
+      <el-table-column :label="t('admin.sessionsStartLabel')">
         <template #default="{ row }">{{ dayjs(row.startTime).format('MM-DD HH:mm') }}</template>
       </el-table-column>
-      <el-table-column prop="price" label="票价" width="100" />
-      <el-table-column label="状态" width="100">
+      <el-table-column prop="price" :label="t('admin.sessionsPriceLabel')" width="100" />
+      <el-table-column :label="t('admin.moviesStatusCol')" width="100">
         <template #default="{ row }">
           <el-tag :type="row.status === 1 ? 'success' : 'info'">
-            {{ ['', '在售', '已开场', '已结束'][row.status] || '未知' }}
+            {{ sessionStatusLabelKey[row.status] ? t(sessionStatusLabelKey[row.status]) : t('admin.sessionStatusUnknown') }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="180">
+      <el-table-column :label="t('admin.sessionsActionsCol')" width="180">
         <template #default="{ row }">
-          <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
-          <el-popconfirm title="确定删除?" @confirm="onDelete(row)">
-            <template #reference><el-button link type="danger">删除</el-button></template>
+          <el-button link type="primary" @click="openEdit(row)">{{ t('admin.moviesEdit') }}</el-button>
+          <el-popconfirm :title="t('admin.sessionsConfirmDelete')" @confirm="onDelete(row)">
+            <template #reference><el-button link type="danger">{{ t('admin.moviesDelete') }}</el-button></template>
           </el-popconfirm>
         </template>
       </el-table-column>
     </el-table>
 
-    <el-dialog v-model="dialogVisible" :title="editing ? '编辑场次' : '新增场次'" width="540px">
+    <el-dialog v-model="dialogVisible" :title="editing ? t('admin.sessionsEditTitle') : t('admin.sessionsAddTitle')" width="540px">
       <el-form :model="form" label-width="100px">
-        <el-form-item label="影片">
+        <el-form-item :label="t('admin.sessionsMovieCol')">
           <el-select v-model="form.movieId" filterable>
             <el-option v-for="m in movies" :key="m.id" :value="m.id" :label="m.title" />
           </el-select>
         </el-form-item>
-        <el-form-item label="影厅">
+        <el-form-item :label="t('admin.sessionsHallLabelCol')">
           <el-select v-model="form.hallId">
             <el-option v-for="h in halls" :key="h.id" :value="h.id" :label="`${h.name} (${h.seatRows}x${h.seatCols}=${h.seatCount})`" />
           </el-select>
         </el-form-item>
-        <el-form-item label="开映时间">
+        <el-form-item :label="t('admin.sessionsStartLabel')">
           <el-input v-model="form.startTime" placeholder="YYYY-MM-DDTHH:mm:ss" />
         </el-form-item>
-        <el-form-item label="票价"><el-input-number v-model="form.price" :min="0.01" :precision="2" /></el-form-item>
-        <el-form-item label="状态">
+        <el-form-item :label="t('admin.sessionsPriceLabel')"><el-input-number v-model="form.price" :min="0.01" :precision="2" /></el-form-item>
+        <el-form-item :label="t('admin.moviesStatusCol')">
           <el-select v-model="form.status">
-            <el-option :value="0" label="待开售" />
-            <el-option :value="1" label="在售" />
-            <el-option :value="2" label="已开场" />
-            <el-option :value="3" label="已结束" />
+            <el-option :value="0" :label="t('admin.sessionStatusPending')" />
+            <el-option :value="1" :label="t('admin.sessionStatusSelling')" />
+            <el-option :value="2" :label="t('admin.sessionStatusStarted')" />
+            <el-option :value="3" :label="t('admin.sessionStatusEnded')" />
           </el-select>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="onSubmit">保存</el-button>
+        <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" @click="onSubmit">{{ t('common.save') }}</el-button>
       </template>
     </el-dialog>
   </div>
