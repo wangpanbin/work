@@ -54,8 +54,8 @@ function onMobileSelect(key: string | number) {
   <el-container class="app">
     <el-header class="app-header">
       <div class="brand" @click="router.push('/')">
-        <span class="brand-text">星辉影城</span>
-        <span class="brand-tag">CINEMA</span>
+        <span class="brand-text">{{ $t('app.brand') }}</span>
+        <span class="brand-tag">{{ $t('app.brandTag') }}</span>
       </div>
       <!-- 桌面端: 横向 chip 列表 -->
       <div class="user-area desktop-only">
