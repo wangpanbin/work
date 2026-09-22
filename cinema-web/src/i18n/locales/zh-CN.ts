@@ -98,6 +98,18 @@ export default {
     hallLabel: '{hall}厅',
     priceLabel: '￥{price} / 座',
     remainingLabel: '余 {n} 座',
+    dateToday: '今天',
+    dateTomorrow: '明天',
+    dateDayAfter: '后天',
+    nowPlaying: 'NOW PLAYING',
+    comingSoon: '即将上映',
+    noDescription: '暂无影片简介',
+    classic: '经典影片',
+    endTime: '散场',
+    minutes: '{n} 分钟',
+    descEllipsis: '...',
+    goSeats: '选座购票',
+    sectionTitle: '🎟 选择场次',
   },
 
   seat: {

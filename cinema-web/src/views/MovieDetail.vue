@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import dayjs from 'dayjs'
 import { detail } from '../api/movie'
 import { listByMovieAndDate } from '../api/session'
@@ -12,6 +13,7 @@ const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const cache = useMovieCache()
+const { t } = useI18n()
 
 const movieId = route.params.id as string
 const movie = ref<Movie | null>(null)
@@ -22,7 +24,7 @@ const selectedDate = ref(dayjs().add(1, 'day').format('YYYY-MM-DD'))
 const dateOptions = computed(() =>
   [0, 1, 2].map((d) => ({
     value: dayjs().add(d, 'day').format('YYYY-MM-DD'),
-    label: d === 0 ? '今天' : d === 1 ? '明天' : '后天',
+    label: d === 0 ? t('movie.dateToday') : d === 1 ? t('movie.dateTomorrow') : t('movie.dateDayAfter'),
   })),
 )
 
@@ -107,26 +109,26 @@ onMounted(async () => {
             </div>
           </div>
           <div class="info">
-            <div v-if="movie.status === 1" class="info-badge">NOW PLAYING</div>
-            <div v-else-if="movie.status === 0" class="info-badge coming-soon">即将上映</div>
+            <div v-if="movie.status === 1" class="info-badge">{{ t('movie.nowPlaying') }}</div>
+            <div v-else-if="movie.status === 0" class="info-badge coming-soon">{{ t('movie.comingSoon') }}</div>
             <h1 class="movie-title">{{ movie.title }}</h1>
-            <p class="desc">{{ movie.description || '暂无影片简介' }}</p>
+            <p class="desc">{{ movie.description || t('movie.noDescription') }}</p>
             <div class="meta-tags">
               <span class="meta-tag">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                   <circle cx="12" cy="12" r="10"/>
                   <polyline points="12 6 12 12 16 14"/>
                 </svg>
-                {{ movie.duration }} 分钟
+                {{ t('movie.minutes', { n: movie.duration }) }}
               </span>
               <span v-if="movie.description" class="meta-tag">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                   <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
                   <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
                 </svg>
-                {{ movie.description.slice(0, 18) }}{{ movie.description.length > 18 ? '...' : '' }}
+                {{ movie.description.slice(0, 18) }}{{ movie.description.length > 18 ? t('movie.descEllipsis') : '' }}
               </span>
-              <span v-else class="meta-tag">经典影片</span>
+              <span v-else class="meta-tag">{{ t('movie.classic') }}</span>
             </div>
           </div>
         </div>
@@ -135,29 +137,29 @@ onMounted(async () => {
       <!-- Sessions Section -->
       <section class="sessions-section">
         <div class="sessions-header">
-          <h2 class="section-title">🎟 选择场次</h2>
+          <h2 class="section-title">{{ t('movie.sectionTitle') }}</h2>
           <el-radio-group v-model="selectedDate" @change="loadSessions" class="date-picker">
             <el-radio-button v-for="d in dateOptions" :key="d.value" :value="d.value">{{ d.label }}</el-radio-button>
           </el-radio-group>
         </div>
 
-        <el-empty v-if="!loading && sessions.length === 0" description="该日期暂无场次" />
+        <el-empty v-if="!loading && sessions.length === 0" :description="t('movie.noSessions')" />
 
         <div class="session-list">
           <div v-for="(s, idx) in sessions" :key="s.id" class="session-card" :style="{ animationDelay: `${idx * 0.06}s` }">
             <div class="session-time">
               <div class="start-time">{{ fmt(s.startTime) }}</div>
-              <div class="end-time">{{ fmt(s.endTime) }} 散场</div>
+              <div class="end-time">{{ fmt(s.endTime) }} {{ t('movie.endTime') }}</div>
             </div>
             <div class="session-info">
               <div class="hall-name">{{ s.hallName }}</div>
               <div class="cinema-name">{{ s.cinemaName }}</div>
             </div>
             <div class="session-price">
-              <span class="price-symbol">￥</span>
+              <span class="price-symbol">{{ t('order.currency') }}</span>
               <span class="price-value">{{ s.price.toFixed(2) }}</span>
             </div>
-            <el-button type="primary" size="large" class="buy-btn" @click="goSeat(s)">选座购票</el-button>
+            <el-button type="primary" size="large" class="buy-btn" @click="goSeat(s)">{{ t('movie.goSeats') }}</el-button>
           </div>
         </div>
       </section>

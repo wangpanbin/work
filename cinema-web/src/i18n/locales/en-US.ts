@@ -98,6 +98,18 @@ const messages: SameShape<typeof zhCN> = {
     hallLabel: 'Hall {hall}',
     priceLabel: '¥{price} / seat',
     remainingLabel: '{n} seats left',
+    dateToday: 'Today',
+    dateTomorrow: 'Tomorrow',
+    dateDayAfter: 'Day after',
+    nowPlaying: 'NOW PLAYING',
+    comingSoon: 'Coming Soon',
+    noDescription: 'No description available',
+    classic: 'Classic',
+    endTime: 'ends',
+    minutes: '{n} min',
+    descEllipsis: '...',
+    goSeats: 'Select seats',
+    sectionTitle: '🎟 Showtimes',
   },
 
   seat: {
