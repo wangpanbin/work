@@ -338,6 +338,7 @@ const messages: SameShape<typeof zhCN> = {
     sessionStatusStarted: 'Started',
     sessionStatusEnded: 'Ended',
     sessionStatusUnknown: 'Unknown',
+    cardFallbackTitle: 'Suggested session',
   },
 
   chat: {

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import type { ActionCardVO } from '../../types'
 import { buildSeatRoute } from './actionCardRoute'
 
@@ -8,12 +9,10 @@ const props = defineProps<{
 }>()
 
 const router = useRouter()
+const { t } = useI18n()
 
 /**
  * 跳到选座流程并预选座位(spec §7.2 + ADR-0002).
- *
- * <p>路由参数构造在 actionCardRoute.ts (独立文件,因为
- * {@code <script setup>} 不允许 ES module exports)。
  */
 function onClick() {
   router.push(buildSeatRoute(props.card))
@@ -27,12 +26,12 @@ function onClick() {
       <span class="action-card-price" v-if="card.price != null">¥{{ card.price }}</span>
     </div>
     <div class="action-card-body">
-      <div class="action-card-title">{{ card.movieTitle ?? '推荐场次' }}</div>
+      <div class="action-card-title">{{ card.movieTitle ?? t('chat.cardFallbackTitle') }}</div>
       <div class="action-card-meta" v-if="card.hallName">{{ card.hallName }} · {{ card.startTime }}</div>
-      <div class="action-card-meta" v-if="card.seatDesc">座位: {{ card.seatDesc }}</div>
-      <div class="action-card-meta" v-if="card.totalAmount != null">合计: ¥{{ card.totalAmount }}</div>
+      <div class="action-card-meta" v-if="card.seatDesc">{{ t('chat.cardSeatsLabel') }}: {{ card.seatDesc }}</div>
+      <div class="action-card-meta" v-if="card.totalAmount != null">{{ t('chat.cardAmountLabel') }}: ¥{{ card.totalAmount }}</div>
     </div>
-    <button class="action-card-btn" type="button">{{ card.actionLabel ?? '去选座确认' }}</button>
+    <button class="action-card-btn" type="button">{{ card.actionLabel ?? t('chat.cardJumpBtn') }}</button>
   </div>
 </template>
 

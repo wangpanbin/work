@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { sendMessage } from '../../api/chat'
 import { useChatContext } from '../../composables/useChatContext'
@@ -11,6 +12,7 @@ import ChatMessage from './ChatMessage.vue'
 
 const userStore = useUserStore()
 const router = useRouter()
+const { t, locale } = useI18n()
 const { context, isHidden } = useChatContext()
 
 const open = ref(false)
@@ -27,17 +29,14 @@ function toggle() {
 
 /**
  * spec #17 ID-5 — 检测到 LOGIN_REQUIRED 回复时,弹 ElMessageBox 引导登录。
- * 仅在用户**已登录**时跳过(spec Q3 决策:匿名用户用工具层降级已处理,
- * 重复弹窗会骚扰真实登录用户)— 实际触发场景是 anonymous 用户用 getMyOrders,
- * 后端 ChatTools 返 LOGIN_REQUIRED,本前端拦截引导登录。
  */
 async function maybePromptLogin(reply: string | undefined) {
   if (!userStore.isLogin && detectLoginRequired(reply)) {
     try {
       await ElMessageBox.confirm(
-        '需要登录才能继续,是否跳转登录?',
-        '提示',
-        { confirmButtonText: '去登录', cancelButtonText: '稍后', type: 'info' },
+        t('chat.loginRequiredBody'),
+        t('chat.loginRequiredTitle'),
+        { confirmButtonText: t('chat.loginRequiredOk'), cancelButtonText: t('chat.loginRequiredCancel'), type: 'info' },
       )
       router.push({ path: '/login', query: { redirect: router.currentRoute.value.fullPath } })
     } catch {
@@ -50,22 +49,21 @@ async function send() {
   const text = inputText.value.trim()
   if (!text || sending.value) return
   sending.value = true
-  const now = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  const now = new Date().toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit' })
   // 用户消息先入栈
   messages.value.push({ role: 'user', message: text, response: null, timestamp: now })
   inputText.value = ''
   try {
     const resp = await sendMessage({ message: text, context: context.value })
-    const assistantTimestamp = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+    const assistantTimestamp = new Date().toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit' })
     messages.value.push({ role: 'assistant', message: '', response: resp, timestamp: assistantTimestamp })
-    // spec #17:检测到 LOGIN_REQUIRED → 引导登录(只对匿名用户)
     maybePromptLogin(resp?.reply)
   } catch (e: any) {
-    ElMessage.error(e?.message || '对话失败,请稍后重试')
-    const errorTimestamp = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+    ElMessage.error(e?.message || t('chat.errorSend'))
+    const errorTimestamp = new Date().toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit' })
     messages.value.push({
       role: 'assistant',
-      message: '抱歉,出了点问题。',
+      message: t('chat.errorGeneric'),
       response: null,
       timestamp: errorTimestamp,
     })
@@ -82,8 +80,7 @@ function onKeydownEnter(e: KeyboardEvent) {
 }
 
 onMounted(() => {
-  // 用户登录态变化时清空历史(spec §4.4 边界: 不同用户上下文应隔离)
-  // 这里只做初次挂载,不做 watch(避免影响测试)
+  // 用户登录态变化时清空历史(spec §4.4 边界)
 })
 
 defineExpose({ toggle })
@@ -94,7 +91,7 @@ defineExpose({ toggle })
     <button
       v-if="!open"
       class="chat-fab"
-      aria-label="打开对话助手"
+      :aria-label="t('chat.fabAria')"
       @click="toggle"
     >
       💬
@@ -102,17 +99,17 @@ defineExpose({ toggle })
 
     <div v-if="open" class="chat-panel">
       <div class="chat-header">
-        <span class="chat-header-title">影院对话助手</span>
-        <span class="chat-header-meta" v-if="userStore.isLogin">已登录</span>
-        <span class="chat-header-meta anon" v-else>匿名</span>
-        <button class="chat-header-close" aria-label="关闭" @click="open = false">×</button>
+        <span class="chat-header-title">{{ t('chat.title') }}</span>
+        <span class="chat-header-meta" v-if="userStore.isLogin">{{ t('chat.metaLogged') }}</span>
+        <span class="chat-header-meta anon" v-else>{{ t('chat.metaAnon') }}</span>
+        <button class="chat-header-close" :aria-label="t('chat.closeAria')" @click="open = false">×</button>
       </div>
 
       <div class="chat-messages">
         <div v-if="!messages.length" class="chat-empty">
-          <p>👋 你好,我是影院对话助手。</p>
-          <p>可以问我:今晚 8 点有什么电影?这部片还有座吗?</p>
-          <p class="chat-sub-text">只读不写 — 锁座 / 支付 / 退票仍由你点击确认(spec ADR-0002)。</p>
+          <p>{{ t('chat.emptyGreeting') }}</p>
+          <p>{{ t('chat.emptyExamples') }}</p>
+          <p class="chat-sub-text">{{ t('chat.emptyReadonly') }}</p>
         </div>
         <ChatMessage
           v-for="(m, idx) in messages"
@@ -127,12 +124,12 @@ defineExpose({ toggle })
         <textarea
           v-model="inputText"
           rows="2"
-          placeholder="输入消息,Enter 发送,Shift+Enter 换行"
+          :placeholder="t('chat.inputPlaceholder')"
           :disabled="sending"
           @keydown="onKeydownEnter"
         />
         <button class="chat-send-btn" :disabled="!inputText.trim() || sending" @click="send">
-          {{ sending ? '发送中…' : '发送' }}
+          {{ sending ? t('chat.sending') : t('chat.sendBtn') }}
         </button>
       </div>
     </div>

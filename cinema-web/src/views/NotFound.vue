@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 
 const router = useRouter()
+const { t } = useI18n()
 </script>
 
 <template>
@@ -18,12 +20,12 @@ const router = useRouter()
         </div>
       </div>
     </div>
-    <h1 class="code">404</h1>
-    <h2 class="title">这片子还没排片</h2>
-    <p class="desc">你访问的页面不存在,可能链接已过期或地址输错了。</p>
+    <h1 class="code">{{ t('notFound.code') }}</h1>
+    <h2 class="title">{{ t('notFound.title') }}</h2>
+    <p class="desc">{{ t('notFound.subtitle') }}</p>
     <div class="actions">
-      <el-button type="primary" size="large" @click="router.push('/')">回到首页</el-button>
-      <el-button @click="router.back()">返回上一页</el-button>
+      <el-button type="primary" size="large" @click="router.push('/')">{{ t('notFound.backHome') }}</el-button>
+      <el-button @click="router.back()">{{ t('common.back') }}</el-button>
     </div>
   </div>
 </template>

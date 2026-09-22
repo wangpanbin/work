@@ -342,6 +342,7 @@ export default {
     sessionStatusStarted: '已开场',
     sessionStatusEnded: '已结束',
     sessionStatusUnknown: '未知',
+    cardFallbackTitle: '推荐场次',
   },
 
   chat: {
