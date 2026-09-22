@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 import { seatMap } from '../api/seat'
@@ -15,6 +16,7 @@ const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const seatStore = useSeatStore()
+const { t } = useI18n()
 
 // 后端 sessionId 是雪花 ID (19 位, 超过 JS Number.MAX_SAFE_INTEGER=2^53-1=9007199254740991),
 // 必须保持 string 才能避免精度丢失 —— 否则 request URL 里最后几位会变 0, 后端查不到
@@ -38,7 +40,7 @@ async function refresh() {
 
 onMounted(async () => {
   if (!userStore.isLogin) {
-    ElMessage.warning('请先登录')
+    ElMessage.warning(t('seat.warnLogin'))
     router.push('/login')
     return
   }
@@ -55,7 +57,7 @@ onMounted(async () => {
     // P0-2: WS 事件导致 selected 减少时, 提示用户具体被抢了哪个
     if ((evt.type === 'LOCKED' || evt.type === 'SOLD') && seatStore.selected.size < before) {
       const lostCount = before - seatStore.selected.size
-      ElMessage.warning(`你已选的 ${lostCount} 个座位被他人锁定,已自动移出选择`)
+      ElMessage.warning(t('seat.warnSeatsTaken', { n: lostCount }))
     }
   })
   // 同步初始状态, 后续 watch 自动更新
@@ -81,19 +83,22 @@ const totalPrice = computed(() => {
 async function onConfirm() {
   const seats = [...seatStore.selected]
   if (seats.length === 0) {
-    ElMessage.warning('请先选择座位')
+    ElMessage.warning(t('seat.warnSelectSeat'))
     return
   }
   submitting.value = true
   try {
     const result = await lockSeats({ sessionId: sessionId.value, seatIndexes: seats.sort((a, b) => a - b) })
-    ElMessage.success('锁座成功!')
+    ElMessage.success(t('seat.successLock'))
     seatStore.markMyLocked(seats)
     router.push({ name: 'payment', query: { orderNo: result.orderNo } })
   } catch (e: unknown) {
     const err = e as { message?: string; data?: { conflict?: number[] } }
-    const msg = err?.message || '锁座失败'
-    if (msg.includes('座位已被占用')) {
+    const msg = err?.message || t('seat.errorLockFailed')
+    if (msg.includes(t('seat.errorLockFailed'))) {
+      // 兜底
+      ElMessage.error(msg)
+    } else if (msg.includes('座位已被占用')) {
       // Phase D-⑱: 只对后端返回的 conflict 列表做局部置灰, 避免全量 refresh
       const conflict = err?.data?.conflict
       if (Array.isArray(conflict) && conflict.length > 0) {
@@ -104,11 +109,11 @@ async function onConfirm() {
           return `${row}排${col}座`
         })
         const shown = labels.length > 4 ? `${labels.slice(0, 4).join('、')} 等 ${labels.length} 个` : labels.join('、')
-        ElMessage.error(`所选座位已被抢走: ${shown}, 请重新选择`)
+        ElMessage.error(t('seat.errorConflict', { list: shown }))
       } else {
         // 兜底: 拿不到 conflict 列表时全量 refresh
         await refresh()
-        ElMessage.error('所选座位已被抢走,已刷新座位图')
+        ElMessage.error(t('seat.errorConflictRefreshed'))
       }
     } else {
       ElMessage.error(msg)
@@ -122,9 +127,9 @@ function seatClick(idx: number) {
   if (!seatStore.toggle(idx)) {
     const status = seatStore.statusAt(idx)
     if (status === 'SOLD' || status === 'LOCKED_OTHER') {
-      ElMessage.info('该座位不可选')
+      ElMessage.info(t('seat.infoUnavailable'))
     } else if (seatStore.selected.size >= seatStore.maxSelect) {
-      ElMessage.warning(`最多选择 ${seatStore.maxSelect} 个座位`)
+      ElMessage.warning(t('seat.warnMaxSelect', { n: seatStore.maxSelect }))
     }
   }
 }
@@ -136,9 +141,9 @@ function seatClick(idx: number) {
     <div class="ws-status" :class="`ws-${wsStatus}`" role="status" aria-live="polite">
       <span class="ws-dot"></span>
       <span class="ws-text">
-        <template v-if="wsStatus === 'open'">实时同步中</template>
-        <template v-else-if="wsStatus === 'connecting'">正在连接实时同步…</template>
-        <template v-else>已断开,正在重连 — 座位状态可能未及时更新</template>
+        <template v-if="wsStatus === 'open'">{{ t('seat.wsOpen') }}</template>
+        <template v-else-if="wsStatus === 'connecting'">{{ t('seat.wsConnecting') }}</template>
+        <template v-else>{{ t('seat.wsClosed') }}</template>
       </span>
     </div>
 
@@ -151,21 +156,21 @@ function seatClick(idx: number) {
           <span class="meta-sep">·</span>
           <span class="meta-item">{{ dayjs(seatStore.map.startTime).format('MM-DD HH:mm') }}</span>
           <span class="meta-sep">·</span>
-          <span class="meta-item price-tag">￥{{ seatStore.map.price.toFixed(2) }}/座</span>
+          <span class="meta-item price-tag">￥{{ seatStore.map.price.toFixed(2) }}{{ t('seat.pricePerSeat') }}</span>
         </div>
       </div>
       <el-button @click="refresh" :loading="refreshing" class="refresh-btn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="margin-right:4px">
           <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
         </svg>
-        刷新
+        {{ t('seat.refresh') }}
       </el-button>
     </div>
 
     <!-- Screen -->
     <div class="screen-wrapper">
       <div class="screen">
-        <div class="screen-inner">银 幕</div>
+        <div class="screen-inner">{{ t('seat.screen') }}</div>
         <div class="screen-reflection"></div>
       </div>
       <div class="screen-stand"></div>
@@ -190,7 +195,7 @@ function seatClick(idx: number) {
       <div v-else>
         <!-- P2-#13: 大影厅布局丢了行列标签, 加个 hint 给用户交代 -->
         <div class="seats-hint">
-          💡 本场 {{ seatStore.map.rows }} 排 × {{ seatStore.map.cols }} 座 · 长按 / 悬停座位可看具体位置
+          💡 {{ t('seat.largeHallHint', { rows: seatStore.map.rows, cols: seatStore.map.cols }) }}
         </div>
         <div class="seats" :style="{ '--cols': seatStore.map.cols }">
           <SeatItem v-for="i in seatStore.map.seatCount" :key="i - 1" :index="i - 1" />
@@ -200,11 +205,11 @@ function seatClick(idx: number) {
 
     <!-- Legend -->
     <div class="legend">
-      <div class="item"><span class="dot available" />可选</div>
-      <div class="item"><span class="dot selected" />已选</div>
-      <div class="item"><span class="dot mine" />我已锁</div>
-      <div class="item"><span class="dot locked" />他人锁定</div>
-      <div class="item"><span class="dot sold" />已售</div>
+      <div class="item"><span class="dot available" />{{ t('seat.legendAvailable') }}</div>
+      <div class="item"><span class="dot selected" />{{ t('seat.legendSelected') }}</div>
+      <div class="item"><span class="dot mine" />{{ t('seat.legendMine') }}</div>
+      <div class="item"><span class="dot locked" />{{ t('seat.legendLocked') }}</div>
+      <div class="item"><span class="dot sold" />{{ t('seat.legendSold') }}</div>
     </div>
 
     <!-- Summary Card -->
@@ -213,7 +218,7 @@ function seatClick(idx: number) {
         <div class="summary-icon">🎯</div>
         <div class="summary-content">
           <div class="summary-value">{{ seatStore.selected.size }} / {{ seatStore.maxSelect }}</div>
-          <div class="summary-label">已选座位</div>
+          <div class="summary-label">{{ t('seat.selectedCount') }}</div>
         </div>
       </div>
       <div class="summary-divider"></div>
@@ -221,7 +226,7 @@ function seatClick(idx: number) {
         <div class="summary-icon">⏰</div>
         <div class="summary-content">
           <div class="summary-value">{{ Math.floor(remainingSeconds / 3600) }}h {{ Math.floor((remainingSeconds % 3600) / 60) }}m</div>
-          <div class="summary-label">开映倒计时</div>
+          <div class="summary-label">{{ t('seat.countdown') }}</div>
         </div>
       </div>
       <div class="summary-divider"></div>
@@ -229,11 +234,11 @@ function seatClick(idx: number) {
         <div class="summary-icon">💰</div>
         <div class="summary-content">
           <div class="summary-value price">￥{{ totalPrice }}</div>
-          <div class="summary-label">合计金额</div>
+          <div class="summary-label">{{ t('seat.totalAmount') }}</div>
         </div>
       </div>
       <el-button type="primary" size="large" :loading="submitting" @click="onConfirm" class="confirm-btn">
-        确认锁座下单
+        {{ t('seat.confirmLock') }}
       </el-button>
     </div>
   </div>
