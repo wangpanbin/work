@@ -155,6 +155,8 @@ export default {
     statusCancelled: '已取消',
     statusRefunding: '退款中',
     statusRefunded: '已退款',
+    // row indicators
+    pulseTitle: '待支付',
     // banners
     bannerPaid: '支付成功,祝您观影愉快!',
     bannerCancelled: '订单已取消',
@@ -195,6 +197,7 @@ export default {
     cancelDialogCancel: '再想想',
     cancelSuccess: '订单已取消',
     orderNo: '订单号',
+    orderNoMissing: '订单号缺失,请重新选座',
     seatCount: '数量',
     seatUnit: '座',
     amountDue: '应付金额',
@@ -367,6 +370,7 @@ export default {
     cardAmountLabel: '预估金额',
     cardJumpBtn: '前往选座',
     cardFallbackBtn: '回退建议',
+    cardFallbackTitle: '推荐影片',
   },
 
   notFound: {

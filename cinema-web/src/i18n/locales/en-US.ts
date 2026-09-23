@@ -154,6 +154,8 @@ const messages: SameShape<typeof zhCN> = {
     statusCancelled: 'Cancelled',
     statusRefunding: 'Refunding',
     statusRefunded: 'Refunded',
+    // row indicators
+    pulseTitle: 'Pending payment',
     bannerPaid: 'Payment success — enjoy the show!',
     bannerCancelled: 'Order cancelled',
     bannerRefunding: 'Refund in progress, please wait…',
@@ -191,6 +193,7 @@ const messages: SameShape<typeof zhCN> = {
     cancelDialogCancel: 'Stay',
     cancelSuccess: 'Order cancelled',
     orderNo: 'Order #',
+    orderNoMissing: 'Order ID missing, please re-select seats',
     seatCount: 'Quantity',
     seatUnit: 'seats',
     amountDue: 'Total due',
@@ -363,6 +366,7 @@ const messages: SameShape<typeof zhCN> = {
     cardAmountLabel: 'Estimated amount',
     cardJumpBtn: 'Go to seats',
     cardFallbackBtn: 'Show fallback',
+    cardFallbackTitle: 'Recommended movie',
   },
 
   notFound: {

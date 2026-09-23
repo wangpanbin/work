@@ -72,7 +72,7 @@ const { t: $t } = useI18n()
         <el-button
           class="header-chip chip-locale chip-icon-text"
           size="default"
-          :aria-label="$t('app.chipLocaleAria', 'Switch language')"
+          :aria-label="$t('app.localeSwitchAria', 'Switch language')"
           @click="i18nStore.toggleLocale()"
         >
           <span class="chip-icon">🌐</span>
@@ -115,7 +115,7 @@ const { t: $t } = useI18n()
       <div class="user-area mobile-only">
         <template v-if="userStore.user">
           <el-dropdown trigger="click" @command="onMobileSelect">
-            <el-button class="avatar-btn" circle size="default" :aria-label="$t('app.chipLocaleAria', 'User menu')">
+            <el-button class="avatar-btn" circle size="default" :aria-label="$t('app.menuAria', 'User menu')">
               <span class="chip-icon">👤</span>
             </el-button>
             <template #dropdown>

@@ -1,28 +1,200 @@
-- generic [ref=f2e3]:
-  - generic [ref=f2e4]:
-    - generic [ref=f2e5] [cursor=pointer]: 🎬 星辉影城
-    - button "登录 / 注册" [ref=f2e7] [cursor=pointer]
-  - main [ref=f2e9]:
-    - generic [ref=f2e10]:
-      - heading "🎬 热映影片" [level=2] [ref=f2e11]
-      - generic [ref=f2e16]:
-        - generic [ref=f2e18] [cursor=pointer]:
-          - generic [ref=f2e19]: 测试新片
-          - generic [ref=f2e22]:
-            - generic [ref=f2e23]: 测试新片
-            - generic [ref=f2e24]: 时长 120 分钟
-        - generic [ref=f2e26] [cursor=pointer]:
-          - generic [ref=f2e27]: 流浪地球3
-          - generic [ref=f2e30]:
-            - generic [ref=f2e31]: 流浪地球3
-            - generic [ref=f2e32]: 时长 150 分钟
-        - generic [ref=f2e34] [cursor=pointer]:
-          - generic [ref=f2e35]: 沙丘3
-          - generic [ref=f2e38]:
-            - generic [ref=f2e39]: 沙丘3
-            - generic [ref=f2e40]: 时长 166 分钟
-        - generic [ref=f2e42] [cursor=pointer]:
-          - generic [ref=f2e43]: 深海奇航
-          - generic [ref=f2e46]:
-            - generic [ref=f2e47]: 深海奇航
-            - generic [ref=f2e48]: 时长 118 分钟
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5] [cursor=pointer]:
+      - text: 🎬
+      - generic [ref=e6]: 星辉影城
+      - generic [ref=e7]: CINEMA
+    - generic [ref=e8]:
+      - button "Switch language" [ref=e9] [cursor=pointer]:
+        - generic [ref=e10]:
+          - generic [ref=e11]: 🌐
+          - generic [ref=e12]: EN
+      - button "登录 / 注册" [ref=e13] [cursor=pointer]
+  - main [ref=e16]:
+    - generic [ref=e17]:
+      - generic [ref=e21]:
+        - generic [ref=e22]: NOW SHOWING
+        - heading "光影世界 · 星光璀璨" [level=1] [ref=e23]
+        - paragraph [ref=e24]: 精选热映大片,尊享极致观影体验
+        - generic [ref=e25]:
+          - generic [ref=e26]:
+            - generic [ref=e27]: "17"
+            - generic [ref=e28]: 部热映影片
+          - generic [ref=e30]:
+            - generic [ref=e31]: 4K
+            - generic [ref=e32]: 超清画质
+          - generic [ref=e34]:
+            - generic [ref=e35]: 3D
+            - generic [ref=e36]: 沉浸体验
+      - generic [ref=e41]:
+        - heading "🎬 热映影片" [level=2] [ref=e43]
+        - generic [ref=e48]:
+          - generic [ref=e50]:
+            - generic [ref=e51]:
+              - generic:
+                - search
+            - textbox "搜索片名 / 关键词" [ref=e52]
+          - generic [ref=e55] [cursor=pointer]:
+            - generic:
+              - combobox [ref=e57]
+              - generic [ref=e58]: 类型
+          - generic [ref=e64] [cursor=pointer]:
+            - generic:
+              - combobox [ref=e66]
+              - generic [ref=e67]: 地区
+          - generic [ref=e72]: 17 部影片
+        - generic [ref=e73]:
+          - generic [ref=e74] [cursor=pointer]:
+            - generic [ref=e75]:
+              - img "流浪地球2" [ref=e76]
+              - generic [ref=e77]: 查看详情 →
+            - generic [ref=e82]:
+              - heading "流浪地球2" [level=3] [ref=e83]
+              - generic [ref=e84]:
+                - generic [ref=e85]: 173 分钟
+                - generic [ref=e89]: 太阳危机来袭,人类启动移山计划,用一万座发动机推动地球踏上流浪之旅。
+          - generic [ref=e91] [cursor=pointer]:
+            - generic [ref=e92]:
+              - img "哪吒之魔童降世" [ref=e93]
+              - generic [ref=e94]: 查看详情 →
+            - generic [ref=e99]:
+              - heading "哪吒之魔童降世" [level=3] [ref=e100]
+              - generic [ref=e101]:
+                - generic [ref=e102]: 110 分钟
+                - generic [ref=e106]: 魔丸转世,陈塘关少年哪吒在偏见与命运中逆天改命。
+          - generic [ref=e108] [cursor=pointer]:
+            - generic [ref=e109]:
+              - img "满江红" [ref=e110]
+              - generic [ref=e111]: 查看详情 →
+            - generic [ref=e116]:
+              - heading "满江红" [level=3] [ref=e117]
+              - generic [ref=e118]:
+                - generic [ref=e119]: 157 分钟
+                - generic [ref=e123]: 南宋绍兴年间,小兵张大与亲兵营副统领孙均被卷入一场朝堂风云。
+          - generic [ref=e125] [cursor=pointer]:
+            - generic [ref=e126]:
+              - img "长安三万里" [ref=e127]
+              - generic [ref=e128]: 查看详情 →
+            - generic [ref=e133]:
+              - heading "长安三万里" [level=3] [ref=e134]
+              - generic [ref=e135]:
+                - generic [ref=e136]: 168 分钟
+                - generic [ref=e140]: 安史之乱后,高适回忆与诗仙李白跨越数十载的跌宕人生。
+          - generic [ref=e142] [cursor=pointer]:
+            - generic [ref=e143]:
+              - img "孤注一掷" [ref=e144]
+              - generic [ref=e145]: 查看详情 →
+            - generic [ref=e150]:
+              - heading "孤注一掷" [level=3] [ref=e151]
+              - generic [ref=e152]:
+                - generic [ref=e153]: 130 分钟
+                - generic [ref=e157]: 程序员潘生与模特安娜被海外高薪骗局诱入境外诈骗园区。
+          - generic [ref=e159] [cursor=pointer]:
+            - generic [ref=e160]:
+              - img "热辣滚烫" [ref=e161]
+              - generic [ref=e162]: 查看详情 →
+            - generic [ref=e167]:
+              - heading "热辣滚烫" [level=3] [ref=e168]
+              - generic [ref=e169]:
+                - generic [ref=e170]: 129 分钟
+                - generic [ref=e174]: 宅家多年的乐莹走出舒适圈,在拳击场上重新定义自己。
+          - generic [ref=e176] [cursor=pointer]:
+            - generic [ref=e177]:
+              - img "消失的她" [ref=e178]
+              - generic [ref=e179]: 查看详情 →
+            - generic [ref=e184]:
+              - heading "消失的她" [level=3] [ref=e185]
+              - generic [ref=e186]:
+                - generic [ref=e187]: 122 分钟
+                - generic [ref=e191]: 何非的妻子在周年旅行中离奇消失,重逢的她竟不再是同一个人。
+          - generic [ref=e193] [cursor=pointer]:
+            - generic [ref=e194]:
+              - img "封神第一部" [ref=e195]
+              - generic [ref=e196]: 查看详情 →
+            - generic [ref=e201]:
+              - heading "封神第一部" [level=3] [ref=e202]
+              - generic [ref=e203]:
+                - generic [ref=e204]: 148 分钟
+                - generic [ref=e208]: 商末周初,质子姬发在朝歌风云中寻找自我与天下苍生之路。
+          - generic [ref=e210] [cursor=pointer]:
+            - generic [ref=e211]:
+              - img "周处除三害" [ref=e212]
+              - generic [ref=e213]: 查看详情 →
+            - generic [ref=e218]:
+              - heading "周处除三害" [level=3] [ref=e219]
+              - generic [ref=e220]:
+                - generic [ref=e221]: 134 分钟
+                - generic [ref=e225]: 通缉犯陈桂林决意除掉排行前两位的恶人,自我了断前最后一段救赎。
+          - generic [ref=e227] [cursor=pointer]:
+            - generic [ref=e228]:
+              - 'img "沙丘: 第二部" [ref=e229]'
+              - generic [ref=e230]: 查看详情 →
+            - generic [ref=e235]:
+              - 'heading "沙丘: 第二部" [level=3] [ref=e236]'
+              - generic [ref=e237]:
+                - generic [ref=e238]: 166 分钟
+                - generic [ref=e242]: 保罗·亚崔迪携手弗雷曼人,在厄拉科斯沙漠中掀起复仇风暴。
+          - generic [ref=e244] [cursor=pointer]:
+            - generic [ref=e245]:
+              - img "奥本海默" [ref=e246]
+              - generic [ref=e247]: 查看详情 →
+            - generic [ref=e252]:
+              - heading "奥本海默" [level=3] [ref=e253]
+              - generic [ref=e254]:
+                - generic [ref=e255]: 180 分钟
+                - generic [ref=e259]: 二战期间,理论物理学家 J. Robert Oppenheimer 主导曼哈顿计划,创造毁灭性武器。
+          - generic [ref=e261] [cursor=pointer]:
+            - generic [ref=e262]:
+              - img "芭比" [ref=e263]
+              - generic [ref=e264]: 查看详情 →
+            - generic [ref=e269]:
+              - heading "芭比" [level=3] [ref=e270]
+              - generic [ref=e271]:
+                - generic [ref=e272]: 114 分钟
+                - generic [ref=e276]: 芭比与肯离开完美芭比乐园,踏入真实世界后引发的爆笑思考。
+          - generic [ref=e278] [cursor=pointer]:
+            - generic [ref=e279]:
+              - generic [ref=e280]: 精度测试片
+              - generic [ref=e282]: 查看详情 →
+            - generic [ref=e287]:
+              - heading "精度测试片" [level=3] [ref=e288]
+              - generic [ref=e289]:
+                - generic [ref=e290]: 100 分钟
+                - generic [ref=e294]: 用于验证雪花 ID 精度 bug
+          - generic [ref=e296] [cursor=pointer]:
+            - generic [ref=e297]:
+              - img "流浪地球3" [ref=e298]
+              - generic [ref=e299]: 查看详情 →
+            - generic [ref=e304]:
+              - heading "流浪地球3" [level=3] [ref=e305]
+              - generic [ref=e306]:
+                - generic [ref=e307]: 150 分钟
+                - generic [ref=e311]: 太阳即将毁灭,人类启动流浪地球计划第三阶段。
+          - generic [ref=e313] [cursor=pointer]:
+            - generic [ref=e314]:
+              - generic [ref=e315]: 测试新片
+              - generic [ref=e317]: 查看详情 →
+            - generic [ref=e322]:
+              - heading "测试新片" [level=3] [ref=e323]
+              - generic [ref=e324]:
+                - generic [ref=e325]: 120 分钟
+                - generic [ref=e329]: admin创建
+          - generic [ref=e331] [cursor=pointer]:
+            - generic [ref=e332]:
+              - img "沙丘3" [ref=e333]
+              - generic [ref=e334]: 查看详情 →
+            - generic [ref=e339]:
+              - heading "沙丘3" [level=3] [ref=e340]
+              - generic [ref=e341]:
+                - generic [ref=e342]: 166 分钟
+                - generic [ref=e346]: 厄拉科斯的沙暴再起,预言之子迎来终局。
+          - generic [ref=e348] [cursor=pointer]:
+            - generic [ref=e349]:
+              - img "深海奇航" [ref=e350]
+              - generic [ref=e351]: 查看详情 →
+            - generic [ref=e356]:
+              - heading "深海奇航" [level=3] [ref=e357]
+              - generic [ref=e358]:
+                - generic [ref=e359]: 118 分钟
+                - generic [ref=e363]: 一场潜入马里亚纳海沟的奇幻冒险。
+  - button "打开对话助手" [ref=e370] [cursor=pointer]: 💬
