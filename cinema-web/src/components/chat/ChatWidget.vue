@@ -59,11 +59,15 @@ async function send() {
     messages.value.push({ role: 'assistant', message: '', response: resp, timestamp: assistantTimestamp })
     maybePromptLogin(resp?.reply)
   } catch (e: any) {
-    ElMessage.error(e?.message || t('chat.errorSend'))
+    // P2-3:气泡里原本固定显示"抱歉,出了点问题。",把后端的具体原因(如 42900
+    // 「对话请求过于频繁,请稍后再试」)全吞了。axios 拦截器 reject 的 Error 已带
+    // msg,这里直接用;拿不到才退回通用文案。
+    const reason = e?.message?.trim() || t('chat.errorGeneric')
+    ElMessage.error(reason)
     const errorTimestamp = new Date().toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit' })
     messages.value.push({
       role: 'assistant',
-      message: t('chat.errorGeneric'),
+      message: reason,
       response: null,
       timestamp: errorTimestamp,
     })
@@ -114,6 +118,7 @@ defineExpose({ toggle })
         <ChatMessage
           v-for="(m, idx) in messages"
           :key="idx"
+          :role="m.role"
           :message="m.message"
           :response="m.response"
           :timestamp="m.timestamp"

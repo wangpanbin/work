@@ -1,18 +1,46 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { ElMessageBox } from 'element-plus'
+import { computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from './stores/user'
 import { useI18nStore } from './stores/i18n'
+import { elementPlusLocale } from './utils/elementPlusLocale'
 import ChatWidget from './components/chat/ChatWidget.vue'
+
+// 模板里要直接调 $t — 在 <script setup> 下需要从 vue-i18n 拿一下。
+// 注意:必须声明在任何 immediate watcher 之前,否则同步回调里会踩 TDZ。
+import { useI18n } from 'vue-i18n'
+const { t: $t } = useI18n()
 
 const userStore = useUserStore()
 const i18nStore = useI18nStore()
 const router = useRouter()
+const route = useRoute()
+
+// P3-5:Element Plus 组件库语言包,随应用语言实时切换
+const epLocale = computed(() => elementPlusLocale(i18nStore.locale))
 
 onMounted(() => {
   userStore.fetchMe()
 })
+
+/**
+ * P3-1 — 消费路由守卫打下的 `?_denied=1`。
+ *
+ * 守卫在 `router/index.ts` 里把非管理员访问 /admin 的请求重定向到 `/?_denied=1`,
+ * 但此前全项目没有任何消费者:用户被静默弹回首页,完全不知道发生了什么。
+ * 这里弹一次提示,并立刻把参数从 URL 上摘掉(避免刷新/前进后退时重复弹)。
+ */
+watch(
+  () => route.query._denied,
+  (denied) => {
+    if (denied !== '1') return
+    ElMessage.warning($t('app.adminDenied'))
+    const { _denied, ...rest } = route.query
+    router.replace({ path: route.path, query: rest })
+  },
+  { immediate: true },
+)
 
 // P2-#17: 登出前确认, 防止误触
 async function logout() {
@@ -53,13 +81,11 @@ function onMobileSelect(key: string | number) {
     router.push(String(key))
   }
 }
-
-// 模板里要直接调 $t — 在 <script setup> 下需要从 vue-i18n 拿一下
-import { useI18n } from 'vue-i18n'
-const { t: $t } = useI18n()
 </script>
 
 <template>
+  <!-- P3-5:ConfigProvider 让 Element Plus 组件文案跟随应用语言切换(popconfirm 不再显示 No/Yes) -->
+  <el-config-provider :locale="epLocale">
   <el-container class="app">
     <el-header class="app-header">
       <div class="brand" @click="router.push('/')">
@@ -142,6 +168,7 @@ const { t: $t } = useI18n()
     <!-- T6: 对话式订票助手浮窗 — ChatWidget 内部按路由自动隐藏(/payment + /admin/**) -->
     <ChatWidget />
   </el-container>
+  </el-config-provider>
 </template>
 
 <style scoped>

@@ -4,6 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>星辉影城 - 抢票选座</title>
+    <!-- P4-1:原本没有 favicon,每次首访 console 都报一条 404。
+         用内联 SVG data-URI 而非 public/favicon.ico:省一个二进制文件,
+         也不需要改 vite 配置。票根造型 + 品牌金色。 -->
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230f0f14'/%3E%3Cpath d='M7 9h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V10a1 1 0 0 1 1-1z' fill='none' stroke='%23f59e0b' stroke-width='2' stroke-linejoin='round'/%3E%3Cpath d='M6 14h20' stroke='%23f59e0b' stroke-width='2' stroke-dasharray='2.5 2.5'/%3E%3Cpath d='M12 18.5v3M16 18.5v3M20 18.5v3' stroke='%23f59e0b' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E"
+    />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet" />

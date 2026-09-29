@@ -93,7 +93,14 @@ async function onForgotPassword() {
 }
 
 async function handleRegister() {
-  await registerFormRef.value?.validate()
+  // P3-3:validate() 校验失败会 reject(不是 throw 到调用方),原来放在 try/catch 之外
+  // → 每次表单校验不通过都产生一条未处理 Promise rejection(Vue warn)。
+  // 这里显式捕获并提前返回,校验失败就不再发请求。
+  try {
+    await registerFormRef.value?.validate()
+  } catch {
+    return
+  }
   loading.value = true
   try {
     // 提交前剥离 confirmPassword, 避免发给后端未知字段

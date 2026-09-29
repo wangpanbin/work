@@ -34,6 +34,8 @@ const messages: SameShape<typeof zhCN> = {
     logoutConfirm: 'Sign out of your current account?',
     logoutConfirmOk: 'Sign out',
     logoutConfirmCancel: 'Stay',
+    // P3-1:shown when the router guard bounces a non-admin off /admin (consumes ?_denied=1)
+    adminDenied: 'This page is for administrators only',
   },
 
   home: {
@@ -167,7 +169,8 @@ const messages: SameShape<typeof zhCN> = {
     actionViewDetail: 'View details',
     actionViewTicket: 'View ticket',
     cancelTitle: 'Cancel order',
-    cancelConfirm: 'Cancel «${movie}» ( {seats} )? Seats will be released immediately. This cannot be undone.',
+    // P3-4:vue-i18n interpolation is {name}, not JS template ${name}
+    cancelConfirm: 'Cancel «{movie}» ({seats})? Seats will be released immediately. This cannot be undone.',
     cancelOk: 'Cancel order',
     cancelCancel: 'Stay',
     cancelSuccess: 'Cancelled',

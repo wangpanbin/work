@@ -1,6 +1,7 @@
 package com.cinema.modules.chat.tools;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.cinema.common.context.UserContext;
 import com.cinema.common.exception.BizException;
 import com.cinema.infra.redis.cache.SessionInfoCacheService;
 import com.cinema.modules.chat.service.KnowledgeService;
@@ -40,8 +41,16 @@ import java.util.Map;
  *     <li>查不到就返回人类可读的失败说明,不抛业务异常(spec §5.5 第 3 条)</li>
  * </ul>
  *
+ * <p><b>身份一律服务端注入,绝不来自 LLM(E2E P0-1 IDOR 修复)</b>:
+ * 任何 {@code @Tool} 方法的签名里都<b>不允许</b>出现 {@code userId} 参数 ——
+ * {@code @P} 参数由 LLM 合成,若把 {@code userId} 交给模型填,匿名用户一句
+ * 「查用户 1 的订单」就能读到别人的订单(报告实测泄露 97 笔)。
+ * 全部身份取自 {@link UserContext}(JwtInterceptor 写入的 ThreadLocal,请求结束清理),
+ * 未登录即 {@code null} → 订单工具返 {@code LOGIN_REQUIRED},座位工具按匿名视角出摘要。
+ * {@code ChatToolsStructureTest#noToolExposesUserIdParam()} 用反射锁死这条红线。
+ *
  * <p><b>null userId</b>(spec §5.1 + Q5 决策):{@code getMyOrders} / {@code getMyOrder}
- * 在 {@code userId==null} 时直接返 {@code Map.of("error","LOGIN_REQUIRED")},
+ * 在服务端 {@code UserContext.userId()==null} 时直接返 {@code Map.of("error","LOGIN_REQUIRED")},
  * 由 §5.4(a) {@code ToolArgumentsErrorHandler} 路径转自然语言回复("请先登录"),
  * 不抛异常(避免浪费一次 LLM 轮次).
  *
@@ -94,9 +103,10 @@ public class ChatTools {
 
     @Tool("获取场次座位摘要(总座位数/可选数/已售数/若干连座片段,不返回整张位图)")
     public Map<String, Object> getSeatSummary(
-            @P("场次 ID,必须正数") Long sessionId,
-            @P("用户 ID,可空(用于填充 myLockedSeats)") Long userId) {
+            @P("场次 ID,必须正数") Long sessionId) {
         validatePositive(sessionId, "sessionId");
+        // P0-1: 身份来自服务端登录态,LLM 无法指定看谁的位置
+        Long userId = UserContext.userId();
         log.debug("[chat-tools] getSeatSummary sessionId={}, userId={}", sessionId, userId);
         SeatMapVO vo = seatService.seatMap(sessionId, userId);
 
@@ -160,13 +170,14 @@ public class ChatTools {
     @Tool("在场次中找 N 个连座(返回座位索引列表,优先中段 + 可指定 preferRow)")
     public List<Integer> findContiguousSeats(
             @P("场次 ID,必须正数") Long sessionId,
-            @P("用户 ID,可空") Long userId,
             @P("连座数量,必须在 [1,4]") int count,
             @P("偏好行号(从 0 开始),可空") Integer preferRow) {
         validatePositive(sessionId, "sessionId");
         if (count < 1 || count > 4) {
             throw new BizException("count 必须在 [1,4] 范围,实际: " + count);
         }
+        // P0-1: 身份来自服务端登录态
+        Long userId = UserContext.userId();
         log.debug("[chat-tools] findContiguousSeats sessionId={}, userId={}, count={}, preferRow={}",
                 sessionId, userId, count, preferRow);
         SeatMapVO vo = seatService.seatMap(sessionId, userId);
@@ -205,16 +216,17 @@ public class ChatTools {
         return List.of();
     }
 
-    // ============ 我的订单类(2 个,userId==null 短路)============
+    // ============ 我的订单类(2 个,服务端 userId,null 短路)============
 
-    @Tool("查询我的订单(需登录)")
+    @Tool("查询我的订单(需登录。只能查当前登录用户自己的订单,系统不接受也无法识别用户 ID)")
     public Object getMyOrders(
-            @P("用户 ID") Long userId,
             @P("订单状态过滤(0 待支付 / 1 已支付 / 2 已取消 / 3 退款中 / 4 已退款),可空") Integer status,
             @P("页码,从 1 开始,可空默认 1") Integer page,
             @P("页大小,可空默认 10") Integer size) {
+        // P0-1 IDOR: userId 由服务端登录态决定,LLM 无法影响
+        Long userId = UserContext.userId();
         if (userId == null) {
-            log.info("[chat-tools] getMyOrders userId=null → LOGIN_REQUIRED");
+            log.info("[chat-tools] getMyOrders 未登录 → LOGIN_REQUIRED");
             return Map.of("error", "LOGIN_REQUIRED");
         }
         int p = page == null ? 1 : page;
@@ -223,12 +235,12 @@ public class ChatTools {
         return orderQueryService.myOrders(userId, status, p, s);
     }
 
-    @Tool("查询订单详情(需登录)")
-    public Object getMyOrder(
-            @P("订单号") String orderNo,
-            @P("用户 ID") Long userId) {
+    @Tool("查询订单详情(需登录。只能查当前登录用户自己的订单)")
+    public Object getMyOrder(@P("订单号") String orderNo) {
+        // P0-1 IDOR: userId 由服务端登录态决定,LLM 无法影响
+        Long userId = UserContext.userId();
         if (userId == null) {
-            log.info("[chat-tools] getMyOrder userId=null → LOGIN_REQUIRED");
+            log.info("[chat-tools] getMyOrder 未登录 → LOGIN_REQUIRED");
             return Map.of("error", "LOGIN_REQUIRED");
         }
         if (orderNo == null || orderNo.isBlank()) {

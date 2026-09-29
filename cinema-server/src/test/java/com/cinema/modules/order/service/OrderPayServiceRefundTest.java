@@ -28,6 +28,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -64,7 +65,7 @@ class OrderPayServiceRefundTest {
     }
 
     @Test
-    @DisplayName("退票成功: CAS REFUNDING→CAS REFUNDED→release→refund_log→广播")
+    @DisplayName("退票成功: CAS REFUNDING→CAS REFUNDED→refundSeats(清 sold)→refund_log→广播")
     void refund_success() {
         Long userId = 100L;
         String orderNo = "ORD-1";
@@ -75,17 +76,63 @@ class OrderPayServiceRefundTest {
         when(sessionMapper.selectById(1L)).thenReturn(session);
         when(orderMapper.casMarkRefunding(orderNo)).thenReturn(1);
         when(orderMapper.casMarkRefunded(orderNo)).thenReturn(1);
-        when(seatLuaService.releaseSeats(anyString(), anyString(), anyList())).thenReturn(List.of(10, 11));
+        when(seatLuaService.refundSeats(anyString(), anyString(), anyList())).thenReturn(List.of(10, 11));
 
         service.refund(orderNo, userId);
 
         verify(orderMapper).casMarkRefunding(orderNo);
-        verify(seatLuaService).releaseSeats(
+        // P1-1:必须是 refundSeats(清 sold 位),releaseSeats 对已售座位一个位都不动
+        verify(seatLuaService).refundSeats(
                 eq(RedisKeys.sessionLock(1L)), eq(RedisKeys.sessionSold(1L)), eq(List.of(10, 11)));
+        verify(seatLuaService, never()).releaseSeats(anyString(), anyString(), anyList());
         verify(mockRefundService).mockRefundChannel(eq(orderNo), any(BigDecimal.class));
         verify(refundLogMapper).insert(any(com.cinema.modules.order.entity.RefundLog.class));
         verify(orderMapper).casMarkRefunded(orderNo);
         verify(seatEventPublisher).publishReleased(eq(1L), eq(List.of(10, 11)));
+    }
+
+    /**
+     * P1-1 回归:退票必须走清 sold 位的脚本。
+     * 原实现调 releaseSeats —— 该脚本注释写着「只清未售出的锁定座位」,
+     * 对已支付订单(sold=1)恒不成立,退票后座位在位图里仍是已售,刷新后依然灰着。
+     */
+    @Test
+    @DisplayName("P1-1 回归:退票走 refundSeats 而不是 releaseSeats")
+    void refund_usesRefundSeatsNotReleaseSeats() {
+        Long userId = 100L;
+        String orderNo = "ORD-P1";
+        Order order = paidOrder(orderNo, userId, 1L, List.of(7, 8));
+        when(orderCore.getOwnedOrder(orderNo, userId)).thenReturn(order);
+        when(orderCore.seatIndexesOf(order)).thenReturn(List.of(7, 8));
+        when(sessionMapper.selectById(1L)).thenReturn(newSession(1L, LocalDateTime.now().plusHours(3)));
+        when(orderMapper.casMarkRefunding(orderNo)).thenReturn(1);
+        when(orderMapper.casMarkRefunded(orderNo)).thenReturn(1);
+        when(seatLuaService.refundSeats(anyString(), anyString(), anyList())).thenReturn(List.of(7, 8));
+
+        service.refund(orderNo, userId);
+
+        verify(seatLuaService).refundSeats(
+                eq(RedisKeys.sessionLock(1L)), eq(RedisKeys.sessionSold(1L)), eq(List.of(7, 8)));
+        verify(seatLuaService, never()).releaseSeats(any(), any(), any());
+    }
+
+    /** 位图漂移时退票仍应完成(只是告警),不能因为数量不符就回滚 */
+    @Test
+    @DisplayName("P1-1:位图漂移(释放数 != 座位数)时退票仍完成,不抛异常")
+    void refund_bitmapDrift_stillCompletes() {
+        Long userId = 100L;
+        String orderNo = "ORD-DRIFT";
+        Order order = paidOrder(orderNo, userId, 1L, List.of(7, 8));
+        when(orderCore.getOwnedOrder(orderNo, userId)).thenReturn(order);
+        when(orderCore.seatIndexesOf(order)).thenReturn(List.of(7, 8));
+        when(sessionMapper.selectById(1L)).thenReturn(newSession(1L, LocalDateTime.now().plusHours(3)));
+        when(orderMapper.casMarkRefunding(orderNo)).thenReturn(1);
+        when(orderMapper.casMarkRefunded(orderNo)).thenReturn(1);
+        when(seatLuaService.refundSeats(anyString(), anyString(), anyList())).thenReturn(List.of(7));
+
+        assertThatNoException().isThrownBy(() -> service.refund(orderNo, userId));
+
+        verify(orderMapper).casMarkRefunded(orderNo);
     }
 
     @Test

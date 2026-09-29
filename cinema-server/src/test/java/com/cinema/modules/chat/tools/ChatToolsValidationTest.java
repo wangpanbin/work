@@ -1,5 +1,6 @@
 package com.cinema.modules.chat.tools;
 
+import com.cinema.common.context.UserContext;
 import com.cinema.common.exception.BizException;
 import com.cinema.infra.redis.cache.SessionInfoCacheService;
 import com.cinema.modules.chat.service.KnowledgeService;
@@ -7,6 +8,7 @@ import com.cinema.modules.movie.service.MovieService;
 import com.cinema.modules.order.service.OrderQueryService;
 import com.cinema.modules.seat.service.SeatService;
 import com.cinema.modules.session.service.SessionService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -81,34 +83,40 @@ class ChatToolsValidationTest {
     }
 
     @Test
-    @DisplayName("getSeatSummary(0L, 1L) → BizException sessionId 必须为正数")
+    @DisplayName("getSeatSummary(0L) → BizException sessionId 必须为正数")
     void getSeatSummary_zeroSessionId_throws() {
-        assertThatThrownBy(() -> chatTools.getSeatSummary(0L, 1L))
+        assertThatThrownBy(() -> chatTools.getSeatSummary(0L))
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("sessionId 必须为正数");
     }
 
     @Test
-    @DisplayName("findContiguousSeats(1001L, 1L, 0, null) → BizException count 越界")
+    @DisplayName("findContiguousSeats(1001L, 0, null) → BizException count 越界")
     void findContiguousSeats_countZero_throws() {
-        assertThatThrownBy(() -> chatTools.findContiguousSeats(1001L, 1L, 0, null))
+        assertThatThrownBy(() -> chatTools.findContiguousSeats(1001L, 0, null))
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("count 必须在 [1,4]");
     }
 
     @Test
-    @DisplayName("findContiguousSeats(1001L, 1L, 5, null) → BizException count 越界")
+    @DisplayName("findContiguousSeats(1001L, 5, null) → BizException count 越界")
     void findContiguousSeats_countFive_throws() {
-        assertThatThrownBy(() -> chatTools.findContiguousSeats(1001L, 1L, 5, null))
+        assertThatThrownBy(() -> chatTools.findContiguousSeats(1001L, 5, null))
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("count 必须在 [1,4]");
     }
 
     @Test
-    @DisplayName("getMyOrder(\"\", 1L) → BizException orderNo 不能为空")
+    @DisplayName("getMyOrder(\"\") 已登录 → BizException orderNo 不能为空")
     void getMyOrder_emptyOrderNo_throws() {
-        assertThatThrownBy(() -> chatTools.getMyOrder("", 1L))
+        UserContext.set(1L, "user1", 0);
+        assertThatThrownBy(() -> chatTools.getMyOrder(""))
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("orderNo 不能为空");
+    }
+
+    @AfterEach
+    void tearDown() {
+        UserContext.clear();
     }
 }

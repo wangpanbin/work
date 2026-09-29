@@ -34,6 +34,8 @@ export default {
     logoutConfirm: '确定退出当前登录状态?',
     logoutConfirmOk: '确定退出',
     logoutConfirmCancel: '再看看',
+    // P3-1:非管理员访问 /admin 被守卫弹回首页时的提示(消费 router 打下的 ?_denied=1)
+    adminDenied: '该页面仅限管理员访问',
   },
 
   home: {
@@ -171,7 +173,9 @@ export default {
     actionViewTicket: '查看电子票',
     // dialogs
     cancelTitle: '取消订单',
-    cancelConfirm: '确定取消《${movie}》( {seats} )? 取消后座位将立即释放, 此操作不可撤销。',
+    // P3-4:原来写成 ${movie},那是 JS 模板字面量语法。vue-i18n 的插值是 {name},
+    // 多出来的 $ 会被原样渲染出来(弹窗显示成《$流浪地球2》)
+    cancelConfirm: '确定取消《{movie}》({seats})? 取消后座位将立即释放, 此操作不可撤销。',
     cancelOk: '确定取消',
     cancelCancel: '再想想',
     cancelSuccess: '已取消',

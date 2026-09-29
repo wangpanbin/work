@@ -28,6 +28,7 @@ public class SeatLuaService {
     private static final DefaultRedisScript<String> LOCK_SCRIPT = script("lua/lock_seat.lua");
     private static final DefaultRedisScript<String> CONFIRM_SCRIPT = script("lua/confirm_seat.lua");
     private static final DefaultRedisScript<String> RELEASE_SCRIPT = script("lua/release_seat.lua");
+    private static final DefaultRedisScript<String> REFUND_SCRIPT = script("lua/refund_seat.lua");
     private static final DefaultRedisScript<String> RECOVER_SCRIPT = script("lua/recover_seat_bitmap.lua");
 
     private final StringRedisTemplate redisTemplate;
@@ -39,6 +40,7 @@ public class SeatLuaService {
         preload(LOCK_SCRIPT, "lock_seat");
         preload(CONFIRM_SCRIPT, "confirm_seat");
         preload(RELEASE_SCRIPT, "release_seat");
+        preload(REFUND_SCRIPT, "refund_seat");
         preload(RECOVER_SCRIPT, "recover_seat_bitmap");
     }
 
@@ -78,6 +80,20 @@ public class SeatLuaService {
     /** 释放: 返回实际释放的座位(已售座位不会被释放) */
     public List<Integer> releaseSeats(String lockKey, String soldKey, List<Integer> seats) {
         String json = redisTemplate.execute(RELEASE_SCRIPT, List.of(lockKey, soldKey), args(seats));
+        return parseList(json);
+    }
+
+    /**
+     * 退票释放: <b>同时清 sold + lock</b>,让已售座位真正回到可选池。
+     *
+     * <p>E2E 2026-09-29 P1-1:退票原先走 {@link #releaseSeats},而该脚本只清"未售出的锁定位"
+     * (sold==1 时一个位都不动)→ 退票成功后座位在位图里仍是已售,刷新后依然灰着不可选。
+     * 已支付订单的座位必须用这个方法,待支付单的取消/超时关单才用 {@link #releaseSeats}。
+     *
+     * @return 实际发生变化的座位(幂等:座位已是可选时返回空列表)
+     */
+    public List<Integer> refundSeats(String lockKey, String soldKey, List<Integer> seats) {
+        String json = redisTemplate.execute(REFUND_SCRIPT, List.of(lockKey, soldKey), args(seats));
         return parseList(json);
     }
 

@@ -5,11 +5,15 @@
  *
  * <p>关键不变量:
  * <ul>
- *   <li>文本匹配 "请先登录" / "登录后" / "LOGIN_REQUIRED" 任一即视为需要登录</li>
+ *   <li>文本匹配 "先登录" / "登录后" / "未登录" / "LOGIN_REQUIRED" 任一即视为需要登录</li>
  *   <li>空串 / 普通对话 → false,避免误报</li>
  *   <li>LLM 输出不可信,需要防御性匹配 — "LOGIN_REQUIRED" 虽不应直接出现,
  *       但工具层万一透出仍要能识别</li>
  * </ul>
+ *
+ * <p><b>措辞要放宽</b>(E2E 2026-09-29 P2-5):系统提示词只引导 LLM 说"请先登录",
+ * 但模型实际可能说"需要先登录"/"您尚未登录"。这些说法在正常对话里不会出现,
+ * 所以全部纳入匹配,避免该弹引导框时漏弹。
  *
  * <p><b>抽成独立 .ts 的原因</b>:Vue 3 SFC 的 {@code <script setup>} 不允许
  * ES module export。要给 ChatWidget.vue 调用 + 让 vitest 直接测,只能放
@@ -20,5 +24,5 @@
  */
 export function detectLoginRequired(reply: string | null | undefined): boolean {
   if (!reply) return false
-  return /请先登录|LOGIN_REQUIRED|登录后/.test(reply)
+  return /先登录|登录后|未登录|尚未登录|需要登录|LOGIN_REQUIRED/.test(reply)
 }

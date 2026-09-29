@@ -78,7 +78,8 @@ watch(selectedDate, () => {
 
 function goSeat(s: SessionVO) {
   if (!userStore.isLogin) {
-    router.push('/login')
+    // P2-1:必须带 redirect,否则登录后落在首页,用户选场次的上下文全丢
+    router.push({ path: '/login', query: { redirect: `/seat/${s.id}` } })
     return
   }
   router.push(`/seat/${s.id}`)

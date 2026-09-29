@@ -98,7 +98,7 @@ public class OrderPayService {
      * <ol>
      *   <li>校验: 订单属于本人 + status=PAID + 场次未开场</li>
      *   <li>CAS PAID → REFUNDING</li>
-     *   <li>释放座位 (走 release_seat.lua)</li>
+     *   <li>释放座位 (走 refund_seat.lua,清 sold + lock 位)</li>
      *   <li>调模拟退款</li>
      *   <li>写 refund_log</li>
      *   <li>CAS REFUNDING → REFUNDED</li>
@@ -124,11 +124,17 @@ public class OrderPayService {
             throw new BizException("订单状态已变化,请刷新");
         }
 
-        // 释放座位 (已售 → 可选, 走 release_seat.lua, 只清未售的)
+        // 释放座位 (已售 → 可选)。P1-1 修复:必须用 refundSeats 清 sold 位,
+        // releaseSeats 只清未售座位,对已支付单(sold=1)一个位都不动 → 退票后座位永久不可售
         List<Integer> seats = orderCore.seatIndexesOf(order);
-        seatLuaService.releaseSeats(
+        List<Integer> releasedSeats = seatLuaService.refundSeats(
                 RedisKeys.sessionLock(order.getSessionId()),
                 RedisKeys.sessionSold(order.getSessionId()), seats);
+        if (releasedSeats.size() != seats.size()) {
+            // 位图与订单不一致(位图漂移):退票本身仍应完成,记录告警供管理端「手动恢复位图」兜底
+            log.warn("[退票] orderNo={} 位图释放数量不符 期望={} 实际={} (可能存在历史位图漂移)",
+                    orderNo, seats.size(), releasedSeats.size());
+        }
 
         RefundLog refundLog = new RefundLog();
         refundLog.setId(IdWorker.getId());

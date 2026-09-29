@@ -59,12 +59,26 @@ class DashboardHeadlineQueryTest {
         assertThat(query.todayPendingSeats()).isEqualTo(0);
     }
 
+    /**
+     * P3-2:「超时关单」只统计延迟任务自动关掉的单,不含用户手动取消。
+     * 走独立的 countTodayTimeoutClosed(),不再复用"今日全部已取消"的 countTodayClosed(2)。
+     */
     @Test
-    @DisplayName("todayCancelled 与 todayRefunded: status 2 和 4 各传一次")
-    void todayClosed_passesCorrectStatuses() {
-        when(orderMapper.countTodayClosed(2)).thenReturn(5);
+    @DisplayName("P3-2:todayCancelled 走 countTodayTimeoutClosed(排除手动取消),todayRefunded 仍按 status=4")
+    void todayCancelled_onlyCountsTimeoutClosed() {
+        when(orderMapper.countTodayTimeoutClosed()).thenReturn(5);
         when(orderMapper.countTodayClosed(4)).thenReturn(3);
+
         assertThat(query.todayCancelled()).isEqualTo(5);
         assertThat(query.todayRefunded()).isEqualTo(3);
+        // 关键回归:不能再用「今日全部已取消」那条 SQL,否则手动取消被算成超时关单
+        org.mockito.Mockito.verify(orderMapper, org.mockito.Mockito.never()).countTodayClosed(2);
+    }
+
+    @Test
+    @DisplayName("P3-2:今日无超时关单时归零,不返回 null")
+    void todayCancelled_nullBecomesZero() {
+        when(orderMapper.countTodayTimeoutClosed()).thenReturn(null);
+        assertThat(query.todayCancelled()).isZero();
     }
 }

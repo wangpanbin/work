@@ -62,6 +62,23 @@ public interface OrderMapper extends BaseMapper<Order> {
             "WHERE status = #{status} AND DATE(updated_at) = CURDATE()")
     Integer countTodayClosed(@Param("status") Integer status);
 
+    /**
+     * 今日<b>超时关单</b>数(仅 status=2 CANCELLED,且关单发生在支付截止时间之后)。
+     *
+     * <p><b>为什么不能直接用 {@link #countTodayClosed}</b>(E2E 2026-09-29 P3-2):
+     * 那条 SQL 统计的是"今日全部已取消订单",把<b>用户手动取消</b>也算进了看板的
+     * 「超时关单」卡片,实测手动取消 1 笔 → 卡片显示"超时关单 1",口径与文案不符。
+     *
+     * <p><b>判别依据</b>:延迟关单任务在 {@code OrderLockService} 里以
+     * {@code delayQueue.offer(orderNo, PAY_WINDOW_MILLIS)} 投递,与 {@code order.expire_at}
+     * (= created_at + 15min) 对齐,因此超时关单的 {@code updated_at >= expire_at};
+     * 手动取消发生在订单仍可支付时,即 {@code updated_at < expire_at}。
+     * 订单表无 close_reason 列,而本次修复不允许改 DDL,故用时间特征区分。
+     */
+    @org.apache.ibatis.annotations.Select("SELECT COUNT(*) FROM `order` " +
+            "WHERE status = 2 AND DATE(updated_at) = CURDATE() AND updated_at >= expire_at")
+    Integer countTodayTimeoutClosed();
+
     /** 7 日票房趋势 */
     @org.apache.ibatis.annotations.Select("SELECT DATE(paid_at) AS date, IFNULL(SUM(total_amount), 0) AS amount " +
             "FROM `order` WHERE status = 1 AND paid_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) " +

@@ -16,7 +16,20 @@ import {
 const { t } = useI18n()
 const orders = ref<OrderVO[]>([])
 const loading = ref(false)
-const activeStatus = ref<OrderStatusCode | null>(null)
+
+/**
+ * P4-2:「全部」tab 的哨兵值。
+ *
+ * 原来用 `null` 当"全部",但 Element Plus 的 `isPropAbsent = isNil`,
+ * 而 `isNil(null) === true` —— 于是 `<el-radio-button :value="null">` 被判定为
+ * "没传 value",每次渲染都打一条
+ * `[el-radio] label act as value is about to be deprecated` 警告。
+ * 换成字符串哨兵即可根治,语义也更明确。
+ */
+const ALL_STATUS = 'all' as const
+type StatusFilter = OrderStatusCode | typeof ALL_STATUS
+
+const activeStatus = ref<StatusFilter>(ALL_STATUS)
 // P2-#16: 各状态订单数, 用于 tab 角标
 const counts = ref<Record<OrderStatusCode, number>>({ 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 })
 const allCount = ref(0)
@@ -24,7 +37,11 @@ const allCount = ref(0)
 async function load() {
   loading.value = true
   try {
-    const data = await myOrders({ status: activeStatus.value ?? undefined, page: 1, size: 20 })
+    const data = await myOrders({
+      status: activeStatus.value === ALL_STATUS ? undefined : activeStatus.value,
+      page: 1,
+      size: 20,
+    })
     orders.value = data.records
   } finally {
     loading.value = false
@@ -111,7 +128,7 @@ onMounted(() => {
     <div class="page-header">
       <h2 class="section-title">{{ t('order.pageTitle') }}</h2>
       <el-radio-group v-model="activeStatus" @change="load" class="filter-tabs">
-        <el-radio-button :value="null">
+        <el-radio-button :value="ALL_STATUS">
           {{ t('order.tabAll') }}<el-badge v-if="allCount > 0" :value="allCount" class="tab-badge" />
         </el-radio-button>
         <el-radio-button

@@ -39,9 +39,15 @@ public class DashboardHeadlineQuery {
         return v == null ? 0 : v;
     }
 
-    /** 今日已取消订单数 */
+    /**
+     * 今日<b>超时关单</b>数(仅延迟任务在支付截止后自动关掉的单)。
+     *
+     * <p>P3-2:原先这里调 {@code countTodayClosed(CANCELLED)},统计的是"今日全部已取消订单",
+     * 把用户手动取消也算成超时关单,卡片口径与文案不符(实测手动取消 1 笔被计为「超时关单 1」)。
+     */
     public Integer todayCancelled() {
-        return orderMapper.countTodayClosed(OrderStatus.CANCELLED.getCode());
+        Integer v = orderMapper.countTodayTimeoutClosed();
+        return v == null ? 0 : v;
     }
 
     /** 今日已退款订单数 */

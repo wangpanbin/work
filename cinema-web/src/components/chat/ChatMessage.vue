@@ -1,33 +1,49 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { ChatResponseVO } from '../../types'
+import { renderMarkdown } from '../../utils/markdown'
 import ActionCard from './ActionCard.vue'
 
-defineProps<{
-  /** 用户消息(空字符串表示 assistant 消息) */
+const props = defineProps<{
+  /** 说话方。错误提示也是 assistant 说的(见 ChatWidget 的 catch 分支) */
+  role: 'user' | 'assistant'
+  /** 用户消息;assistant 消息时为空字符串(错误提示除外,它由 assistant 说) */
   message: string
-  /** assistant 响应(用户消息时为空) */
+  /** assistant 响应(用户消息 / 纯文本错误提示时为空) */
   response?: ChatResponseVO | null
   /** 当前时间显示 */
   timestamp: string
 }>()
+
+/**
+ * P2-2:LLM 回复的表格/加粗原本以原始 `|` 文本直出,这里走 Markdown 渲染。
+ * `renderMarkdown` 内部先转义再拼标签,产物可安全交给 v-html(见 utils/markdown.ts 的 XSS 模型)。
+ */
+const renderedReply = computed(() => renderMarkdown(props.response?.reply))
 </script>
 
 <template>
-  <div class="chat-msg user" v-if="message">
+  <!-- 按 role 分支,而不是"message 非空即用户":
+       ChatWidget 的错误分支 push 的是 { role:'assistant', message:原因, response:null },
+       旧模板会把它渲染成金色右对齐的"用户气泡",看起来像是用户自己说的话。 -->
+  <div class="chat-msg user" v-if="role === 'user'">
     <div class="chat-msg-bubble user-bubble">{{ message }}</div>
     <div class="chat-msg-meta">{{ timestamp }}</div>
   </div>
-  <div class="chat-msg assistant" v-else-if="response">
+  <div class="chat-msg assistant" v-else>
     <div class="chat-msg-bubble assistant-bubble">
-      {{ response.reply }}
-      <div v-if="response.cards && response.cards.length" class="chat-msg-cards">
+      <!-- 纯文本错误提示(无 response) -->
+      <div class="chat-md" v-if="!response">{{ message }}</div>
+      <!-- P2-2:Markdown 渲染(已转义,见 utils/markdown.ts) -->
+      <div class="chat-md" v-else v-html="renderedReply"></div>
+      <div v-if="response && response.cards && response.cards.length" class="chat-msg-cards">
         <ActionCard
           v-for="(card, idx) in response.cards"
           :key="`${card.sessionId}-${idx}`"
           :card="card"
         />
       </div>
-      <div v-if="response.followUps && response.followUps.length" class="chat-msg-followups">
+      <div v-if="response && response.followUps && response.followUps.length" class="chat-msg-followups">
         <span
           v-for="(q, idx) in response.followUps"
           :key="idx"
@@ -69,6 +85,86 @@ defineProps<{
 .assistant-bubble {
   background: var(--bg-tertiary, #f5f5f5);
   color: var(--text-primary, #333);
+}
+
+/* ---------- P2-2 Markdown 渲染样式 ---------- */
+/* 气泡的 pre-wrap 是给纯文本用的;渲染成 HTML 后标签缩进会变成真实空白,必须关掉 */
+.chat-md {
+  white-space: normal;
+  word-break: break-word;
+}
+.chat-md :deep(p) {
+  margin: 0 0 6px;
+}
+.chat-md :deep(p:last-child) {
+  margin-bottom: 0;
+}
+.chat-md :deep(table) {
+  border-collapse: collapse;
+  margin: 6px 0;
+  font-size: 12px;
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+}
+.chat-md :deep(th),
+.chat-md :deep(td) {
+  border: 1px solid var(--border-color, #e5e5e5);
+  padding: 4px 8px;
+  text-align: left;
+  white-space: nowrap;
+}
+.chat-md :deep(th) {
+  background: rgba(245, 158, 11, 0.12);
+  font-weight: 600;
+}
+.chat-md :deep(ul),
+.chat-md :deep(ol) {
+  margin: 4px 0;
+  padding-left: 20px;
+}
+.chat-md :deep(li) {
+  margin: 2px 0;
+}
+.chat-md :deep(code) {
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 4px;
+  padding: 1px 4px;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.chat-md :deep(pre) {
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 6px;
+  padding: 8px;
+  margin: 6px 0;
+  overflow-x: auto;
+}
+.chat-md :deep(pre code) {
+  background: none;
+  padding: 0;
+  white-space: pre;
+}
+.chat-md :deep(blockquote) {
+  margin: 6px 0;
+  padding-left: 8px;
+  border-left: 3px solid var(--border-color, #e5e5e5);
+  color: var(--text-muted, #999);
+}
+.chat-md :deep(h1),
+.chat-md :deep(h2),
+.chat-md :deep(h3),
+.chat-md :deep(h4),
+.chat-md :deep(h5),
+.chat-md :deep(h6) {
+  margin: 8px 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.chat-md :deep(hr) {
+  border: none;
+  border-top: 1px solid var(--border-color, #e5e5e5);
+  margin: 8px 0;
 }
 .chat-msg-meta {
   font-size: 11px;

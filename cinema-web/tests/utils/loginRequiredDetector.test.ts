@@ -32,6 +32,19 @@ describe('loginRequiredDetector (spec #17 ID-4)', () => {
     expect(detectLoginRequired('登录后可以查看您的订单')).toBe(true)
   })
 
+  // P2-5:系统提示词只引导"请先登录",但模型措辞不可控,这些变体也必须能触发引导弹窗
+  it('命中 "需要先登录才能查询" → true', () => {
+    expect(detectLoginRequired('需要先登录才能查询订单')).toBe(true)
+  })
+
+  it('命中 "您尚未登录" → true', () => {
+    expect(detectLoginRequired('您尚未登录,我无法查看订单')).toBe(true)
+  })
+
+  it('命中 "未登录状态" → true', () => {
+    expect(detectLoginRequired('当前是未登录状态')).toBe(true)
+  })
+
   it('空串 → false(无文本,不弹窗)', () => {
     expect(detectLoginRequired('')).toBe(false)
   })
