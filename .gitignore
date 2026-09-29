@@ -36,6 +36,15 @@ test/playwright-cli/redis_*.txt
 test/playwright-cli/_lib.ps1
 test/playwright-cli/logs/
 test/playwright-cli/scenarios/
+# a11y 树快照: 一次性快照不入库; 已跟踪的 6 个基准快照 (s01/s02/s03/s06-*.yml) 保持跟踪
+# (gitignore 只作用于未跟踪文件, 不会 untrack 已入库的基准快照)
+test/playwright-cli/snapshots/
+
+# playwright-cli 默认把快照写到 git root (如 404.yml / home-full.yml / login2.yml),
+# 会持续污染仓库根目录。已统一归档到 test/playwright-cli/snapshots/, 此规则挡住再次堆积。
+# 本仓库无根级 .yml 配置 (application.yml 在 cinema-server/src/main/resources/),
+# 故 / 前缀仅匹配根目录是安全的; 若将来引入 docker-compose.yml 等根配置, 需改成带 ! 例外的精确规则。
+/*.yml
 
 # E2E 测试内容 (顶层 test/ tests/ 目录; 不影响 cinema-server/src/test/ 等子模块测试目录)
 # / 前缀强制仅匹配 git root; 避免误伤 cinema-server/src/test/
