@@ -19,7 +19,7 @@
 | **延迟关单** | Redis ZSet 延迟队列(主链路 5s 扫描) + 定时补偿任务(1min 兜底),双保险 |
 | **冷启动守护** | 服务重启/Redis flush 后锁座前自动从 DB 重建 Bitmap,杜绝"看似可选实则已售" |
 | **交易闭环** | 锁座 → 支付 → 退票(状态机 PAID→REFUNDING→REFUNDED) + 电子票(HMAC 签名,24h 过期,一次性验票) |
-| **工程严谨** | 127 个 JUnit5 + Mockito 单元测试覆盖核心链路;`@RateLimit`/`@Idempotent` AOP 注解;OrderService 拆 4 service + 1 core(单文件 ≤ 300 行) |
+| **工程严谨** | 139 个 JUnit5 + Mockito 单元测试覆盖核心链路;`@RateLimit`/`@Idempotent` AOP 注解;OrderService 拆 4 service + 1 core(单文件 ≤ 300 行) |
 | **数据可视化** | 管理端经营看板(4 卡片 + 3 图 + 1 表);实时数据大屏(WebSocket 推送锁座事件) |
 | **前端体验** | 全局路由守卫(未登录/非管理员自动拦截) · 影片搜索/筛选 · 注册确认密码 · 移动端适配 · 座位图重构 |
 | **国际化** | vue-i18n 11 双语(zh-CN / en-US);浏览器语言自动探测 + 本地持久化 + `fallbackLocale: zh-CN` 防裸 key;29 个专项用例,其中 `key-coverage` 兜底「两边都漏」的盲点 |
@@ -62,7 +62,7 @@
 | 接口限流(`@RateLimit`) | ✅ P0 E4 | Redis 滑动窗口 Lua,锁座/支付/退票/聊天分级限流 |
 | 幂等键(`@Idempotent`) | ✅ P0 E5 | SETNX,锁座/支付前置挡重试 |
 | OrderService 拆分 | ✅ P0 E1 | 4 service + 1 core,单文件 ≤ 300 行 |
-| 关键路径单测 | ✅ P0 E2 | **127 个 JUnit5 + Mockito 用例**(26 个测试类,2026-09-29 实测) |
+| 关键路径单测 | ✅ P0 E2 | **139 个 JUnit5 + Mockito 用例**(26 个测试类,2026-09-29 实测) |
 | 营收明细导出 Excel | ✅ | `GET /api/admin/revenue/export`,独立 axios 实例走 blob,看板导出对话框 |
 | 错误码体系 | ✅ | 0/4xxxx/5xxxx + data 携带附加信息 |
 | **对话式订票助手** | ✅ 2026-09-21 | LangChain4j + DeepSeek;8 只读工具(含 FAQ searchFaq);行动卡片 SEAT_SUGGESTION;@RateLimit 分桶(匿名 2/min,登录 10/min);LOGIN_REQUIRED 引导登录;FAQ 知识库 18 条种子数据;key-missing 走 50000 短路 |
@@ -139,12 +139,12 @@ pnpm dev
 ```bash
 cd cinema-server
 mvn test
-# Tests run: 127, Failures: 0, Errors: 0
+# Tests run: 139, Failures: 0, Errors: 0
 # (跨 26 个测试类,2026-09-29 实测)
 
 cd ../cinema-web
 pnpm test
-# Test Files: 12 passed, Tests: 105 passed (vitest 3.x)
+# Test Files: 14 passed, Tests: 137 passed (vitest 3.x)
 ```
 
 ---
@@ -458,8 +458,8 @@ export DEEPSEEK_API_KEY=sk-xxx         # bash (source)
 
 ## 测试文件
 
-- `cinema-server/src/test/java/...` — **127 个 JUnit5 + Mockito 单元测试**(26 个测试类,E2 + 营收导出 + 对话助手全链路,2026-09-29 实测)
-- `cinema-web/tests/` — **105 个 Vitest 单元测试**(12 个 `.test.ts` 文件,2026-09-29 实测)
+- `cinema-server/src/test/java/...` — **139 个 JUnit5 + Mockito 单元测试**(26 个测试类,E2 + 营收导出 + 对话助手全链路,2026-09-29 实测)
+- `cinema-web/tests/` — **137 个 Vitest 单元测试**(14 个 `.test.ts` 文件,2026-09-29 实测)
 - `test/load_test.py` — 三场景 Python 压测驱动
 - `test/concurrency_strict.py` — 防超卖专项
 - `test/concurrency_test.py` — 并发基础压测
