@@ -22,6 +22,7 @@
 | **工程严谨** | 127 个 JUnit5 + Mockito 单元测试覆盖核心链路;`@RateLimit`/`@Idempotent` AOP 注解;OrderService 拆 4 service + 1 core(单文件 ≤ 300 行) |
 | **数据可视化** | 管理端经营看板(4 卡片 + 3 图 + 1 表);实时数据大屏(WebSocket 推送锁座事件) |
 | **前端体验** | 全局路由守卫(未登录/非管理员自动拦截) · 影片搜索/筛选 · 注册确认密码 · 移动端适配 · 座位图重构 |
+| **国际化** | vue-i18n 11 双语(zh-CN / en-US);浏览器语言自动探测 + 本地持久化 + `fallbackLocale: zh-CN` 防裸 key;29 个专项用例,其中 `key-coverage` 兜底「两边都漏」的盲点 |
 | **对话助手** | LangChain4j + DeepSeek 全局浮窗;8 个只读工具(`searchMovies` / `getSeatSummary` / `findContiguousSeats` / `searchFaq` 等);返回行动卡片(SEAT_SUGGESTION)跳选座页预选;**只读不写**(ADR-0002),零副作用;**限流分桶**匿名 2/min / 登录 10/min(spec #17);LOGIN_REQUIRED 引导匿名用户登录;FAQ 知识库兜底通用问答(spec #20) |
 
 ---
@@ -43,6 +44,7 @@
 | 主动取消 | ✅ | CAS 取消 |
 | 退票(模拟退款) | ✅ P0 N1 | 状态机 + 退款日志 + 卡死补偿 |
 | 电子票二维码 | ✅ P0 N2 | HMAC 签名 + 24h 过期 + 一次性验票 |
+| 中英文切换 | ✅ 2026-09-22 | 顶栏一键切换;首次进站按浏览器语言探测,之后按用户选择持久化 |
 
 ### 管理端
 
@@ -60,7 +62,7 @@
 | 接口限流(`@RateLimit`) | ✅ P0 E4 | Redis 滑动窗口 Lua,锁座/支付/退票/聊天分级限流 |
 | 幂等键(`@Idempotent`) | ✅ P0 E5 | SETNX,锁座/支付前置挡重试 |
 | OrderService 拆分 | ✅ P0 E1 | 4 service + 1 core,单文件 ≤ 300 行 |
-| 关键路径单测 | ✅ P0 E2 | **115 个 JUnit5 + Mockito 用例**(25 个测试类,2026-09-21 实测) |
+| 关键路径单测 | ✅ P0 E2 | **127 个 JUnit5 + Mockito 用例**(26 个测试类,2026-09-29 实测) |
 | 营收明细导出 Excel | ✅ | `GET /api/admin/revenue/export`,独立 axios 实例走 blob,看板导出对话框 |
 | 错误码体系 | ✅ | 0/4xxxx/5xxxx + data 携带附加信息 |
 | **对话式订票助手** | ✅ 2026-09-21 | LangChain4j + DeepSeek;8 只读工具(含 FAQ searchFaq);行动卡片 SEAT_SUGGESTION;@RateLimit 分桶(匿名 2/min,登录 10/min);LOGIN_REQUIRED 引导登录;FAQ 知识库 18 条种子数据;key-missing 走 50000 短路 |
@@ -72,7 +74,7 @@
 | 端 | 技术 |
 | --- | --- |
 | 后端 | JDK 21 · Spring Boot 3.5 · MyBatis-Plus 3.5.12 · Redis 8(Bitmap/Lua/ZSet/PubSub) · WebSocket · JWT · AspectJ AOP · HMAC-SHA256 · **LangChain4j 1.20.0(对话助手)** |
-| 前端 | Vue 3 · Vite · TypeScript · Element Plus · Pinia · Axios · dayjs |
+| 前端 | Vue 3 · Vite · TypeScript · Element Plus · Pinia · Axios · dayjs · **vue-i18n 11(中英双语)** |
 | 中间件 | MySQL 8(本机) · Redis 8(本机,127.0.0.1:6379) |
 | LLM | DeepSeek(OpenAI 兼容端点,env 注入 API key) |
 | 测试 | JUnit5 · Mockito · AssertJ · Python 压测脚本 · JMeter 5.6.3(可选) · Vitest 3.x(前端) |
@@ -92,6 +94,8 @@ mysql -uroot -p < sql/03_p0_increment.sql   # P0 增量: movie 加列 + refund_l
 # 可选: 更多演示影片(12 部含真实海报) + 未来 14 天场次; 必须带 --default-character-set=utf8mb4
 mysql -uroot -p --default-character-set=utf8mb4 < sql/04_extra_demo_data.sql
 # 可选: 对话助手 FAQ 知识库(18 条常见问答; 迁移 PR #15 数据,spec #20)
+#   ⚠️ 需手动执行并**重启后端**才生效; 未执行时 searchFaq 工具查不到表,
+#      KnowledgeService 会记录「知识库不可用」日志并降级(其余 7 个工具不受影响)。
 mysql -uroot -p < sql/06_qa_knowledge.sql
 ```
 
@@ -135,12 +139,12 @@ pnpm dev
 ```bash
 cd cinema-server
 mvn test
-# Tests run: 115, Failures: 0, Errors: 0
-# (跨 25 个测试类,2026-09-21 实测)
+# Tests run: 127, Failures: 0, Errors: 0
+# (跨 26 个测试类,2026-09-29 实测)
 
 cd ../cinema-web
 pnpm test
-# Test Files: 6 passed, Tests: 74 passed (vitest 3.x)
+# Test Files: 12 passed, Tests: 105 passed (vitest 3.x)
 ```
 
 ---
@@ -156,7 +160,7 @@ pnpm test
 | GET | `/api/users/me` | 当前登录用户信息 | 需登录 |
 | GET | `/api/movies` | 影片搜索/筛选(`?keyword=&genre=&region=`) | 公开 |
 | GET | `/api/movies/{id}` | 影片详情 | 公开 |
-| GET | `/api/sessions/movies/{movieId}/sessions` | 影片场次列表 | 公开 |
+| GET | `/api/movies/{movieId}/sessions` | 影片场次列表(**注意**:路径以 `/api/movies` 开头) | 公开 |
 | GET | `/api/sessions/{sessionId}` | 场次详情 | 公开 |
 | GET | `/api/sessions/{sessionId}/seat-map` | 场次座位图 | 公开 |
 | POST | `/api/orders/lock` | 锁座下单 | 需登录 + `@RateLimit` + `@Idempotent` |
@@ -229,7 +233,7 @@ F:/test/work/
 │       │   ├── seat/         座位图
 │       │   ├── order/        订单(E1 拆分: Lock/Pay/Cancel/Query + Core) + 电子票 Ticket
 │       │   ├── payment/      模拟支付/退款(MockPayment / MockRefund)
-│       │   ├── chat/         对话助手(T9 落地:ChatConfig + CinemaAssistant + ChatTools 7 个 + ChatController + ReplyCardParser)
+│       │   ├── chat/         对话助手(T9 落地:ChatConfig + CinemaAssistant + ChatTools 8 个 + ChatController + ReplyCardParser)
 │       │   └── admin/        管理端(CRUD + Dashboard O3)
 │       ├── infra/                        基础设施
 │       │   ├── delay/        DelayQueue(Redis ZSet 实现)
@@ -243,8 +247,17 @@ F:/test/work/
 └── cinema-web/                          Vue3 前端
     ├── package.json
     └── src/
-        ├── api/                          axios 封装 + 各模块 API
+        ├── api/                          axios 封装 + 各模块 API(admin.ts 含 exportRevenue 独立实例)
         ├── components/                   SeatItem, Countdown
+        │   └── chat/                     ChatWidget, ChatMessage, ActionCard, actionCardRoute(卡片→选座预选)
+        ├── composables/                  useChatContext.ts(聊天会话上下文注入)
+        ├── constants/                    auth.ts(角色/令牌常量)
+        ├── i18n/                         vue-i18n 11 实例
+        │   ├── index.ts                  createI18n(legacy:false) + i18nSetLocale
+        │   ├── detect.ts                 首次进站浏览器语言探测
+        │   ├── persist.ts                用户选择持久化(localStorage)
+        │   ├── fallback.ts               缺 key 回退逻辑
+        │   └── locales/                  zh-CN.ts, en-US.ts
         ├── router/index.ts               路由 + 全局守卫(登录/管理员)
         ├── stores/                       Pinia(user/seat/movieCache)
         ├── styles/main.css               全局样式
@@ -260,7 +273,7 @@ F:/test/work/
             ├── NotFound.vue              404 兜底
             └── admin/
                 ├── AdminHome.vue         后台骨架 + 嵌套路由
-                ├── Dashboard.vue         经营看板(O3)
+                ├── Dashboard.vue         经营看板(O3)+ 营收导出对话框
                 ├── LiveDashboard.vue     实时大屏(D1)
                 ├── MovieManage.vue       影片管理
                 ├── HallManage.vue        影厅管理
@@ -289,6 +302,7 @@ F:/test/work/
 - [x] UX-1  前端体验升级(全局路由守卫 / 注册确认密码 / 移动端适配 / 座位图重构 / 11 处 UI 修复 + 404 兜底页)
 - [x] CHAT-1 对话式订票助手全链路(T1-T9,2026-09-21):LangChain4j + DeepSeek + 8 只读工具(含 FAQ searchFaq) + 行动卡片 SEAT_SUGGESTION + 多跳记忆 + @RateLimit 分桶(匿名 2/min,登录 10/min) + env-driven key 注入 + LOGIN_REQUIRED 引导登录 + FAQ 知识库兜底
 - [x] CHAT-2 锁座调用路径零触动 + ADR-0002 反射白名单(`ChatToolsStructureTest` 兜底)
+- [x] I18N-1 ~ I18N-8 中英文双语(2026-09-22):vue-i18n 11 基础设施(zh-CN + en-US 字典 + 浏览器探测 + 持久化 + fallback)→ 顶栏切换按钮 + App → Home/Login → MovieDetail → SeatSelect → Payment/OrderList → Admin 6 视图 → Chat/NotFound → 运行时缺 key 修复 + `key-coverage` 单测兜底 |
 
 ---
 
@@ -310,7 +324,7 @@ F:/test/work/
 | **不引入 RAG** | 不接 Embedding / 向量库;事实只能来自只读工具查 MySQL / Redis | [ADR-0003](docs/adr/0003-no-rag-for-chat-assistant.md) |
 | **不流式** | 纯 Servlet MVC 栈,非流式单次返回;卡片必须有整块结构化载荷 | [ADR-0001](docs/adr/0001-langchain4j-embedded-in-server.md) |
 
-### 7 个只读工具(LLM 可调)
+### 8 个只读工具(LLM 可调)
 
 | 工具 | 后端调用 | 用途 |
 | --- | --- | --- |
@@ -321,6 +335,7 @@ F:/test/work/
 | `findContiguousSeats(sessionId, userId?, count, preferRow?)` | `SeatService.seatMap` | 找 N 连座返回座位索引 |
 | `getMyOrders(userId, status?, page?, size?)` | `OrderQueryService.myOrders` | **userId 必非空,否则 LOGIN_REQUIRED** |
 | `getMyOrder(orderNo, userId)` | `OrderQueryService.detail` | 同上 |
+| `searchFaq(question, topK?)` | `KnowledgeService.search` | FAQ 知识库兜底通用问答(spec #20) |
 
 `ChatToolsStructureTest` 反射白名单兜底 — 任何 `lockSeats` / `pay` / `cancel` / `refund` / `forceRecover` / 管理端写方法被 `@Tool` 注解即测试红。
 
@@ -347,6 +362,37 @@ export DEEPSEEK_API_KEY=sk-xxx         # bash (source)
 为什么"不让助手直接锁座"不是保守而是必要 — 三条代码级证据(`OrderLockService` 的 `closeIfUnpaid` 会静默释放用户已锁座位;锁座的 `@Idempotent` 键含精确座位组合;`lock_seat.lua` 冲突语义为整单失败)详见 spec §2.3。
 
 **同时新增的领域文档:** `CONTEXT.md` 补充了 7 个选座领域术语(座位索引 / 选座 / 锁座 / 锁座冲突 / 待支付订单 / 场次上下文 / 行动卡片);`docs/adr/` 为本次首次建立。
+
+---
+
+## 已实现 — 中英文双语(2026-09-22 落地)
+
+- **设计文档**:[docs/superpowers/specs/2026-09-22-i18n-zh-en-design.md](docs/superpowers/specs/2026-09-22-i18n-zh-en-design.md)
+- **技术选型**:vue-i18n 11(`legacy: false` 组合式 API),两个字典 `src/i18n/locales/zh-CN.ts` / `en-US.ts`
+
+### 三条设计约束
+
+| 约束 | 内容 | 落在哪 |
+| --- | --- | --- |
+| **首次按浏览器语言探测** | 首次进站读 `navigator.language`,命中 `zh-CN`/`en-US` 才采用,其余一律中文兜底 | `src/i18n/detect.ts` |
+| **之后听用户的** | 用户手动切换后写入 localStorage,优先级高于浏览器语言,刷新不丢 | `src/i18n/persist.ts` |
+| **缺 key 不露馅** | `fallbackLocale: 'zh-CN'`,任一语言缺 key 时回退中文而非显示裸 key | `src/i18n/index.ts` + `fallback.ts` |
+
+切换入口在顶栏(首页右上角「🌐 EN / 中文」按钮),全站生效不刷新页面。`setLocale` + reactive `i18n.global.locale.value` 同一 tick 生效,避免「图标已切换但文案未变」的中间态。
+
+### 覆盖率保障(29 个专项用例)
+
+| 测试文件 | 守住什么 |
+| --- | --- |
+| `tests/i18n/detect.test.ts` | 语言探测的边界(非中英文浏览器语言、`zh`/`zh-TW` 变体) |
+| `tests/i18n/persist.test.ts` | 持久化读写与优先级 |
+| `tests/i18n/fallback.test.ts` | 缺 key 回退行为 |
+| `tests/i18n/locales-shape.test.ts` | 两个字典结构一致(嵌套层级对齐) |
+| `tests/i18n/key-coverage.test.ts` | **扫描源码里的 `t('...')` 静态 key,比对两个字典** |
+
+`key-coverage` 是防「运行时缺 key」的最后一道闸:它能抓到**两个语言都漏**的 key —— 那种情况 `fallbackLocale` 也救不了,只会在页面上显示裸 key。**改任何 locale 文件或新增 `t()` 调用后必须跑 `pnpm test`。**
+
+> 收尾验证实测(2026-09-29):浏览器点切换后「星辉影城」→ "Star Cinema"、「登录 / 注册」→ "Sign in / Register"、"分钟" → "min";影片标题保持中文属预期(数据来自 DB,非字典)。
 
 ---
 
@@ -377,6 +423,17 @@ export DEEPSEEK_API_KEY=sk-xxx         # bash (source)
 - **CHAT**: 匿名问 "我的订单" → 前端 ChatWidget 检测 LOGIN_REQUIRED → 弹 ElMessageBox 引导跳转 `/login?redirect=<current>` ✓
 - **CHAT**: redis 副作用 0(ADR-0002 锁死);锁座调用路径 0 行触动 ✓
 - **CHAT**: `ChatToolsStructureTest` 反射白名单兜底禁 lockSeats/pay/cancel/refund/forceRecover ✓
+- **I18N**: 顶栏切换中↔英,「星辉影城」→ "Star Cinema"、时长「分钟」→ "min";影片标题保持中文(数据驱动,非字典) ✓
+
+---
+
+## 已知限制
+
+| 限制 | 现象 | 原因 | 处理 |
+| --- | --- | --- | --- |
+| **种子场次是固定日期窗口** | 隔一段时间后进影片详情,场次列表为空 | `sql/02_init_data.sql` / `04_extra_demo_data.sql` 生成的是**一次性固定区间**场次(如 2026-09-08 ~ 09-21),不会随日期滚动;`GET /api/movies/{id}/sessions` 不带 `?date=` 时**默认查当天** | 演示前重跑 `sql/04_extra_demo_data.sql` 生成新区间;或调接口时显式传 `?date=YYYY-MM-DD`(实测传 `2026-09-10` 可正常返回 4 场) |
+| **FAQ 知识库需手动灌** | 对话助手问流程类问题不走知识库兜底 | `sql/06_qa_knowledge.sql` 默认不执行,`qa_knowledge` 表可能不存在 | 按「快速开始 §1」执行该 SQL 并重启后端;不执行时 `searchFaq` 降级,其余 7 个工具不受影响 |
+| **Vite dev 只监听 IPv6** | 用 `http://127.0.0.1:5173` 探测会「连接被拒绝」,误判前端没起 | Vite 6 默认绑 `[::1]`(localhost 解析到 IPv6) | 用 `http://localhost:5173` 访问即可;不是服务故障 |
 
 ---
 
@@ -401,8 +458,8 @@ export DEEPSEEK_API_KEY=sk-xxx         # bash (source)
 
 ## 测试文件
 
-- `cinema-server/src/test/java/...` — **115 个 JUnit5 + Mockito 单元测试**(25 个测试类,E2 + 营收导出 + 对话助手全链路)
-- `cinema-web/tests/` — **81 个 Vitest 单元测试**(7 个 `.test.ts` 文件)
+- `cinema-server/src/test/java/...` — **127 个 JUnit5 + Mockito 单元测试**(26 个测试类,E2 + 营收导出 + 对话助手全链路,2026-09-29 实测)
+- `cinema-web/tests/` — **105 个 Vitest 单元测试**(12 个 `.test.ts` 文件,2026-09-29 实测)
 - `test/load_test.py` — 三场景 Python 压测驱动
 - `test/concurrency_strict.py` — 防超卖专项
 - `test/concurrency_test.py` — 并发基础压测
