@@ -121,6 +121,13 @@ onMounted(load)
 </template>
 
 <style scoped>
+/* 页面标题: 衬线 */
+h2 {
+  margin: 0 0 12px;
+  font-family: var(--font-display);
+  font-size: 22px;
+  color: var(--ink);
+}
 .toolbar {
   display: flex;
   gap: 12px;
@@ -128,9 +135,10 @@ onMounted(load)
 }
 /* ID 单元格: 19 位雪花 ID 强制 ellipsis, 不允许换行 */
 .id-cell {
-  font-family: 'Consolas', 'Monaco', monospace;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 13px;
-  color: var(--text-secondary);
+  color: var(--ink-2);
   display: inline-block;
   max-width: 78px;
   overflow: hidden;

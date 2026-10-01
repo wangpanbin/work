@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import BrandMark from '../components/BrandMark.vue'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -8,13 +9,13 @@ const { t } = useI18n()
 
 <template>
   <div class="not-found">
+    <BrandMark class="mark" :size="64" />
     <div class="poster">
-      <div class="poster-glow"></div>
       <div class="poster-inner">
         <div class="film-strip">
           <span v-for="i in 8" :key="i" class="hole" />
         </div>
-        <div class="emoji">🎞</div>
+        <div class="emoji"><BrandMark :size="44" /></div>
         <div class="film-strip">
           <span v-for="i in 8" :key="i" class="hole" />
         </div>
@@ -42,19 +43,16 @@ const { t } = useI18n()
   animation: fadeInUp 0.5s ease;
 }
 
-.poster {
-  position: relative;
+/* 品牌标识: 票根 + 齿孔 + 条码, 与全站 header 同一枚 */
+.mark {
+  display: block;
+  color: var(--accent);
   margin-bottom: 24px;
 }
 
-.poster-glow {
-  position: absolute;
-  inset: -16px;
-  background: var(--gradient-gold);
-  border-radius: 16px;
-  filter: blur(32px);
-  opacity: 0.3;
-  z-index: -1;
+.poster {
+  position: relative;
+  margin-bottom: 24px;
 }
 
 .poster-inner {
@@ -63,9 +61,9 @@ const { t } = useI18n()
   align-items: center;
   gap: 8px;
   padding: 32px 48px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
 }
 
 .film-strip {
@@ -77,8 +75,8 @@ const { t } = useI18n()
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
+  background: var(--paper);
+  border: 1px solid var(--rule-strong);
 }
 
 .emoji {
@@ -86,26 +84,26 @@ const { t } = useI18n()
   line-height: 1;
 }
 
+/* 404 票号: 等宽 + tabular-nums */
 .code {
-  font-family: var(--font-display);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 64px;
   font-weight: 700;
-  background: var(--gradient-gold);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--accent);
   margin: 0 0 8px;
   letter-spacing: 4px;
 }
 
 .title {
+  font-family: var(--font-display);
   font-size: 22px;
-  color: var(--text-primary);
+  color: var(--ink);
   margin: 0 0 12px;
 }
 
 .desc {
-  color: var(--text-muted);
+  color: var(--ink-3);
   font-size: 14px;
   max-width: 360px;
   margin-bottom: 28px;

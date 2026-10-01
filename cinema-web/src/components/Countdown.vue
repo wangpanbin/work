@@ -58,3 +58,31 @@ onBeforeUnmount(() => {
     {{ timeStr }}
   </span>
 </template>
+
+<style scoped>
+/* 倒计时是票根上最"票据"的一格数据 —— 等宽 + tabular-nums,
+   否则秒数跳动时字宽会抖, 视觉上像在闪。 */
+span {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+
+span.urgent {
+  color: var(--danger);
+  font-weight: 700;
+  /* 印刷风不发光: 只做透明度脉冲 */
+  animation: countdown-blink 1.5s ease-in-out infinite;
+}
+
+@keyframes countdown-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  span.urgent {
+    animation: none;
+  }
+}
+</style>

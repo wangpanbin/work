@@ -4,6 +4,8 @@ import { useI18n } from 'vue-i18n'
 import { dashboardSummary, type DashboardSummary } from '../../api/admin'
 
 const { t, locale } = useI18n()
+/** WS 消息处理里 `t` 被事件类型局部变量遮蔽, 这里留一个不冲突的别名给模板/事件拼装用 */
+const t2 = t
 const data = ref<DashboardSummary | null>(null)
 const events = ref<Array<{ time: string; type: string; text: string }>>([])
 const connected = ref(false)
@@ -50,13 +52,14 @@ function connectWs() {
       const seats = (d.seats || []).join(',') || '-'
       const amt = d.amount != null ? ' ¥' + Number(d.amount).toFixed(2) : ''
       let text = ''
-      // 事件 text 是"业务事件描述" + 数据 ID — 这些是技术性描述,保留中文够用
-      // (完整多语言要后端配合发事件模板 + 语言 code,超出 i18n scope)
-      if (t === 'LOCK') text = `用户 ${d.userId} 锁座 session=${d.sessionId} 座位 ${seats}`
-      else if (t === 'SOLD') text = `用户 ${d.userId} 支付成功 session=${d.sessionId} 座位 ${seats}${amt}`
-      else if (t === 'CANCEL') text = `用户 ${d.userId} 主动取消 session=${d.sessionId} 座位 ${seats}`
-      else if (t === 'TIMEOUT') text = `订单 ${d.orderNo} 超时关单 session=${d.sessionId} 座位 ${seats}`
-      else if (t === 'REFUND') text = `用户 ${d.userId} 退票成功 session=${d.sessionId} 座位 ${seats}${amt}`
+      // 事件 text 完全在前端用 WS 载荷拼装(后端只发 userId/sessionId/seats/amount),
+      // 所以不需要"后端配合发事件模板"就能 i18n —— 原注释的判断有误。
+      // 载荷里的 ID / 座位号保持原样,只把描述词交给字典。
+      if (t === 'LOCK') text = t2('admin.evLock', { user: d.userId, session: d.sessionId, seats })
+      else if (t === 'SOLD') text = t2('admin.evSold', { user: d.userId, session: d.sessionId, seats, amt })
+      else if (t === 'CANCEL') text = t2('admin.evCancel', { user: d.userId, session: d.sessionId, seats })
+      else if (t === 'TIMEOUT') text = t2('admin.evTimeout', { order: d.orderNo, session: d.sessionId, seats })
+      else if (t === 'REFUND') text = t2('admin.evRefund', { user: d.userId, session: d.sessionId, seats, amt })
       else text = `${t}: ${JSON.stringify(d)}`
       pushEvent(t, text)
     } catch {
@@ -131,15 +134,17 @@ onUnmounted(() => {
 .live { animation: fadeInUp 0.5s ease; }
 .live-header {
   display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
-.live-header h2 { margin: 0; font-size: 22px; }
+.live-header h2 { margin: 0; font-family: var(--font-display); font-size: 22px; }
 .conn-status {
   display: flex; align-items: center; gap: 6px;
   font-size: 13px; padding: 4px 12px; border-radius: 12px;
+  background: var(--paper-sunk);
+  border: 1px solid var(--rule);
 }
-.conn-status.ok { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
-.conn-status.off { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+.conn-status.ok { color: var(--ok); }
+.conn-status.off { color: var(--danger); border-color: var(--danger); }
 .dot {
   width: 8px; height: 8px; border-radius: 50%; background: currentColor;
   animation: pulse 1.5s infinite;
@@ -150,34 +155,40 @@ onUnmounted(() => {
 }
 
 .cards {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px;
 }
 .card {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
-  padding: 24px;
+  padding: 16px;
 }
 .card.gold {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(245, 158, 11, 0.04));
-  border-color: rgba(245, 158, 11, 0.3);
+  background: var(--accent-wash);
+  border-color: var(--rule-strong);
 }
-.card-label { font-size: 13px; color: var(--text-muted); margin-bottom: 12px; }
-.card-value { font-size: 32px; font-weight: 700; color: var(--text-primary); }
-.card.gold .card-value { color: var(--accent-gold); }
+.card-label { font-size: 13px; color: var(--ink-3); margin-bottom: 8px; }
+/* 实时数值: 等宽 + tabular-nums, 5s 轮询刷新时数字不左右跳 */
+.card-value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 30px; font-weight: 700; color: var(--ink);
+}
+.card.gold .card-value { color: var(--accent); }
 
 .panel {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
-  padding: 24px;
+  padding: 16px;
 }
-.panel h3 { margin: 0 0 16px 0; font-size: 16px; }
+.panel h3 { margin: 0 0 12px 0; font-family: var(--font-display); font-size: 16px; }
 .event-list {
   max-height: 480px; overflow-y: auto;
-  background: var(--bg-primary);
+  background: var(--paper-sunk);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-md);
-  padding: 12px;
+  padding: 8px;
 }
 .event-row {
   display: grid;
@@ -185,28 +196,32 @@ onUnmounted(() => {
   gap: 12px;
   padding: 8px 12px;
   font-size: 13px;
-  border-radius: 4px;
+  background: var(--paper-raised);
+  border-left: 2px solid var(--rule);
+  border-radius: var(--radius-sm);
   margin-bottom: 4px;
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-mono);
 }
-.event-row.LOCK    { background: rgba(59, 130, 246, 0.1); }
-.event-row.SOLD   { background: rgba(34, 197, 94, 0.1); }
-.event-row.CANCEL { background: rgba(168, 85, 247, 0.1); }
-.event-row.TIMEOUT{ background: rgba(245, 158, 11, 0.1); }
-.event-row.REFUND { background: rgba(236, 72, 153, 0.1); }
-.event-row.WARN   { background: rgba(245, 158, 11, 0.1); }
-.event-row.ERR    { background: rgba(239, 68, 68, 0.1); }
-.event-time { color: var(--text-muted); }
+/* 事件语义色: 印刷风用左侧 2px 印色条区分, 不用半透明底色 */
+.event-row.LOCK    { border-left-color: var(--ink-3); }
+.event-row.SOLD    { border-left-color: var(--ok); }
+.event-row.CANCEL  { border-left-color: var(--ink-2); }
+.event-row.TIMEOUT { border-left-color: var(--warn); }
+.event-row.REFUND  { border-left-color: var(--accent); }
+.event-row.WARN    { border-left-color: var(--warn); }
+.event-row.ERR     { border-left-color: var(--danger); }
+.event-time { color: var(--ink-3); }
 .event-type {
   font-weight: 600;
-  color: var(--text-primary);
-  background: var(--bg-tertiary);
+  color: var(--ink);
+  background: var(--paper-sunk);
+  border: 1px solid var(--rule);
   padding: 0 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   text-align: center;
 }
-.event-text { color: var(--text-secondary); }
-.empty { padding: 40px 0; text-align: center; color: var(--text-muted); }
+.event-text { color: var(--ink-2); }
+.empty { padding: 40px 0; text-align: center; color: var(--ink-3); }
 
 @media (max-width: 768px) {
   .cards { grid-template-columns: repeat(2, 1fr); }

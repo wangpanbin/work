@@ -5,6 +5,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from './stores/user'
 import { useI18nStore } from './stores/i18n'
 import { elementPlusLocale } from './utils/elementPlusLocale'
+import BrandMark from './components/BrandMark.vue'
 import ChatWidget from './components/chat/ChatWidget.vue'
 
 // 模板里要直接调 $t — 在 <script setup> 下需要从 vue-i18n 拿一下。
@@ -89,6 +90,7 @@ function onMobileSelect(key: string | number) {
   <el-container class="app">
     <el-header class="app-header">
       <div class="brand" @click="router.push('/')">
+        <BrandMark :size="24" />
         <span class="brand-text">{{ $t('app.brand') }}</span>
         <span class="brand-tag">{{ $t('app.brandTag') }}</span>
       </div>
@@ -185,24 +187,20 @@ function onMobileSelect(key: string | number) {
   font-family: var(--font-display);
   font-size: 22px;
   font-weight: 700;
-  background: var(--gradient-gold);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--ink);
   letter-spacing: 2px;
-  filter: drop-shadow(0 0 12px rgba(245, 158, 11, 0.4));
-  transition: transform var(--transition-fast);
+  transition: color var(--transition-fast);
   white-space: nowrap;    /* 防止中文 brand 字面被按字换行 */
 }
 .brand:hover .brand-text {
-  transform: scale(1.03);
+  color: var(--accent);
 }
 .brand-tag {
   font-family: var(--font-display);
   font-size: 10px;
   letter-spacing: 3px;
-  color: var(--text-muted);
-  border: 1px solid var(--border-color);
+  color: var(--ink-3);
+  border: 1px solid var(--rule);
   padding: 2px 8px;
   border-radius: var(--radius-sm);
   text-transform: uppercase;
@@ -226,40 +224,44 @@ function onMobileSelect(key: string | number) {
 .desktop-only { display: flex; }
 .mobile-only  { display: none; }
 
+/* 移动端头像菜单按钮 —— 收编进墨色系
+   ⚠️ 原稿这里是靛蓝 rgba(99,102,241)/rgb(165,168,255)/rgb(199,201,255),
+      是全站第 4 个品牌色且 :root 里没有任何对应 token, 现已统一到墨色系。 */
 .avatar-btn {
-  background: rgba(245, 158, 11, 0.15);
-  border: 1px solid rgba(245, 158, 11, 0.4);
-  color: var(--accent-gold-light);
+  background: var(--paper-sunk);
+  border: 1px solid var(--rule);
+  color: var(--ink-2);
   width: 36px;
   height: 36px;
   padding: 0;
 }
 .avatar-btn:hover {
-  background: rgba(245, 158, 11, 0.25);
-  border-color: var(--accent-gold);
+  background: var(--paper);
+  border-color: var(--rule-strong);
+  color: var(--ink);
 }
 
 /* --- T9: 语言切换 chip 样式 ---
-   中性配色,避免与 chip-warning/danger/primary 重复 */
+   中性墨色,避免与 chip-warning/danger/primary 重复 */
 .chip-locale {
-  background: rgba(99, 102, 241, 0.12);
-  border: 1px solid rgba(99, 102, 241, 0.4);
-  color: rgb(165, 168, 255);
+  background: var(--paper-sunk);
+  border: 1px solid var(--rule);
+  color: var(--ink-2);
 }
 .chip-locale:hover {
-  background: rgba(99, 102, 241, 0.22);
-  border-color: rgba(99, 102, 241, 0.7);
-  color: rgb(199, 201, 255);
+  background: var(--paper);
+  border-color: var(--rule-strong);
+  color: var(--ink);
 }
 .dropdown-user {
   padding: 10px 16px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--rule);
+  background: var(--paper-sunk);
 }
 .dropdown-nick {
   font-size: 14px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--ink);
 }
 
 @media (max-width: 640px) {

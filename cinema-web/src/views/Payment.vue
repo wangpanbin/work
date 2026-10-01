@@ -168,14 +168,19 @@ function goSeat() {
   if (!order.value) return
   router.push(`/seat/${order.value.sessionId}`)
 }
+
+/**
+ * 票根存根上的装饰条码 —— 纯装饰, 不是可扫描的条码, 宽度写死只为"像票"。
+ * 真正的票根信息在上面的二维码弹窗里(那是可扫的)。
+ */
+const barcodeBars = [2, 1, 3, 1, 2, 1, 1, 3, 2, 1, 2, 3, 1, 2, 1, 3]
 </script>
 
 <template>
   <div v-if="order" class="payment">
-    <div class="payment-card">
+    <div class="payment-card stub-perf-x">
       <!-- Header -->
       <div class="payment-header">
-        <div class="header-icon">🎫</div>
         <div class="header-info">
           <h1 class="title">{{ order.movieTitle }}</h1>
           <div class="meta">{{ order.hallName }} · {{ dayjs(order.startTime).format('YYYY-MM-DD HH:mm') }}</div>
@@ -286,13 +291,24 @@ function goSeat() {
             v-else-if="action === 'viewTicket'"
             type="primary"
             @click="onShowTicket"
-          >🎟️ {{ t(BUTTON_BY_ACTION.viewTicket.labelKey) }}</el-button>
+          >{{ t(BUTTON_BY_ACTION.viewTicket.labelKey) }}</el-button>
           <el-button
             v-else-if="action === 'rebook'"
             type="primary"
             @click="goSeat"
           >{{ t(BUTTON_BY_ACTION.rebook.labelKey) }}</el-button>
         </template>
+      </div>
+
+      <!-- 票根存根: 齿孔撕口在卡片上缘(stub-perf-x), 这里放票号条 + 装饰条码 -->
+      <div class="payment-stub">
+        <div class="stub-no">
+          <span class="stub-no-label">{{ t('payment.orderNo') }}</span>
+          <span class="stub-no-value mono">{{ order.orderNo }}</span>
+        </div>
+        <div class="barcode" aria-hidden="true">
+          <i v-for="(w, i) in barcodeBars" :key="i" :style="{ width: w + 'px' }"></i>
+        </div>
       </div>
     </div>
 
@@ -349,22 +365,21 @@ function goSeat() {
 }
 
 .payment-card {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-xl);
-  padding: 32px;
-  box-shadow: var(--shadow-md);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  padding: 32px 32px 24px;
+  box-shadow: var(--shadow-paper);
+  position: relative;
 }
 
+/* 齿孔撕口由 main.css 的 .stub-perf-x 提供(卡片上缘的半圆缺口),
+   ⚠️ 不要在 .payment-card 上再写 ::before —— 同 specificity 下会覆盖掉
+      齿孔的 radial-gradient, 签名装置就消失了。分隔线画在 .payment-stub 上。 */
 .payment-header {
   display: flex;
   align-items: center;
   gap: 16px;
-}
-
-.header-icon {
-  font-size: 40px;
-  filter: drop-shadow(0 0 12px rgba(245, 158, 11, 0.3));
 }
 
 .header-info {
@@ -373,15 +388,19 @@ function goSeat() {
 }
 
 .title {
+  font-family: var(--font-display);
   font-size: 20px;
   font-weight: 700;
-  color: var(--text-primary);
+  color: var(--ink);
   margin-bottom: 4px;
 }
 
+/* 场次 = 票据数据 → 等宽 */
 .meta {
-  color: var(--text-muted);
+  color: var(--ink-3);
   font-size: 13px;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 /* --- Seat Section --- */
@@ -389,22 +408,24 @@ function goSeat() {
   margin-top: 24px;
 }
 
+/* 座位信息是票面主体, 做成淡印底 */
 .seat-desc {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 16px 20px;
-  background: rgba(245, 158, 11, 0.08);
-  border: 1px solid rgba(245, 158, 11, 0.2);
+  background: var(--accent-wash);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent);
   border-radius: var(--radius-md);
-  color: var(--accent-gold-light);
+  color: var(--ink);
   font-size: 16px;
   font-weight: 600;
 }
 
 .divider {
   height: 1px;
-  background: var(--border-subtle);
+  background: var(--rule);
   margin: 24px 0;
 }
 
@@ -422,24 +443,31 @@ function goSeat() {
 }
 
 .label {
-  color: var(--text-muted);
+  color: var(--ink-3);
   font-size: 14px;
 }
 
 .value {
-  color: var(--text-primary);
+  color: var(--ink);
   font-weight: 500;
 }
 
 .value.mono {
-  font-family: 'Consolas', 'Monaco', monospace;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 13px;
 }
 
+/* 倒计时告急: 原稿用 pulse-glow 金色辉光, 关键帧已随旧主题删除。
+   改用"颜色 + 透明度脉冲", 印刷风不发光。 */
 .value.urgent {
-  color: var(--accent-red);
+  color: var(--danger);
   font-weight: 700;
-  animation: pulse-glow 1.5s ease-in-out infinite;
+  animation: urgent-blink 1.5s ease-in-out infinite;
+}
+@keyframes urgent-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
 }
 
 /* --- Total --- */
@@ -450,7 +478,7 @@ function goSeat() {
 }
 
 .total-label {
-  color: var(--text-secondary);
+  color: var(--ink-2);
   font-size: 14px;
 }
 
@@ -460,16 +488,18 @@ function goSeat() {
 }
 
 .currency {
-  color: var(--accent-red);
+  color: var(--accent);
   font-size: 20px;
   font-weight: 600;
 }
 
+/* 应付金额 = 票面最重要的一行 → 等宽大号 */
 .amount {
-  font-family: var(--font-display);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 36px;
-  font-weight: 700;
-  color: var(--accent-red);
+  font-weight: 600;
+  color: var(--accent);
   line-height: 1;
 }
 
@@ -490,7 +520,7 @@ function goSeat() {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: var(--accent-gold-light);
+  color: var(--ok);
   font-size: 16px;
   font-weight: 600;
 }
@@ -499,8 +529,8 @@ function goSeat() {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: var(--gradient-gold);
-  color: var(--text-inverse);
+  background: var(--ok);
+  color: var(--ink-inverse);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -511,6 +541,53 @@ function goSeat() {
 .paid-buttons {
   display: flex;
   gap: 10px;
+}
+
+/* --- 票根存根（签名装置） --- */
+.payment-stub {
+  position: relative;
+  margin-top: 28px;
+  padding-top: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+/* 撕口下方的分隔线 */
+.payment-stub::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--rule);
+}
+.stub-no {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.stub-no-label {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--ink-3);
+}
+.stub-no-value {
+  font-size: 13px;
+  color: var(--ink-2);
+  word-break: break-all;
+}
+.barcode {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 26px;
+}
+.barcode i {
+  display: block;
+  background: var(--ink-3);
+  height: 100%;
 }
 
 /* --- 退款中 / 已退款 横幅 --- */
@@ -525,22 +602,23 @@ function goSeat() {
 }
 
 .status-banner.status-refunding {
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.3);
-  color: var(--accent-gold-light);
+  background: var(--accent-wash);
+  border: 1px solid var(--rule);
+  color: var(--accent);
 }
 
 .status-banner.status-refunded {
-  background: rgba(148, 163, 184, 0.08);
-  border: 1px solid var(--border-color);
-  color: var(--text-secondary);
+  background: var(--paper-sunk);
+  border: 1px solid var(--rule);
+  color: var(--ink-2);
 }
 
 .banner-icon {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: var(--bg-elevated);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -550,8 +628,8 @@ function goSeat() {
 .spinner {
   width: 18px;
   height: 18px;
-  border: 2px solid rgba(245, 158, 11, 0.3);
-  border-top-color: var(--accent-gold);
+  border: 2px solid var(--accent-wash);
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -571,36 +649,43 @@ function goSeat() {
   margin-bottom: 16px;
 }
 
+/* 电子票 = 一张小票根: 虚线框 + 撕口感 */
 .qr-stub {
   width: 100%;
   max-width: 320px;
-  border: 1px dashed var(--border-color);
+  border: 1px dashed var(--rule-strong);
   border-radius: var(--radius-md);
   padding: 18px;
-  background: var(--bg-tertiary);
+  background: var(--paper-raised);
   text-align: center;
 }
 
 .qr-stub-title {
+  font-family: var(--font-display);
   font-size: 18px;
   font-weight: 700;
-  color: var(--text-primary);
+  color: var(--ink);
   margin-bottom: 4px;
 }
 
 .qr-stub-meta {
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--ink-3);
+  font-family: var(--font-mono);
   margin-bottom: 6px;
 }
 
 .qr-stub-seats {
   font-size: 14px;
-  color: var(--accent-gold-light);
+  color: var(--accent);
   font-weight: 600;
+  font-family: var(--font-mono);
   margin-bottom: 14px;
 }
 
+/* ⚠️ 白底是扫码硬要求 —— 禁止改成纸色/浅色。
+   二维码的 dark/light 也写死在 script 的 QRCode.toDataURL 里
+   (dark:'#111827', light:'#ffffff'), 换肤时不要动。 */
 .qr-real {
   display: block;
   width: 220px;
@@ -608,62 +693,63 @@ function goSeat() {
   margin: 0 auto 14px;
   background: #fff;
   padding: 8px;
-  border-radius: 6px;
-  box-shadow: 0 0 0 1px var(--border-color);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 1px var(--rule);
 }
 
 .qr-stub-exp {
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--ink-3);
   margin-top: 4px;
 }
 
 .ticket-payload {
   font-size: 12px;
-  color: var(--text-secondary);
+  color: var(--ink-2);
 }
 
 .payload-row {
   display: flex;
   gap: 10px;
   padding: 6px 0;
-  border-bottom: 1px dashed var(--border-color);
+  border-bottom: 1px dashed var(--rule);
   align-items: flex-start;
 }
 
 .payload-label {
   flex: 0 0 70px;
-  color: var(--text-muted);
+  color: var(--ink-3);
   font-size: 12px;
 }
 
 .payload-value {
   flex: 1;
   word-break: break-all;
-  font-family: 'Consolas', 'Monaco', monospace;
+  font-family: var(--font-mono);
 }
 
 .payload-value.mono {
-  font-family: 'Consolas', 'Monaco', monospace;
+  font-family: var(--font-mono);
 }
 
 .payload-value.small {
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--ink-3);
 }
 
 .payload-hint {
   margin-top: 10px;
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--ink-3);
   line-height: 1.5;
 }
 
 .payload-hint code {
-  background: var(--bg-elevated);
+  background: var(--paper-sunk);
   padding: 1px 4px;
-  border-radius: 3px;
+  border-radius: 2px;
   font-size: 10px;
+  font-family: var(--font-mono);
 }
 
 @media (max-width: 480px) {

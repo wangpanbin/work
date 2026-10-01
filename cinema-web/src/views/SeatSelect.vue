@@ -106,9 +106,11 @@ async function onConfirm() {
         // P1-#6: 把被抢的座位转成"X排Y座"格式, 让用户一眼能定位
         const labels = conflict.map((idx) => {
           const { row, col } = seatStore.rowCol(idx)
-          return `${row}排${col}座`
+          return t('seat.rowColFormat', { row, col })
         })
-        const shown = labels.length > 4 ? `${labels.slice(0, 4).join('、')} 等 ${labels.length} 个` : labels.join('、')
+        const shown = labels.length > 4
+          ? labels.slice(0, 4).join(t('seat.listSeparator')) + ' ' + t('seat.conflictMore', { n: labels.length })
+          : labels.join(t('seat.listSeparator'))
         ElMessage.error(t('seat.errorConflict', { list: shown }))
       } else {
         // 兜底: 拿不到 conflict 列表时全量 refresh
@@ -167,55 +169,59 @@ function seatClick(idx: number) {
       </el-button>
     </div>
 
-    <!-- Screen -->
-    <div class="screen-wrapper">
-      <div class="screen">
-        <div class="screen-inner">{{ t('seat.screen') }}</div>
-        <div class="screen-reflection"></div>
+    <!-- 暗场票面: 放映厅平面图 (全站纸白, 唯独这里是一张深色票面)
+         银幕 + 座位网格 + 图例同处一个暗场, 饱和状态色在深底上最醒目,
+         5 种座位状态不会像纸面那样塌成一片灰。 -->
+    <div class="hall-panel">
+      <!-- Screen -->
+      <div class="screen-wrapper">
+        <div class="screen">
+          <div class="screen-inner">{{ t('seat.screen') }}</div>
+          <div class="screen-reflection"></div>
+        </div>
+        <div class="screen-stand"></div>
       </div>
-      <div class="screen-stand"></div>
-    </div>
 
-    <!-- Seats Grid (Phase D-⑬: 抽 SeatItem 子组件, 父级只传 :index)
-         行/列标签: 左侧行号 + 顶部列号, 统一挂在 seats-container 上设 --cols/--rows -->
-    <div class="seats-container" :style="{ '--cols': seatStore.map.cols, '--rows': seatStore.map.rows }">
-      <div class="seats-grid" v-if="seatStore.map.cols <= 16">
-        <!-- 列号表头: 占 1 格给左侧行号标签 -->
-        <div class="corner-spacer"></div>
-        <div v-for="c in seatStore.map.cols" :key="`c-${c}`" class="col-label">{{ c }}</div>
-        <!-- 每一行: 行号 + cols 个座位 -->
-        <template v-for="r in seatStore.map.rows" :key="`r-${r}`">
-          <div class="row-label">{{ r }}</div>
-          <template v-for="(_, idx) in seatStore.map.cols" :key="`c-${r}-${idx}`">
-            <SeatItem :index="(r - 1) * seatStore.map.cols + idx" />
+      <!-- Seats Grid (Phase D-⑬: 抽 SeatItem 子组件, 父级只传 :index)
+           行/列标签: 左侧行号 + 顶部列号, 统一挂在 seats-container 上设 --cols/--rows -->
+      <div class="seats-container" :style="{ '--cols': seatStore.map.cols, '--rows': seatStore.map.rows }">
+        <div class="seats-grid" v-if="seatStore.map.cols <= 16">
+          <!-- 列号表头: 占 1 格给左侧行号标签 -->
+          <div class="corner-spacer"></div>
+          <div v-for="c in seatStore.map.cols" :key="`c-${c}`" class="col-label">{{ c }}</div>
+          <!-- 每一行: 行号 + cols 个座位 -->
+          <template v-for="r in seatStore.map.rows" :key="`r-${r}`">
+            <div class="row-label">{{ r }}</div>
+            <template v-for="(_, idx) in seatStore.map.cols" :key="`c-${r}-${idx}`">
+              <SeatItem :index="(r - 1) * seatStore.map.cols + idx" />
+            </template>
           </template>
-        </template>
-      </div>
-      <!-- 超过 16 列: 退化为横向单行, 不显示行列标签 (大影厅) -->
-      <div v-else>
-        <!-- P2-#13: 大影厅布局丢了行列标签, 加个 hint 给用户交代 -->
-        <div class="seats-hint">
-          💡 {{ t('seat.largeHallHint', { rows: seatStore.map.rows, cols: seatStore.map.cols }) }}
         </div>
-        <div class="seats" :style="{ '--cols': seatStore.map.cols }">
-          <SeatItem v-for="i in seatStore.map.seatCount" :key="i - 1" :index="i - 1" />
+        <!-- 超过 16 列: 退化为横向单行, 不显示行列标签 (大影厅) -->
+        <div v-else>
+          <!-- P2-#13: 大影厅布局丢了行列标签, 加个 hint 给用户交代 -->
+          <div class="seats-hint">
+            💡 {{ t('seat.largeHallHint', { rows: seatStore.map.rows, cols: seatStore.map.cols }) }}
+          </div>
+          <div class="seats" :style="{ '--cols': seatStore.map.cols }">
+            <SeatItem v-for="i in seatStore.map.seatCount" :key="i - 1" :index="i - 1" />
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- Legend -->
-    <div class="legend">
-      <div class="item"><span class="dot available" />{{ t('seat.legendAvailable') }}</div>
-      <div class="item"><span class="dot selected" />{{ t('seat.legendSelected') }}</div>
-      <div class="item"><span class="dot mine" />{{ t('seat.legendMine') }}</div>
-      <div class="item"><span class="dot locked" />{{ t('seat.legendLocked') }}</div>
-      <div class="item"><span class="dot sold" />{{ t('seat.legendSold') }}</div>
+      <!-- Legend: 与座位共用同一组 CSS 变量, 改一处两边同时生效 -->
+      <div class="legend">
+        <div class="item"><span class="dot available" />{{ t('seat.legendAvailable') }}</div>
+        <div class="item"><span class="dot selected" />{{ t('seat.legendSelected') }}</div>
+        <div class="item"><span class="dot mine" />{{ t('seat.legendMine') }}</div>
+        <div class="item"><span class="dot locked" />{{ t('seat.legendLocked') }}</div>
+        <div class="item"><span class="dot sold" />{{ t('seat.legendSold') }}</div>
+      </div>
     </div>
 
     <!-- Summary Card -->
     <div class="summary">
       <div class="summary-item">
-        <div class="summary-icon">🎯</div>
         <div class="summary-content">
           <div class="summary-value">{{ seatStore.selected.size }} / {{ seatStore.maxSelect }}</div>
           <div class="summary-label">{{ t('seat.selectedCount') }}</div>
@@ -223,7 +229,6 @@ function seatClick(idx: number) {
       </div>
       <div class="summary-divider"></div>
       <div class="summary-item">
-        <div class="summary-icon">⏰</div>
         <div class="summary-content">
           <div class="summary-value">{{ Math.floor(remainingSeconds / 3600) }}h {{ Math.floor((remainingSeconds % 3600) / 60) }}m</div>
           <div class="summary-label">{{ t('seat.countdown') }}</div>
@@ -231,7 +236,6 @@ function seatClick(idx: number) {
       </div>
       <div class="summary-divider"></div>
       <div class="summary-item highlight">
-        <div class="summary-icon">💰</div>
         <div class="summary-content">
           <div class="summary-value price">￥{{ totalPrice }}</div>
           <div class="summary-label">{{ t('seat.totalAmount') }}</div>
@@ -258,15 +262,17 @@ function seatClick(idx: number) {
   justify-content: space-between;
   align-items: center;
   padding: 20px 28px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-paper);
 }
 
 .title {
   font-size: 20px;
   font-weight: 700;
-  color: var(--text-primary);
+  font-family: var(--font-display);
+  color: var(--ink);
   margin-bottom: 8px;
 }
 
@@ -278,16 +284,23 @@ function seatClick(idx: number) {
 }
 
 .meta-item {
-  color: var(--text-muted);
+  color: var(--ink-3);
   font-size: 13px;
 }
 
 .meta-sep {
-  color: var(--border-color);
+  color: var(--rule-strong);
+}
+
+/* 场次时间 = 票据数据, 走等宽 */
+.meta-item.is-time {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
 }
 
 .price-tag {
-  color: var(--accent-gold);
+  color: var(--accent);
   font-weight: 600;
 }
 
@@ -295,60 +308,73 @@ function seatClick(idx: number) {
   flex-shrink: 0;
 }
 
+/* ============================================
+   暗场票面: 放映厅平面图
+   全站纸白, 唯独这张票面是深色的。要点是"框得住" ——
+   发丝线边框 + 圆角 + 1px 阴影把它明确框成一张票,
+   否则深色块在浅色页里会像嵌错了地方。
+   ============================================ */
+.hall-panel {
+  background: var(--hall);
+  border: 1px solid var(--hall-rule);
+  border-radius: 6px;
+  box-shadow: var(--shadow-hall);
+  padding: 20px 24px 8px;
+  color: var(--hall-ink);
+}
+
 /* --- Screen --- */
 .screen-wrapper {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin: 8px 0 4px;
+  margin: 4px 0 8px;
 }
 
+/* 银幕: 暗场内的浅色弧形, 不再用金渐变 + 40px 辉光 */
 .screen {
   position: relative;
   width: 70%;
   min-width: 280px;
-  height: 36px;
+  height: 30px;
   border-radius: 50% 50% 0 0 / 100% 100% 0 0;
-  background: linear-gradient(180deg, var(--accent-gold) 0%, rgba(245, 158, 11, 0.3) 100%);
+  background: rgba(232, 224, 210, 0.07);
+  border: 1px solid var(--hall-rule);
+  border-bottom: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 40px rgba(245, 158, 11, 0.2);
 }
 
 .screen-inner {
   font-family: var(--font-display);
-  font-size: 14px;
+  font-size: 12px;
   letter-spacing: 8px;
-  color: var(--bg-primary);
-  font-weight: 700;
+  color: var(--hall-ink-2);
+  font-weight: 500;
 }
 
+/* 倒影: 淡到几乎看不见, 只留一点点"银幕在发光"的暗示 */
 .screen-reflection {
   position: absolute;
-  bottom: -20px;
+  bottom: -14px;
   left: 50%;
   transform: translateX(-50%);
-  width: 60%;
-  height: 20px;
-  background: linear-gradient(180deg, rgba(245, 158, 11, 0.15), transparent);
+  width: 50%;
+  height: 14px;
+  background: linear-gradient(180deg, rgba(232, 224, 210, 0.07), transparent);
   border-radius: 50%;
-  filter: blur(8px);
 }
 
 .screen-stand {
   width: 4px;
-  height: 16px;
-  background: var(--border-color);
-  margin-top: 4px;
+  height: 12px;
+  background: var(--hall-rule);
+  margin-top: 6px;
 }
 
 /* --- Seats Container --- */
 .seats-container {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  padding: 24px;
   overflow-x: auto;
 }
 
@@ -365,16 +391,17 @@ function seatClick(idx: number) {
 .col-label {
   text-align: center;
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--hall-ink-2);
   font-weight: 500;
   user-select: none;
   height: 16px;
   line-height: 16px;
+  font-family: var(--font-mono);
 }
 .row-label {
   text-align: center;
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--hall-ink-2);
   font-weight: 500;
   user-select: none;
   display: flex;
@@ -382,6 +409,7 @@ function seatClick(idx: number) {
   justify-content: center;
   /* 行高与座位高一致 (座位 aspect-ratio: 1 + 字号 + padding 估算 ~38-44px) */
   height: 38px;
+  font-family: var(--font-mono);
 }
 
 /* 大影厅退化为单行网格 */
@@ -395,12 +423,36 @@ function seatClick(idx: number) {
 .seats-hint {
   text-align: center;
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--hall-ink-2);
   margin-bottom: 12px;
   padding: 6px 12px;
-  background: rgba(245, 158, 11, 0.06);
+  background: rgba(232, 224, 210, 0.04);
   border-radius: var(--radius-sm);
-  border: 1px dashed rgba(245, 158, 11, 0.2);
+  border: 1px dashed var(--hall-rule);
+}
+
+/* ============================================
+   座位 5 态 —— 颜色 + 非颜色 双重区分
+   验收硬要求: 截图转灰度后 5 态仍必须可分辨。
+   非颜色通道 = 描边粗细(已选) / 虚线(他人锁) / 45°斜纹(已售) /
+                左侧亮条(我锁的) / 常规实心(可选)
+   ⚠️ 图例 .legend .dot.* 与 .seat.* 共用下面这组 seat-* 变量,
+      不要在图例里另写一套色值(原稿就是这么写的, 改座位忘改图例)。
+   ============================================ */
+.seat-select {
+  --seat-avail-bg: #2e2a22;
+  --seat-avail-border: var(--hall-rule);
+  --seat-avail-ink: var(--hall-ink-2);
+  --seat-sel-bg: var(--accent);
+  --seat-sel-border: var(--accent-press);
+  --seat-mine-bg: #2f6b4f;
+  --seat-mine-border: #245239;
+  --seat-mine-ink: #dcece2;
+  --seat-locked-border: #4a4237;
+  --seat-locked-ink: #6b6152;
+  --seat-sold-bg: #211d18;
+  --seat-sold-border: #2f2a22;
+  --seat-sold-ink: #3d372e;
 }
 
 .seat {
@@ -409,13 +461,15 @@ function seatClick(idx: number) {
   align-items: center;
   justify-content: center;
   font-size: 11px;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
+  font-family: var(--font-mono);
+  background: var(--seat-avail-bg);
+  border: 1px solid var(--seat-avail-border);
   border-radius: 4px 4px 8px 8px;
   cursor: pointer;
   user-select: none;
-  transition: all var(--transition-fast);
-  color: var(--text-muted);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast),
+    color var(--transition-fast);
+  color: var(--seat-avail-ink);
   position: relative;
   min-width: 28px;
   min-height: 38px;
@@ -423,43 +477,62 @@ function seatClick(idx: number) {
   touch-action: manipulation;
 }
 
+/* 印刷风不做悬浮位移, 只提亮边框 + 文字 */
 .seat:hover:not(.locked_other):not(.sold) {
-  transform: translateY(-2px);
-  border-color: var(--accent-gold);
-  color: var(--text-primary);
+  border-color: var(--accent);
+  color: var(--hall-ink);
 }
 
 .seat.available {
-  background: var(--bg-tertiary);
-  color: var(--text-muted);
+  background: var(--seat-avail-bg);
+  color: var(--seat-avail-ink);
+  border-color: var(--seat-avail-border);
 }
 
+/* 已选: 实心朱红 + 2px 粗描边 (粗细是非颜色通道) */
 .seat.selected {
-  background: var(--gradient-gold);
-  border-color: var(--accent-gold);
-  color: var(--text-inverse);
-  box-shadow: 0 0 12px rgba(245, 158, 11, 0.5);
+  background: var(--seat-sel-bg);
+  border: 2px solid var(--seat-sel-border);
+  color: var(--ink-inverse);
+  font-weight: 600;
 }
 
+/* 我锁的: 实心墨绿 + 左侧 2px 亮条 */
 .seat.mine {
-  background: linear-gradient(135deg, #10b981, #059669);
-  border-color: #10b981;
-  color: #fff;
+  background: var(--seat-mine-bg);
+  border-color: var(--seat-mine-border);
+  color: var(--seat-mine-ink);
+}
+.seat.mine::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 3px;
+  bottom: 3px;
+  width: 2px;
+  background: #7fc4a0;
+  border-radius: 1px;
 }
 
+/* 他人锁: 虚线描边 + 透明底, 不再靠 opacity 压暗 */
 .seat.locked_other {
-  background: var(--bg-elevated);
-  color: var(--text-muted);
-  border-color: var(--border-color);
+  background: transparent;
+  color: var(--seat-locked-ink);
+  border: 1px dashed var(--seat-locked-border);
   cursor: not-allowed;
-  opacity: 0.5;
 }
 
+/* 已售: 45° 斜纹 + 极低对比文字 */
 .seat.sold {
-  background: #374151;
-  color: #4b5563;
+  background-color: var(--seat-sold-bg);
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent 0 3px,
+    rgba(232, 224, 210, 0.06) 3px 4px
+  );
+  color: var(--seat-sold-ink);
   cursor: not-allowed;
-  border-color: #4b5563;
+  border-color: var(--seat-sold-border);
 }
 
 /* --- Legend --- */
@@ -468,7 +541,9 @@ function seatClick(idx: number) {
   justify-content: center;
   gap: 20px;
   flex-wrap: wrap;
-  padding: 8px 0;
+  padding: 12px 0 8px;
+  margin-top: 8px;
+  border-top: 1px solid var(--hall-rule);
 }
 
 .legend .item {
@@ -476,21 +551,52 @@ function seatClick(idx: number) {
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: var(--text-secondary);
+  color: var(--hall-ink-2);
 }
 
 .legend .dot {
   width: 18px;
   height: 18px;
   border-radius: 4px 4px 6px 6px;
-  border: 1px solid var(--border-color);
+  flex-shrink: 0;
 }
 
-.legend .dot.available { background: var(--bg-tertiary); }
-.legend .dot.selected { background: var(--gradient-gold); border-color: var(--accent-gold); }
-.legend .dot.mine { background: linear-gradient(135deg, #10b981, #059669); border-color: #10b981; }
-.legend .dot.locked { background: var(--bg-elevated); opacity: 0.5; }
-.legend .dot.sold { background: #374151; border-color: #4b5563; }
+/* 图例与座位引用同一组变量, 非颜色通道也同步 */
+.legend .dot.available {
+  background: var(--seat-avail-bg);
+  border: 1px solid var(--seat-avail-border);
+}
+.legend .dot.selected {
+  background: var(--seat-sel-bg);
+  border: 2px solid var(--seat-sel-border);
+}
+.legend .dot.mine {
+  background: var(--seat-mine-bg);
+  border: 1px solid var(--seat-mine-border);
+  position: relative;
+}
+.legend .dot.mine::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 3px;
+  bottom: 3px;
+  width: 2px;
+  background: #7fc4a0;
+}
+.legend .dot.locked {
+  background: transparent;
+  border: 1px dashed var(--seat-locked-border);
+}
+.legend .dot.sold {
+  background-color: var(--seat-sold-bg);
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent 0 3px,
+    rgba(232, 224, 210, 0.06) 3px 4px
+  );
+  border: 1px solid var(--seat-sold-border);
+}
 
 /* --- Summary Card --- */
 .summary {
@@ -498,9 +604,10 @@ function seatClick(idx: number) {
   align-items: center;
   gap: 24px;
   padding: 20px 28px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-paper);
   flex-wrap: wrap;
 }
 
@@ -514,31 +621,30 @@ function seatClick(idx: number) {
   flex: 1;
 }
 
-.summary-icon {
-  font-size: 24px;
-}
-
+/* 计数 / 倒计时 / 金额都是票据数据 → 等宽 */
 .summary-value {
   font-size: 16px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .summary-label {
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--ink-3);
 }
 
 .summary-value.price {
-  font-family: var(--font-display);
+  font-family: var(--font-mono);
   font-size: 28px;
-  color: var(--accent-red);
+  color: var(--accent);
 }
 
 .summary-divider {
   width: 1px;
   height: 32px;
-  background: var(--border-color);
+  background: var(--rule);
 }
 
 .confirm-btn {
@@ -553,8 +659,9 @@ function seatClick(idx: number) {
     align-items: flex-start;
     gap: 12px;
   }
-  .seats-container {
-    padding: 16px;
+  /* 暗场票面的内边距随屏幕收窄 */
+  .hall-panel {
+    padding: 16px 14px 4px;
   }
   /* P2-#14: 移动端座位字号从 10px → 13px, 配合更大的最小尺寸, 触摸更准 */
   .seat {
@@ -610,36 +717,36 @@ function seatClick(idx: number) {
   flex-shrink: 0;
 }
 .ws-status.ws-open {
-  background: rgba(16, 185, 129, 0.08);
-  border-color: rgba(16, 185, 129, 0.3);
-  color: #10b981;
+  background: rgba(47, 107, 79, 0.08);
+  border-color: rgba(47, 107, 79, 0.3);
+  color: var(--ok);
 }
 .ws-status.ws-open .ws-dot {
-  background: #10b981;
-  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+  background: var(--ok);
+  box-shadow: 0 0 0 0 rgba(47, 107, 79, 0.5);
   animation: ws-pulse 2s ease-in-out infinite;
 }
 .ws-status.ws-connecting {
-  background: rgba(245, 158, 11, 0.08);
-  border-color: rgba(245, 158, 11, 0.3);
-  color: var(--accent-gold-light);
+  background: rgba(138, 109, 31, 0.08);
+  border-color: rgba(138, 109, 31, 0.3);
+  color: var(--warn);
 }
 .ws-status.ws-connecting .ws-dot {
-  background: var(--accent-gold);
+  background: var(--warn);
   animation: ws-blink 1s ease-in-out infinite;
 }
 .ws-status.ws-closed {
-  background: rgba(239, 68, 68, 0.08);
-  border-color: rgba(239, 68, 68, 0.3);
-  color: #fca5a5;
+  background: rgba(161, 39, 28, 0.08);
+  border-color: rgba(161, 39, 28, 0.3);
+  color: var(--danger);
 }
 .ws-status.ws-closed .ws-dot {
-  background: #ef4444;
+  background: var(--danger);
   animation: ws-blink 0.6s ease-in-out infinite;
 }
 @keyframes ws-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); }
-  50% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(47, 107, 79, 0.5); }
+  50% { box-shadow: 0 0 0 6px rgba(47, 107, 79, 0); }
 }
 @keyframes ws-blink {
   0%, 100% { opacity: 1; }
@@ -656,7 +763,7 @@ function seatClick(idx: number) {
   content: '';
   position: absolute;
   inset: -4px;
-  border: 2px solid #ef4444;
+  border: 2px solid var(--danger);
   border-radius: 6px 6px 10px 10px;
   pointer-events: none;
   animation: seat-conflict-ring 0.4s ease-in-out 4;
@@ -666,7 +773,7 @@ function seatClick(idx: number) {
   50% { transform: scale(1.18); }
 }
 @keyframes seat-conflict-ring {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
-  50% { opacity: 0.5; box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(161, 39, 28, 0.55); }
+  50% { opacity: 0.5; box-shadow: 0 0 0 6px rgba(161, 39, 28, 0); }
 }
 </style>

@@ -176,19 +176,19 @@ onMounted(async () => {
 /* --- Hero Section --- */
 .detail-hero {
   position: relative;
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-lg);
   overflow: hidden;
   margin-bottom: 40px;
-  background: var(--gradient-hero);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
   padding: 48px;
 }
 
+/* 原稿是两层 gold/purple radial 光斑, 纸面风删掉 —— 换成一道极淡的印章叠印 */
 .hero-bg {
   position: absolute;
   inset: 0;
-  background-image:
-    radial-gradient(circle at 30% 70%, rgba(245, 158, 11, 0.18) 0%, transparent 50%),
-    radial-gradient(circle at 70% 30%, rgba(168, 85, 247, 0.12) 0%, transparent 50%);
+  background: var(--accent-stamp);
 }
 
 .movie-head {
@@ -204,23 +204,19 @@ onMounted(async () => {
   flex-shrink: 0;
 }
 
+/* 原稿是金色渐变 + blur(24px) 的辉光底, 纸面风删掉 */
 .poster-glow {
-  position: absolute;
-  inset: -10px;
-  background: var(--gradient-gold);
-  border-radius: var(--radius-lg);
-  filter: blur(24px);
-  opacity: 0.3;
-  z-index: -1;
+  display: none;
 }
 
 .poster {
   width: 240px;
   height: 340px;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   overflow: hidden;
-  background: var(--bg-tertiary);
-  box-shadow: var(--shadow-lg);
+  background: var(--paper-sunk);
+  border: 1px solid var(--rule);
+  box-shadow: var(--shadow-paper);
 }
 
 .poster img {
@@ -229,6 +225,7 @@ onMounted(async () => {
   object-fit: cover;
 }
 
+/* 海报兜底: 原稿是紫蓝渐变, 与新色板无任何关系, 改纯纸面 + 墨字 */
 .poster-fallback {
   width: 100%;
   height: 100%;
@@ -238,10 +235,11 @@ onMounted(async () => {
   font-family: var(--font-display);
   font-size: 22px;
   font-weight: 700;
-  color: var(--text-primary);
+  color: var(--ink-2);
   text-align: center;
   padding: 20px;
-  background: linear-gradient(135deg, #1e1b4b 0%, #4c1d95 100%);
+  background: var(--paper-sunk);
+  border: 1px dashed var(--rule-strong);
 }
 
 .info {
@@ -254,30 +252,31 @@ onMounted(async () => {
   font-family: var(--font-display);
   font-size: 10px;
   letter-spacing: 4px;
-  color: var(--accent-gold);
-  border: 1px solid var(--accent-gold);
+  color: var(--accent);
+  border: 1px solid var(--accent);
   padding: 4px 12px;
-  border-radius: 16px;
+  border-radius: var(--radius-sm);
   margin-bottom: 16px;
 }
 
+/* 原稿是 --accent-cyan 青, 票根色板里没有青 —— 改中性墨色区分"即将上映" */
 .info-badge.coming-soon {
-  color: var(--accent-cyan);
-  border-color: var(--accent-cyan);
+  color: var(--ink-2);
+  border-color: var(--rule-strong);
 }
 
 .movie-title {
   font-family: var(--font-display);
   font-size: 36px;
   font-weight: 700;
-  color: var(--text-primary);
+  color: var(--ink);
   letter-spacing: 2px;
   margin-bottom: 16px;
   line-height: 1.2;
 }
 
 .desc {
-  color: var(--text-secondary);
+  color: var(--ink-2);
   line-height: 1.8;
   margin-bottom: 20px;
   font-size: 15px;
@@ -294,11 +293,11 @@ onMounted(async () => {
   align-items: center;
   gap: 6px;
   padding: 6px 14px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--border-subtle);
-  border-radius: 20px;
+  background: var(--paper-sunk);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
   font-size: 13px;
-  color: var(--text-secondary);
+  color: var(--ink-2);
 }
 
 /* --- Sessions Section --- */
@@ -335,18 +334,18 @@ onMounted(async () => {
   align-items: center;
   gap: 28px;
   padding: 20px 28px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-paper);
   cursor: pointer;
-  transition: all var(--transition-normal);
+  transition: border-color var(--transition-normal);
   animation: fadeInUp 0.4s ease both;
 }
 
+/* 印刷风不做位移, 只提亮边框 */
 .session-card:hover {
-  border-color: rgba(245, 158, 11, 0.4);
-  transform: translateX(4px);
-  box-shadow: var(--shadow-md);
+  border-color: var(--rule-strong);
 }
 
 .session-time {
@@ -354,17 +353,21 @@ onMounted(async () => {
   min-width: 80px;
 }
 
+/* 开场时间是票据数据 → 等宽 */
 .start-time {
-  font-family: var(--font-display);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 28px;
-  font-weight: 700;
-  color: var(--accent-gold);
+  font-weight: 600;
+  color: var(--ink);
   line-height: 1;
 }
 
 .end-time {
-  color: var(--text-muted);
+  color: var(--ink-3);
   font-size: 13px;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   margin-top: 6px;
 }
 
@@ -375,12 +378,12 @@ onMounted(async () => {
 .hall-name {
   font-size: 16px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--ink);
   margin-bottom: 4px;
 }
 
 .cinema-name {
-  color: var(--text-muted);
+  color: var(--ink-3);
   font-size: 13px;
 }
 
@@ -392,16 +395,18 @@ onMounted(async () => {
 }
 
 .price-symbol {
-  color: var(--accent-red);
+  color: var(--accent);
   font-size: 16px;
   font-weight: 600;
 }
 
+/* 票价 = 票据数据 → 等宽 */
 .price-value {
-  font-family: var(--font-display);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 26px;
-  font-weight: 700;
-  color: var(--accent-red);
+  font-weight: 600;
+  color: var(--accent);
 }
 
 .buy-btn {

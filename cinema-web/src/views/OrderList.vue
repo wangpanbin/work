@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import dayjs from 'dayjs'
 import { myOrders, cancel, refund } from '../api/order'
 import type { OrderVO } from '../api/order'
+import BrandMark from '../components/BrandMark.vue'
 import {
   ORDER_STATUS_CODES,
   ORDER_STATUS_FILTERS,
@@ -147,12 +148,12 @@ onMounted(() => {
       <div
         v-for="(o, idx) in orders"
         :key="o.orderNo"
-        class="order-card"
+        class="order-card stub-perf-x"
         :class="'status-' + o.status"
         :style="{ animationDelay: `${idx * 0.06}s` }"
       >
         <div class="order-main">
-          <div class="order-icon">🎬</div>
+          <div class="order-icon"><BrandMark :size="24" /></div>
           <div class="order-info">
             <h3 class="movie-title">
               <span v-if="viewOf(o.status).pulse" class="dot-pulse" :title="t('order.pulseTitle')"></span>
@@ -181,6 +182,11 @@ onMounted(() => {
               </svg>
             </span>
             <span class="created-at">{{ dayjs(o.createdAt).format('YYYY-MM-DD HH:mm') }}</span>
+          </div>
+          <!-- 票号条: 票根主题的签名装置, 等宽排印 -->
+          <div class="stub-no">
+            <span class="stub-no-label">{{ t('payment.orderNo') }}</span>
+            <span class="stub-no-value">{{ o.orderNo }}</span>
           </div>
           <div class="footer-middle">
             <span class="amount-label">{{ o.status === 4 ? t('order.amountRefunded') : t('order.amountTotal') }}</span>
@@ -261,53 +267,55 @@ onMounted(() => {
 .orders-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
+/* 订单卡 = 一张票根: 上缘齿孔(主.css 的 .stub-perf-x)+ 底部票号条 */
 .order-card {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
+  position: relative;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
   overflow: hidden;
-  transition: all var(--transition-normal);
+  box-shadow: var(--shadow-paper);
+  transition: border-color var(--transition-normal);
   animation: fadeInUp 0.4s ease both;
 }
 
+/* 印刷风不做悬浮位移, 只提亮边框 */
 .order-card:hover {
-  border-color: rgba(245, 158, 11, 0.3);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+  border-color: var(--rule-strong);
 }
 
 .order-card.status-2 {
-  opacity: 0.7;
+  opacity: 0.75;
 }
 
-/* 待支付订单: 左侧金边 + 标题前红点脉冲, 提醒用户及时支付 */
+/* 待支付订单: 左侧印色边 + 标题前红点脉冲, 提醒用户及时支付 */
 .order-card.status-0 {
-  border-left: 3px solid var(--accent-gold);
+  border-left: 3px solid var(--accent);
 }
 .dot-pulse {
   display: inline-block;
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--accent-red);
+  background: var(--danger);
   margin-right: 8px;
   vertical-align: middle;
   animation: pulse-red-dot 1.5s ease-in-out infinite;
 }
 @keyframes pulse-red-dot {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
-  50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(161, 39, 28, 0.5); }
+  50% { box-shadow: 0 0 0 8px rgba(161, 39, 28, 0); }
 }
 
 .order-main {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 20px 24px;
-  border-bottom: 1px solid var(--border-subtle);
+  padding: 24px 24px 20px;
+  border-bottom: 1px dashed var(--rule);
 }
 
 .order-icon {
@@ -317,7 +325,8 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(245, 158, 11, 0.1);
+  background: var(--paper-sunk);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-md);
   flex-shrink: 0;
 }
@@ -328,9 +337,10 @@ onMounted(() => {
 }
 
 .movie-title {
+  font-family: var(--font-display);
   font-size: 16px;
-  font-weight: 600;
-  color: var(--text-primary);
+  font-weight: 700;
+  color: var(--ink);
   margin-bottom: 6px;
 }
 
@@ -338,13 +348,15 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: var(--text-muted);
+  color: var(--ink-3);
   font-size: 13px;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   flex-wrap: wrap;
 }
 
 .order-meta .sep {
-  color: var(--border-color);
+  color: var(--rule-strong);
 }
 
 .order-status {
@@ -357,20 +369,43 @@ onMounted(() => {
   align-items: center;
   gap: 20px;
   padding: 16px 24px;
-  background: var(--bg-elevated);
+  background: var(--paper);
 }
 
 .footer-left {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: var(--text-muted);
+  color: var(--ink-3);
   font-size: 12px;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 票号条: 与落款同排, 等宽排印 —— 票根上"票号"永远在角落 */
+.stub-no {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  background: var(--paper-raised);
+}
+.stub-no-label {
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--ink-3);
+}
+.stub-no-value {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-2);
 }
 
 .time-icon {
   display: flex;
-  color: var(--text-muted);
+  color: var(--ink-3);
 }
 
 .footer-middle {
@@ -381,15 +416,17 @@ onMounted(() => {
 }
 
 .amount-label {
-  color: var(--text-muted);
+  color: var(--ink-3);
   font-size: 13px;
 }
 
+/* 金额 = 票面数据 → 等宽 */
 .amount-value {
-  font-family: var(--font-display);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 22px;
-  font-weight: 700;
-  color: var(--accent-red);
+  font-weight: 600;
+  color: var(--accent);
 }
 
 .amount-value .currency {

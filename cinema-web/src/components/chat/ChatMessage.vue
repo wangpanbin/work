@@ -72,19 +72,19 @@ const renderedReply = computed(() => renderMarkdown(props.response?.reply))
 }
 .chat-msg-bubble {
   padding: 8px 12px;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   font-size: 14px;
   line-height: 1.5;
   word-break: break-word;
   white-space: pre-wrap;
 }
 .user-bubble {
-  background: var(--accent-gold, #f59e0b);
-  color: #1a1a1a;
+  background: var(--accent);
+  color: var(--ink-inverse);
 }
 .assistant-bubble {
-  background: var(--bg-tertiary, #f5f5f5);
-  color: var(--text-primary, #333);
+  background: var(--paper-sunk);
+  color: var(--ink);
 }
 
 /* ---------- P2-2 Markdown 渲染样式 ---------- */
@@ -109,13 +109,14 @@ const renderedReply = computed(() => renderMarkdown(props.response?.reply))
 }
 .chat-md :deep(th),
 .chat-md :deep(td) {
-  border: 1px solid var(--border-color, #e5e5e5);
+  border: 1px solid var(--rule);
   padding: 4px 8px;
   text-align: left;
   white-space: nowrap;
 }
 .chat-md :deep(th) {
-  background: rgba(245, 158, 11, 0.12);
+  background: var(--accent-wash);
+  color: var(--ink);
   font-weight: 600;
 }
 .chat-md :deep(ul),
@@ -127,15 +128,15 @@ const renderedReply = computed(() => renderMarkdown(props.response?.reply))
   margin: 2px 0;
 }
 .chat-md :deep(code) {
-  background: rgba(0, 0, 0, 0.06);
-  border-radius: 4px;
+  background: var(--paper-sunk);
+  border-radius: var(--radius-sm);
   padding: 1px 4px;
   font-size: 12px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
 }
 .chat-md :deep(pre) {
-  background: rgba(0, 0, 0, 0.06);
-  border-radius: 6px;
+  background: var(--paper-sunk);
+  border-radius: var(--radius-md);
   padding: 8px;
   margin: 6px 0;
   overflow-x: auto;
@@ -148,8 +149,8 @@ const renderedReply = computed(() => renderMarkdown(props.response?.reply))
 .chat-md :deep(blockquote) {
   margin: 6px 0;
   padding-left: 8px;
-  border-left: 3px solid var(--border-color, #e5e5e5);
-  color: var(--text-muted, #999);
+  border-left: 3px solid var(--rule-strong);
+  color: var(--ink-3);
 }
 .chat-md :deep(h1),
 .chat-md :deep(h2),
@@ -158,17 +159,21 @@ const renderedReply = computed(() => renderMarkdown(props.response?.reply))
 .chat-md :deep(h5),
 .chat-md :deep(h6) {
   margin: 8px 0 4px;
+  font-family: var(--font-display);
   font-size: 14px;
   font-weight: 600;
 }
 .chat-md :deep(hr) {
   border: none;
-  border-top: 1px solid var(--border-color, #e5e5e5);
+  border-top: 1px solid var(--rule);
   margin: 8px 0;
 }
+/* 时间戳: 等宽, 便于纵向对齐 */
 .chat-msg-meta {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 11px;
-  color: var(--text-muted, #999);
+  color: var(--ink-3);
   margin-top: 2px;
 }
 .chat-msg-cards {
@@ -181,11 +186,11 @@ const renderedReply = computed(() => renderMarkdown(props.response?.reply))
   margin-top: 8px;
 }
 .chat-followup-chip {
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.3);
+  background: var(--accent-wash);
+  border: 1px solid var(--rule-strong);
   border-radius: 16px;
   padding: 4px 10px;
   font-size: 12px;
-  color: var(--accent-gold, #f59e0b);
+  color: var(--accent);
 }
 </style>

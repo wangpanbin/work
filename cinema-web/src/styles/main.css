@@ -1,76 +1,132 @@
 /* ============================================
-   星辉影城 - Cinema Noir 深色主题
-   全局设计 Token 与基础样式
+   星辉影城 · 票根 Ticket Stub 浅色主题
+   暖米纸底 / 墨黑字 / 票根朱红单一印色 / 发丝线印刷质感
+   签名装置: 存根联齿孔撕口 + 等宽票号 + 暗场座位票面
    ============================================ */
 
-/* --- CSS 自定义属性 (Design Tokens) --- */
+/* --- 设计 Token: 纸面 --- */
 :root {
-  /* 背景层级 */
-  --bg-primary: #0a0f1c;
-  --bg-secondary: #111827;
-  --bg-tertiary: #1f2937;
-  --bg-elevated: #1a2235;
+  color-scheme: light;
 
-  /* 强调色 */
-  --accent-gold: #f59e0b;
-  --accent-gold-light: #fbbf24;
-  --accent-gold-dark: #d97706;
-  --accent-red: #ef4444;
-  --accent-red-light: #f87171;
-  --accent-cyan: #06b6d4;
-  --accent-purple: #a855f7;
+  --paper: #f2ece1; /* 页面底 */
+  --paper-raised: #faf7f0; /* 卡片 / 票面 (比底更亮 = 浮起) */
+  --paper-sunk: #e7ddcb; /* 凹陷面 / 表头 / 表格底 */
+  --rule: #d6c9b3; /* 1px 发丝线 */
+  --rule-strong: #b9a88c; /* 强线: 撕口 / 表格框 */
+}
 
-  /* 文字层级 */
-  --text-primary: #f9fafb;
-  --text-secondary: #c4c9d4;
-  --text-tertiary: #9ca3af;
-  --text-muted: #6b7280;
-  --text-inverse: #0a0f1c;
+/* --- 设计 Token: 墨 (文字) --- */
+:root {
+  --ink: #1f1b16;
+  --ink-2: #574f43;
+  --ink-3: #8a8071;
+  --ink-inverse: #faf7f0; /* 反色文字 (红底上的字) */
+}
 
-  /* 边框与分割 */
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-color: #374151;
-  --border-strong: #4b5563;
+/* --- 设计 Token: 印色 (朱红) --- */
+:root {
+  --accent: #b8352a;
+  --accent-hover: #a52c22;
+  --accent-press: #8e241b;
+  --accent-wash: rgba(184, 53, 42, 0.08);
+  --accent-stamp: rgba(184, 53, 42, 0.14);
+}
 
-  /* 阴影系统 */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-gold: 0 0 20px rgba(245, 158, 11, 0.3);
-  --shadow-glow-gold: 0 0 40px rgba(245, 158, 11, 0.25);
+/* --- 设计 Token: 功能色 (克制, 只用于状态) --- */
+:root {
+  --ok: #2f6b4f; /* 我锁的座位 / WS 已连接 */
+  --warn: #8a6d1f; /* WS 连接中 / warning */
+  --danger: #a1271c; /* 冲突 / 超时 */
+  --info: #574f43;
+}
 
-  /* 渐变 */
-  --gradient-hero: linear-gradient(
-    135deg,
-    #0a0f1c 0%,
-    #1e1b4b 40%,
-    #312e81 70%,
-    #0a0f1c 100%
-  );
-  --gradient-gold: linear-gradient(135deg, #f59e0b, #fbbf24);
-  --gradient-gold-dark: linear-gradient(135deg, #d97706, #b45309);
-  --gradient-card: linear-gradient(145deg, #1a2235 0%, #111827 100%);
-  --gradient-border: linear-gradient(
-    135deg,
-    rgba(245, 158, 11, 0.4),
-    rgba(168, 85, 247, 0.3)
-  );
+/* --- 设计 Token: 暗场 Hall (仅座位图面板) --- */
+:root {
+  --hall: #171410;
+  --hall-raised: #221e18;
+  --hall-rule: #3a342b;
+  --hall-ink: #e8e0d2;
+  --hall-ink-2: #9c9284;
+}
 
-  /* 字体栈 */
-  --font-display: "Cinzel", "Noto Serif SC", Georgia, serif;
+/* --- 字体三档 --- */
+:root {
+  --font-display: "Noto Serif SC", "Source Han Serif SC", "Songti SC", Georgia, serif;
   --font-body:
     "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  /* 等宽: 票号 / 场次 / 倒计时 / 订单号 / 座位号 / 统计数字 */
+  --font-mono: "IBM Plex Mono", "Roboto Mono", ui-monospace, Consolas, monospace;
+}
 
-  /* 圆角 */
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
+/* --- 圆角: 印刷感近乎为零 --- */
+:root {
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+  --radius-xl: 6px;
+}
 
-  /* 过渡 */
+/* --- 阴影: 只保留 1px 票面浮起 + 弹层 --- */
+:root {
+  --shadow-paper: 0 1px 0 rgba(31, 27, 22, 0.04);
+  --shadow-modal: 0 12px 32px rgba(31, 27, 22, 0.12);
+  --shadow-hall: 0 1px 0 rgba(31, 27, 22, 0.08);
+}
+
+/* --- 过渡 --- */
+:root {
   --transition-fast: 0.15s ease;
   --transition-normal: 0.25s ease;
-  --transition-slow: 0.4s ease;
+}
+
+/* ============================================
+   Element Plus 主题变量
+   EP 2.x 默认就是浅色主题, 所以这里只需覆盖设计变量,
+   不再用手写 !important 去拧 EP —— 见下方组件段落。
+   ============================================ */
+:root {
+  --el-color-primary: #b8352a;
+  --el-color-primary-light-3: #cd726a;
+  --el-color-primary-light-5: #dc9a95;
+  --el-color-primary-light-7: #eac2bf;
+  --el-color-primary-light-8: #f1d7d4;
+  --el-color-primary-light-9: #f8ebea;
+
+  --el-color-success: #2f6b4f;
+  --el-color-warning: #8a6d1f;
+  --el-color-danger: #a1271c;
+  --el-color-info: #574f43;
+
+  --el-border-radius-base: 3px;
+  --el-font-family: var(--font-body);
+
+  --el-text-color-primary: var(--ink);
+  --el-text-color-regular: var(--ink-2);
+  --el-text-color-secondary: var(--ink-3);
+  --el-text-color-placeholder: var(--ink-3);
+
+  --el-border-color: var(--rule);
+  --el-border-color-light: #e2d8c6;
+  --el-border-color-lighter: #ece4d6;
+  --el-border-color-extra-light: #f2ece1;
+
+  --el-bg-color: var(--paper-raised);
+  --el-bg-color-page: var(--paper);
+  --el-bg-color-overlay: var(--paper-raised);
+  --el-fill-color-light: #ece4d6;
+  --el-fill-color-lighter: #f2ece1;
+  --el-fill-color-blank: var(--paper-raised);
+}
+
+/* --- 管理端冷调报表变体 ---
+   同 token、覆盖面覆盖三个变量, 一处定义全管理端 6 个 view 生效。
+   印色 / 墨色与全站一致, 保证品牌统一, 只把纸面换成冷灰。 */
+.app-main.is-admin {
+  --paper: #eef0f1;
+  --paper-raised: #f7f8f9;
+  --paper-sunk: #e4e8ea;
+  --rule: #d0d5d8;
+  --rule-strong: #b3bcc2;
 }
 
 /* --- 全局重置 --- */
@@ -90,20 +146,20 @@ html {
 
 body {
   font-family: var(--font-body);
-  background: var(--bg-primary);
-  color: var(--text-primary);
+  background: var(--paper);
+  color: var(--ink);
   line-height: 1.6;
   min-height: 100vh;
   overflow-x: hidden;
 }
 
 a {
-  color: var(--accent-cyan);
+  color: var(--accent);
   text-decoration: none;
   transition: color var(--transition-fast);
 }
 a:hover {
-  color: var(--accent-gold-light);
+  color: var(--accent-hover);
 }
 
 img {
@@ -112,43 +168,49 @@ img {
   display: block;
 }
 
-/* --- 滚动条美化 --- */
+/* --- 滚动条 --- */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--bg-primary);
+  background: var(--paper);
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--border-color);
+  background: var(--rule);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--border-strong);
+  background: var(--rule-strong);
 }
 
-/* --- 选中文字颜色 --- */
+/* --- 选中文字 --- */
 ::selection {
-  background: var(--accent-gold);
-  color: var(--text-inverse);
+  background: var(--accent);
+  color: var(--ink-inverse);
+}
+
+/* --- 可见焦点环: 纸底上必须清晰 --- */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* --- App 根容器 --- */
 .app {
   min-height: 100vh;
-  background: var(--bg-primary);
+  background: var(--paper);
 }
 
-/* --- Header 重构 --- */
+/* ============================================
+   Header
+   ============================================ */
 .app-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: rgba(10, 15, 28, 0.85);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--border-subtle);
+  background: var(--paper-raised);
+  border-bottom: 1px solid var(--rule);
   padding: 0 24px;
   height: 64px;
   position: sticky;
@@ -158,49 +220,28 @@ img {
   overflow: hidden;
 }
 
-.app-header::after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    var(--accent-gold) 20%,
-    var(--accent-purple) 50%,
-    var(--accent-gold) 80%,
-    transparent 100%
-  );
-  opacity: 0.6;
-}
-
 .brand {
   font-family: var(--font-display);
   font-size: 22px;
   font-weight: 700;
   cursor: pointer;
   user-select: none;
-  background: var(--gradient-gold);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--ink);
   letter-spacing: 2px;
   display: flex;
   align-items: center;
   gap: 10px;
-  transition: transform var(--transition-fast);
+  transition: color var(--transition-fast);
 }
-
 .brand:hover {
-  transform: scale(1.03);
+  color: var(--accent);
 }
 
-.brand::before {
-  content: "🎬";
-  -webkit-text-fill-color: initial;
-  filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.5));
+/* 品牌标识: SVG 组件注入在 .brand 内, 这里只管尺寸与颜色 */
+.brand-mark {
+  display: block;
+  flex-shrink: 0;
+  color: var(--accent);
 }
 
 .user-area {
@@ -211,8 +252,10 @@ img {
   min-width: 0;
 }
 
-/* --- 统一 Header Chip 按钮系统 ---
-   所有用户区按钮/信息块共用同一套尺寸基准，确保像素级对齐
+/* ============================================
+   统一 Header Chip 按钮系统
+   所有用户区按钮/信息块共用同一套尺寸基准, 确保像素级对齐
+   ⚠️ 尺寸基准锁定, 变体只许改颜色
 ---------------------------------------------------- */
 .header-chip {
   /* 尺寸基准 —— 所有变体必须严格遵守 */
@@ -238,12 +281,9 @@ img {
   text-decoration: none;
   white-space: nowrap;
   transition:
-    transform var(--transition-fast),
-    box-shadow var(--transition-fast),
     background-color var(--transition-fast),
     border-color var(--transition-fast),
-    color var(--transition-fast),
-    opacity var(--transition-fast);
+    color var(--transition-fast);
 }
 
 /* chip 内部文字的长昵称溢出保护 */
@@ -251,7 +291,7 @@ img {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 84px;  /* 136px 按钮 - 2px border - 36px padding - ~14px icon - 6px gap ≈ 78px */
+  max-width: 84px; /* 136px 按钮 - 2px border - 36px padding - ~14px icon - 6px gap ≈ 78px */
 }
 
 /* 清除 Element Plus 默认样式覆盖 (针对 el-button) */
@@ -271,35 +311,25 @@ img {
   --el-button-disabled-border-color: transparent;
   --el-button-disabled-text-color: inherit;
 }
-.el-button.header-chip:hover,
-.el-button.header-chip:focus,
-.el-button.header-chip:active {
-  transform: translateY(-1px);
-}
 
-/* === 变体：按语义色区分，只改颜色相关，尺寸一律不动 === */
+/* === 变体: 按语义色区分, 只改颜色相关, 尺寸一律不动 === */
 
 /* Primary —— 核心操作 (我的订单) */
 .header-chip.chip-primary {
-  background: var(--gradient-gold);
-  color: var(--text-inverse);
-  border-color: rgba(245, 158, 11, 0.5);
-  box-shadow:
-    0 2px 8px rgba(245, 158, 11, 0.25),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  background: var(--accent);
+  color: var(--ink-inverse);
+  border-color: var(--accent);
 }
 .header-chip.chip-primary:hover {
-  box-shadow:
-    0 4px 14px rgba(245, 158, 11, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.25);
-  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 
 /* User —— 用户昵称展示 (非交互为主) */
 .header-chip.chip-user.nickname {
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
-  border-color: var(--border-color);
+  background: var(--paper-sunk);
+  color: var(--ink-2);
+  border-color: var(--rule);
   padding: 0 18px;
   font-size: 14px;
   border-radius: var(--radius-md);
@@ -308,40 +338,45 @@ img {
 
 /* Danger —— 退出操作 */
 .header-chip.chip-danger {
-  background: rgba(239, 68, 68, 0.12);
-  color: var(--accent-red-light);
-  border-color: rgba(239, 68, 68, 0.35);
+  background: transparent;
+  color: var(--danger);
+  border-color: var(--rule);
 }
 .header-chip.chip-danger:hover {
-  background: rgba(239, 68, 68, 0.22);
-  border-color: rgba(239, 68, 68, 0.6);
-  color: #fca5a5;
-  box-shadow: 0 2px 10px rgba(239, 68, 68, 0.2);
+  background: rgba(161, 39, 28, 0.08);
+  border-color: var(--danger);
+  color: var(--danger);
 }
 
 /* Warning —— 管理端入口 */
 .header-chip.chip-warning {
-  background: rgba(168, 85, 247, 0.12);
-  color: #c084fc;
-  border-color: rgba(168, 85, 247, 0.35);
+  background: transparent;
+  color: var(--ink-2);
+  border-color: var(--rule-strong);
 }
 .header-chip.chip-warning:hover {
-  background: rgba(168, 85, 247, 0.22);
-  border-color: rgba(168, 85, 247, 0.6);
-  color: #d8b4fe;
-  box-shadow: 0 2px 10px rgba(168, 85, 247, 0.2);
+  background: var(--paper-sunk);
+  border-color: var(--ink-2);
+  color: var(--ink);
+}
+
+/* Login —— 未登录状态 (登录/注册) */
+.header-chip.chip-login {
+  background: var(--accent);
+  color: var(--ink-inverse);
+  border-color: var(--accent);
+}
+.header-chip.chip-login:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 
 /* ============================================
    通用按钮基类 (.btn-action)
    ------------------------------------------------------------
-   用途: 统一卡片内/页内操作按钮的尺寸/字体/边框/布局规范,
-         避免每个 .vue 文件重复定义同一组按钮样式。
-   用法: 给 <el-button> 或 <button> 加 class="btn-action" 即可
-         拿到统一盒子;若需等宽再加 .is-fixed (如订单卡片 flex 等分)。
-   注意: 主色调 (gold/red/gold-purple) / hover / active 仍由
-         Element Plus 的 type="primary" 等或单独修饰类提供;
-         本类只锁定"尺寸 + 字体 + 边框 + 布局",不动颜色。
+   用途: 统一卡片内/页内操作按钮的尺寸/字体/边框/布局规范。
+   注意: 主色调仍由 Element Plus 的 type="primary" 等提供;
+         本类只锁定"尺寸 + 字体 + 边框 + 布局", 不动颜色。
    ============================================ */
 .btn-action {
   /* 尺寸基准 —— 所有派生变体必须严格遵守 */
@@ -354,8 +389,10 @@ img {
   font-size: 14px;
   font-weight: 500;
   /* 视觉 */
-  border: 1px solid transparent;
+  border: 1px solid var(--rule);
   border-radius: var(--radius-md);
+  background: var(--paper-raised);
+  color: var(--ink-2);
   /* 布局 */
   display: inline-flex;
   align-items: center;
@@ -368,17 +405,17 @@ img {
   user-select: none;
   text-decoration: none;
   transition:
-    transform var(--transition-fast),
-    box-shadow var(--transition-fast),
     background-color var(--transition-fast),
     border-color var(--transition-fast),
-    color var(--transition-fast),
-    opacity var(--transition-fast);
+    color var(--transition-fast);
+}
+.btn-action:hover {
+  background: var(--paper-sunk);
+  border-color: var(--rule-strong);
+  color: var(--ink);
 }
 
-/* 等宽修饰: 固定宽度的等宽按钮, 用于 flex 等分布局
-   (如订单卡片多个操作按钮, 无论 link / plain / primary
-   像素级等宽, 不受文字长短影响) */
+/* 等宽修饰: 固定宽度的等宽按钮 */
 .btn-action.is-fixed {
   width: 128px;
   padding: 0;
@@ -388,26 +425,11 @@ img {
 .el-button.btn-action {
   margin: 0;
   border-width: 1px;
-  /* Element 默认 padding / height 由 .btn-action 的规则覆盖 */
 }
 
-/* Login —— 未登录状态 (登录/注册) */
-.header-chip.chip-login {
-  background: var(--gradient-gold);
-  color: var(--text-inverse);
-  border-color: rgba(245, 158, 11, 0.5);
-  box-shadow:
-    0 2px 8px rgba(245, 158, 11, 0.25),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
-}
-.header-chip.chip-login:hover {
-  box-shadow:
-    0 4px 14px rgba(245, 158, 11, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.25);
-  background: linear-gradient(135deg, #fbbf24, #f59e0b);
-}
-
-/* --- Main 内容区 --- */
+/* ============================================
+   Main 内容区
+   ============================================ */
 .app-main {
   max-width: 1280px;
   margin: 0 auto;
@@ -417,7 +439,7 @@ img {
   box-sizing: border-box;
 }
 
-/* 管理端专属：去除居中宽度限制和内边距，让内部布局自行决定 */
+/* 管理端专属: 去除居中宽度限制和内边距, 让内部布局自行决定 */
 .app-main.is-admin {
   max-width: none;
   margin: 0;
@@ -425,225 +447,125 @@ img {
   width: 100%;
 }
 
-/* --- Element Plus 深色主题覆盖 --- */
+/* ============================================
+   Element Plus 覆盖
+   EP 2.9.1 默认即浅色主题, 下面只保留"默认值不对"的少数几处,
+   其余 (输入框 / 表格 / 弹层 / 标签页 / 分段按钮) 全部交给
+   上方 :root 里的 EP CSS 变量, 不再手写 !important 拧主题。
+   ============================================ */
+
+/* 卡片: EP 默认已是白底, 只调边框与 hover (原稿为金边 glow) */
 .el-card {
-  background: var(--bg-secondary) !important;
-  border: 1px solid var(--border-subtle) !important;
+  border-color: var(--rule) !important;
   border-radius: var(--radius-lg) !important;
-  box-shadow: var(--shadow-sm) !important;
-  transition: all var(--transition-normal) !important;
+  box-shadow: var(--shadow-paper) !important;
+  transition: border-color var(--transition-normal) !important;
 }
-
 .el-card:hover {
-  border-color: rgba(245, 158, 11, 0.3) !important;
-  box-shadow: var(--shadow-md), var(--shadow-gold) !important;
+  border-color: var(--rule-strong) !important;
 }
-
-.el-card__header {
-  background: transparent !important;
-  border-bottom: 1px solid var(--border-subtle) !important;
-  color: var(--text-primary) !important;
-  font-weight: 600 !important;
-}
-
 .el-card__body {
-  color: var(--text-secondary) !important;
+  color: var(--ink-2) !important;
 }
 
+/* 主按钮: 去掉金渐变 + 位移 + 外发光, 印刷风靠底色加深, 不靠悬浮感 */
 .el-button--primary {
-  background: var(--gradient-gold) !important;
-  border: none !important;
-  color: var(--text-inverse) !important;
-  font-weight: 600 !important;
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: var(--ink-inverse) !important;
+  font-weight: 500 !important;
   border-radius: var(--radius-md) !important;
-  padding: 10px 24px !important;
-  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.3) !important;
-  transition: all var(--transition-fast) !important;
+  box-shadow: none !important;
+  transition: background-color var(--transition-fast) !important;
 }
-
-.el-button--primary:hover {
-  transform: translateY(-2px) !important;
-  box-shadow:
-    0 6px 20px rgba(245, 158, 11, 0.5),
-    var(--shadow-gold) !important;
+.el-button--primary:hover,
+.el-button--primary:focus {
+  background: var(--accent-hover) !important;
+  border-color: var(--accent-hover) !important;
+  color: var(--ink-inverse) !important;
 }
-
 .el-button--primary:active {
-  transform: translateY(0) !important;
+  background: var(--accent-press) !important;
+  border-color: var(--accent-press) !important;
+}
+.el-button--primary.is-disabled,
+.el-button--primary.is-disabled:hover {
+  background: #d8b0ab !important;
+  border-color: #d8b0ab !important;
 }
 
+/* 次按钮: 纸面 + 发丝线 */
 .el-button--default {
-  background: var(--bg-tertiary) !important;
-  border: 1px solid var(--border-color) !important;
-  color: var(--text-secondary) !important;
+  background: var(--paper-raised) !important;
+  border-color: var(--rule) !important;
+  color: var(--ink-2) !important;
   border-radius: var(--radius-md) !important;
 }
-
-.el-button--default:hover {
-  background: var(--bg-elevated) !important;
-  border-color: var(--accent-gold) !important;
-  color: var(--accent-gold) !important;
+.el-button--default:hover,
+.el-button--default:focus {
+  background: var(--paper-sunk) !important;
+  border-color: var(--rule-strong) !important;
+  color: var(--ink) !important;
 }
 
+/* 危险 / 警告按钮 */
 .el-button--danger {
-  background: var(--accent-red) !important;
-  border: none !important;
-  color: #fff !important;
+  background: var(--danger) !important;
+  border-color: var(--danger) !important;
+  color: var(--ink-inverse) !important;
 }
-
 .el-button--danger:hover {
-  background: var(--accent-red-light) !important;
+  background: #8c2118 !important;
+  border-color: #8c2118 !important;
 }
 
 .el-button--warning {
-  background: var(--accent-gold) !important;
-  border: none !important;
-  color: var(--text-inverse) !important;
+  background: var(--warn) !important;
+  border-color: var(--warn) !important;
+  color: var(--ink-inverse) !important;
+}
+.el-button--warning:hover {
+  background: #765c17 !important;
+  border-color: #765c17 !important;
 }
 
-.el-input__wrapper,
-.el-textarea__inner {
-  background: var(--bg-tertiary) !important;
-  box-shadow: 0 0 0 1px var(--border-color) inset !important;
-  border-radius: var(--radius-md) !important;
-}
-
-.el-input__wrapper.is-focus,
-.el-textarea__inner:focus {
-  box-shadow:
-    0 0 0 1px var(--accent-gold) inset,
-    0 0 0 3px rgba(245, 158, 11, 0.15) !important;
-}
-
-.el-input__inner,
-.el-textarea__inner {
-  color: var(--text-primary) !important;
-}
-
-.el-input__inner::placeholder,
-.el-textarea__inner::placeholder {
-  color: var(--text-muted) !important;
-}
-
-/* --- el-select 深色主题覆盖 --- */
-.el-select__wrapper {
-  background: var(--bg-tertiary) !important;
-  box-shadow: 0 0 0 1px var(--border-color) inset !important;
-  border-radius: var(--radius-md) !important;
-}
-.el-select__wrapper.is-focused,
-.el-select__wrapper.is-hovering {
-  box-shadow: 0 0 0 1px var(--accent-gold) inset !important;
-}
-.el-select__placeholder {
-  color: var(--text-muted) !important;
-}
-.el-select__wrapper .el-select__placeholder.is-transparent {
-  color: var(--text-muted) !important;
-}
-/* select 弹层 */
-.el-select-dropdown {
-  background: var(--bg-secondary) !important;
-  border: 1px solid var(--border-color) !important;
-  border-radius: var(--radius-md) !important;
-}
-.el-select-dropdown__item {
-  color: var(--text-secondary) !important;
-}
-.el-select-dropdown__item.is-hovering {
-  background: var(--bg-tertiary) !important;
-}
-.el-select-dropdown__item.is-selected {
-  color: var(--accent-gold) !important;
-  font-weight: 600;
-}
-
-.el-tag {
-  border-radius: var(--radius-sm) !important;
-  font-weight: 500 !important;
-}
-
-.el-empty__description {
-  color: var(--text-muted) !important;
-}
-/* el-empty 默认 SVG 图标是白底色块, 在深色主题下很扎眼 → 改为透明/隐藏, 只保留 description */
-.el-empty__image {
-  display: none !important;
-}
+/* 空状态: 恢复 EP 默认插画
+   ⚠️ 原稿此处是 display:none, 那是当初为了躲开深色底下的白色 SVG
+      方块而加的。纸底上 EP 默认插画是协调的中性浅色, 应显示回来。 */
 .el-empty {
   padding: 48px 0 !important;
 }
-
-.el-divider {
-  border-color: var(--border-subtle) !important;
+.el-empty__description {
+  color: var(--ink-3) !important;
 }
 
-.el-radio-button__inner {
-  background: var(--bg-tertiary) !important;
-  border-color: var(--border-color) !important;
-  color: var(--text-secondary) !important;
+/* 表单校验错误: 登录页规则密集使用, EP 默认红偏亮, 压到 --danger */
+.el-form-item__error {
+  color: var(--danger) !important;
 }
 
-.el-radio-button__original-radio:checked + .el-radio-button__inner {
-  background: var(--gradient-gold) !important;
-  border-color: var(--accent-gold) !important;
-  color: var(--text-inverse) !important;
-  box-shadow: none !important;
+/* 弹层统一细边框 (dialog / message-box / popper / dropdown / date-picker) */
+.el-dialog,
+.el-message-box {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-modal);
+}
+.el-popper.is-light {
+  border: 1px solid var(--rule) !important;
+  box-shadow: var(--shadow-modal) !important;
 }
 
-.el-tabs__item {
-  color: var(--text-secondary) !important;
+/* toast 在纸底上需要一道细边才不"飘" */
+.el-message {
+  border: 1px solid var(--rule);
+  box-shadow: var(--shadow-modal);
+  border-radius: var(--radius-md);
 }
 
-.el-tabs__item.is-active {
-  color: var(--accent-gold) !important;
-}
-
-.el-tabs__active-bar {
-  background: var(--accent-gold) !important;
-}
-
-.el-dialog {
-  background: var(--bg-secondary) !important;
-  border-radius: var(--radius-lg) !important;
-  border: 1px solid var(--border-subtle) !important;
-}
-
-.el-dialog__title {
-  color: var(--text-primary) !important;
-  font-weight: 600 !important;
-}
-
-.el-dialog__body {
-  color: var(--text-secondary) !important;
-}
-
-.el-table {
-  background: var(--bg-secondary) !important;
-  border-radius: var(--radius-md) !important;
-  overflow: hidden;
-}
-
-.el-table th.el-table__cell {
-  background: var(--bg-tertiary) !important;
-  color: var(--text-primary) !important;
-}
-
-.el-table td.el-table__cell {
-  background: var(--bg-secondary) !important;
-  color: var(--text-secondary) !important;
-  border-bottom-color: var(--border-subtle) !important;
-}
-
-.el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
-  background: var(--bg-elevated) !important;
-}
-
-.el-table__body tr:hover > td.el-table__cell {
-  background: var(--bg-tertiary) !important;
-}
-
-/* el-table 单元格强制单行 (防测试数据中雪花 ID 换行拉高) 行 */
+/* 表格单元格强制单行
+   ⚠️ 这是功能性修复, 不是样式 —— 防测试数据中雪花 ID 换行拉高表格行。
+      换肤时绝不能删, 后台"改一下表格"的人会当冗余样式清掉。 */
 .el-table .cell {
   white-space: nowrap !important;
   overflow: hidden !important;
@@ -660,29 +582,57 @@ img {
   -webkit-box-orient: vertical;
 }
 
-.el-form-item__label {
-  color: var(--text-secondary) !important;
+/* ============================================
+   签名装置: 齿孔撕口 (存根联 / 副券的物理边界)
+   登录页两栏之间、订单卡上边缘、支付票面复用同一套
+   ============================================ */
+
+/* 竖向撕口: 沿容器右缘打出半圆缺口, 露出背后纸面 */
+.stub-perf {
+  position: relative;
+}
+.stub-perf::after {
+  content: "";
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  right: -6px;
+  width: 12px;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at 6px 6px,
+    var(--paper) 5.5px,
+    transparent 6px
+  )
+    center top / 12px 18px repeat-y;
 }
 
-.el-message-box {
-  background: var(--bg-secondary) !important;
-  border: 1px solid var(--border-subtle) !important;
+/* 横向撕口: 沿容器上缘打出半圆缺口 */
+.stub-perf-x {
+  position: relative;
 }
-
-.el-message-box__title {
-  color: var(--text-primary) !important;
-}
-
-.el-message-box__message {
-  color: var(--text-secondary) !important;
+.stub-perf-x::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: 14px;
+  right: 14px;
+  height: 12px;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at 6px 6px,
+    var(--paper) 5.5px,
+    transparent 6px
+  )
+    left top / 18px 12px repeat-x;
 }
 
 /* --- 通用工具类 --- */
 .section-title {
   font-family: var(--font-display);
   font-size: 24px;
-  font-weight: 600;
-  color: var(--text-primary);
+  font-weight: 700;
+  color: var(--ink);
   margin: 0 0 24px;
   letter-spacing: 1px;
   position: relative;
@@ -695,17 +645,24 @@ img {
   left: 0;
   top: 50%;
   transform: translateY(-50%);
-  width: 4px;
+  width: 3px;
   height: 24px;
-  background: var(--gradient-gold);
-  border-radius: 2px;
+  background: var(--accent);
+  border-radius: 1px;
+}
+
+/* 等宽数据: 票号 / 场次 / 金额 / 倒计时 */
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
 }
 
 /* --- 动画关键帧 --- */
 @keyframes fadeInUp {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
@@ -722,16 +679,6 @@ img {
   }
 }
 
-@keyframes pulse-glow {
-  0%,
-  100% {
-    box-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
-  }
-  50% {
-    box-shadow: 0 0 40px rgba(245, 158, 11, 0.6);
-  }
-}
-
 @keyframes float {
   0%,
   100% {
@@ -739,6 +686,20 @@ img {
   }
   50% {
     transform: translateY(-8px);
+  }
+}
+
+/* 尊重系统的"减少动态效果"设置 */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
@@ -761,11 +722,11 @@ img {
   .app-main {
     padding: 20px 16px;
   }
-  /* 平板端隐藏昵称 chip，节省空间 */
+  /* 平板端隐藏昵称 chip, 节省空间 */
   .header-chip.chip-user.nickname {
     display: none;
   }
-  /* 平板端 chip 微缩，但仍保持高度统一 */
+  /* 平板端 chip 微缩, 但仍保持高度统一 */
   .header-chip {
     height: 32px;
     min-height: 32px;
@@ -792,7 +753,7 @@ img {
   }
   /* 退出 chip 用图标 */
   .header-chip.chip-danger.chip-icon-text {
-    color: var(--accent-red-light);
+    color: var(--danger);
   }
 }
 

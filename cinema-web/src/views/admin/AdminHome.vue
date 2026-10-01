@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useUserStore } from '../../stores/user'
 import { dashboardSummary, type DashboardSummary } from '../../api/admin'
+import BrandMark from '../../components/BrandMark.vue'
 
 const userStore = useUserStore()
 const router = useRouter()
@@ -13,13 +14,15 @@ const isAdmin = computed(() => userStore.user?.role === 1)
 const summary = ref<DashboardSummary | null>(null)
 
 // 移动端顶部导航项
+// ⚠️ 原稿每项带彩色 emoji 图标(🏠📊📡🎞🛋📅)。票根主题是克制的印刷质感,
+//    满屏彩色 emoji 是"廉价活动页"观感的主要来源之一, 这里去掉只留文字。
 const navItems = computed(() => [
-  { path: '/admin', labelKey: 'admin.mobileNavHome', icon: '🏠' },
-  { path: '/admin/dashboard', labelKey: 'admin.mobileNavDashboard', icon: '📊' },
-  { path: '/admin/live', labelKey: 'admin.mobileNavLive', icon: '📡' },
-  { path: '/admin/movies', labelKey: 'admin.mobileNavMovies', icon: '🎞' },
-  { path: '/admin/halls', labelKey: 'admin.mobileNavHalls', icon: '🛋' },
-  { path: '/admin/sessions', labelKey: 'admin.mobileNavSessions', icon: '📅' },
+  { path: '/admin', labelKey: 'admin.mobileNavHome' },
+  { path: '/admin/dashboard', labelKey: 'admin.mobileNavDashboard' },
+  { path: '/admin/live', labelKey: 'admin.mobileNavLive' },
+  { path: '/admin/movies', labelKey: 'admin.mobileNavMovies' },
+  { path: '/admin/halls', labelKey: 'admin.mobileNavHalls' },
+  { path: '/admin/sessions', labelKey: 'admin.mobileNavSessions' },
 ])
 
 async function load() {
@@ -44,25 +47,15 @@ function logout() {
   <el-container class="admin">
     <el-aside width="220px" class="aside">
       <div class="brand">
-        <span class="brand-icon">🎬</span>
+        <span class="brand-icon"><BrandMark :size="22" /></span>
         <span class="brand-text">{{ t('admin.asideBrand') }}</span>
       </div>
       <el-menu router :default-active="$route.path" mode="vertical" class="menu">
-        <el-menu-item index="/admin/dashboard">
-          <span>📊</span>&nbsp;<span>{{ t('admin.homeSidebar.dashboard') }}</span>
-        </el-menu-item>
-        <el-menu-item index="/admin/live">
-          <span>📡</span>&nbsp;<span>{{ t('admin.homeSidebar.live') }}</span>
-        </el-menu-item>
-        <el-menu-item index="/admin/movies">
-          <span>🎞</span>&nbsp;<span>{{ t('admin.homeSidebar.movies') }}</span>
-        </el-menu-item>
-        <el-menu-item index="/admin/halls">
-          <span>🛋</span>&nbsp;<span>{{ t('admin.homeSidebar.halls') }}</span>
-        </el-menu-item>
-        <el-menu-item index="/admin/sessions">
-          <span>📅</span>&nbsp;<span>{{ t('admin.homeSidebar.sessions') }}</span>
-        </el-menu-item>
+        <el-menu-item index="/admin/dashboard">{{ t('admin.homeSidebar.dashboard') }}</el-menu-item>
+        <el-menu-item index="/admin/live">{{ t('admin.homeSidebar.live') }}</el-menu-item>
+        <el-menu-item index="/admin/movies">{{ t('admin.homeSidebar.movies') }}</el-menu-item>
+        <el-menu-item index="/admin/halls">{{ t('admin.homeSidebar.halls') }}</el-menu-item>
+        <el-menu-item index="/admin/sessions">{{ t('admin.homeSidebar.sessions') }}</el-menu-item>
       </el-menu>
     </el-aside>
     <el-main class="content">
@@ -80,7 +73,7 @@ function logout() {
             :class="{ active: isActive || $route.path === item.path }"
             @click="navigate"
           >
-            {{ item.icon }} {{ t(item.labelKey) }}
+            {{ t(item.labelKey) }}
           </a>
         </router-link>
       </nav>
@@ -115,13 +108,13 @@ function logout() {
 
           <div class="welcome-actions">
             <el-button type="primary" size="large" @click="router.push('/admin/dashboard')">
-              📊 {{ t('admin.welcomeEnterDashboard') }}
+              {{ t('admin.welcomeEnterDashboard') }}
             </el-button>
             <el-button @click="router.push('/admin/live')">
-              📡 {{ t('admin.welcomeEnterLive') }}
+              {{ t('admin.welcomeEnterLive') }}
             </el-button>
             <el-button @click="router.push('/admin/sessions')">
-              📅 {{ t('admin.welcomeEnterSessions') }}
+              {{ t('admin.welcomeEnterSessions') }}
             </el-button>
           </div>
         </div>
@@ -134,7 +127,7 @@ function logout() {
 .admin {
   height: 100%;
   min-height: calc(100vh - 64px);
-  background: var(--bg-primary);
+  background: var(--paper);
 }
 
 /* 移动端: 隐藏侧边栏, 内容顶部增加横向导航 */
@@ -155,8 +148,8 @@ function logout() {
   .mobile-nav {
     display: flex !important;
     overflow-x: auto;
-    background: var(--bg-secondary);
-    border-bottom: 1px solid var(--border-subtle);
+    background: var(--paper-raised);
+    border-bottom: 1px solid var(--rule);
     padding: 8px 12px;
     gap: 6px;
     position: sticky;
@@ -170,19 +163,19 @@ function logout() {
     padding: 0 14px;
     border-radius: var(--radius-md);
     font-size: 13px;
-    color: var(--text-secondary);
+    color: var(--ink-2);
     cursor: pointer;
     transition: all var(--transition-fast);
     text-decoration: none;
     white-space: nowrap;
   }
   .mobile-nav .nav-item:hover {
-    color: var(--text-primary);
-    background: var(--bg-tertiary);
+    color: var(--ink);
+    background: var(--paper-sunk);
   }
   .mobile-nav .nav-item.active {
-    color: var(--text-inverse);
-    background: var(--gradient-gold);
+    color: var(--ink-inverse);
+    background: var(--accent);
     font-weight: 600;
   }
   .content {
@@ -190,26 +183,12 @@ function logout() {
   }
 }
 
-/* ========== 侧边栏：与全局 Cinema Noir 深色主题统一 ========== */
+/* ========== 侧边栏：与全局票根浅色主题统一 ========== */
 .aside {
-  background: linear-gradient(180deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
-  color: var(--text-primary);
-  border-right: 1px solid var(--border-subtle);
+  background: var(--paper-raised);
+  color: var(--ink);
+  border-right: 1px solid var(--rule);
   position: relative;
-}
-.aside::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 1px;
-  background: linear-gradient(180deg,
-    transparent 0%,
-    rgba(245, 158, 11, 0.35) 45%,
-    rgba(168, 85, 247, 0.35) 55%,
-    transparent 100%);
-  pointer-events: none;
 }
 
 /* 侧边栏品牌区 —— 与 App.vue 顶部品牌视觉一致 */
@@ -220,23 +199,18 @@ function logout() {
   justify-content: center;
   gap: 10px;
   padding: 0 16px;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--rule);
   position: relative;
 }
 .brand-icon {
   font-size: 22px;
-  filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.5));
 }
 .brand-text {
   font-family: var(--font-display);
   font-size: 18px;
   font-weight: 700;
-  background: var(--gradient-gold);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--accent);
   letter-spacing: 2px;
-  filter: drop-shadow(0 0 10px rgba(245, 158, 11, 0.35));
 }
 
 /* 移动端导航: 默认隐藏, 仅 max-width:768px 时显示 */
@@ -251,7 +225,7 @@ function logout() {
   padding: 12px 8px;
 }
 .aside :deep(.el-menu-item) {
-  color: var(--text-secondary);
+  color: var(--ink-2);
   height: 48px;
   line-height: 48px;
   border-radius: var(--radius-md);
@@ -262,23 +236,22 @@ function logout() {
   transition: all var(--transition-fast);
 }
 .aside :deep(.el-menu-item.is-active) {
-  color: var(--text-inverse);
-  background: var(--gradient-gold);
-  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);
+  color: var(--ink-inverse);
+  background: var(--accent);
 }
 .aside :deep(.el-menu-item:hover) {
-  color: var(--text-primary);
-  background: var(--bg-tertiary);
+  color: var(--ink);
+  background: var(--paper-sunk);
 }
 .aside :deep(.el-menu-item.is-active:hover) {
-  color: var(--text-inverse);
-  background: var(--gradient-gold);
+  color: var(--ink-inverse);
+  background: var(--accent-hover);
 }
 
 /* ========== 右侧内容区 ========== */
 .content {
-  padding: 28px 36px;
-  background: var(--bg-primary);
+  padding: 20px 24px;
+  background: var(--paper);
   box-sizing: border-box;
 }
 
@@ -287,30 +260,21 @@ function logout() {
   animation: fadeInUp 0.5s ease;
 }
 .welcome-hero {
-  background: var(--gradient-hero);
-  border: 1px solid var(--border-subtle);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-xl);
-  padding: 36px 32px;
-  margin-bottom: 24px;
+  padding: 28px 24px;
+  margin-bottom: 16px;
   position: relative;
   overflow: hidden;
 }
-.welcome-hero::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image:
-    radial-gradient(circle at 80% 30%, rgba(245, 158, 11, 0.18) 0%, transparent 50%),
-    radial-gradient(circle at 20% 70%, rgba(168, 85, 247, 0.12) 0%, transparent 50%);
-  pointer-events: none;
-}
 .welcome-badge {
   display: inline-block;
-  font-family: var(--font-display);
+  font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 4px;
-  color: var(--accent-gold);
-  border: 1px solid var(--accent-gold);
+  color: var(--accent);
+  border: 1px solid var(--accent);
   padding: 4px 14px;
   border-radius: 16px;
   margin-bottom: 16px;
@@ -321,7 +285,7 @@ function logout() {
   font-family: var(--font-display);
   font-size: 28px;
   font-weight: 700;
-  color: var(--text-primary);
+  color: var(--ink);
   margin-bottom: 8px;
   letter-spacing: 1px;
   position: relative;
@@ -330,7 +294,7 @@ function logout() {
   overflow-wrap: anywhere;
 }
 .welcome-subtitle {
-  color: var(--text-secondary);
+  color: var(--ink-2);
   font-size: 14px;
   position: relative;
   z-index: 1;
@@ -339,37 +303,39 @@ function logout() {
 .welcome-cards {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  margin-bottom: 24px;
+  gap: 12px;
+  margin-bottom: 16px;
 }
 .welcome-cards .card {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
-  padding: 20px;
+  padding: 16px;
 }
 .welcome-cards .card.gold {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(245, 158, 11, 0.04));
-  border-color: rgba(245, 158, 11, 0.3);
+  background: var(--accent-wash);
+  border-color: var(--rule-strong);
 }
 .welcome-cards .label {
   font-size: 13px;
-  color: var(--text-muted);
-  margin-bottom: 10px;
+  color: var(--ink-3);
+  margin-bottom: 8px;
   letter-spacing: 0.5px;
 }
+/* 金额 / 单量: 等宽 + tabular-nums, 避免刷新时数字左右跳 */
 .welcome-cards .value {
-  font-family: var(--font-display);
-  font-size: 26px;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 24px;
   font-weight: 700;
-  color: var(--text-primary);
+  color: var(--ink);
 }
 .welcome-cards .card.gold .value {
-  color: var(--accent-gold);
+  color: var(--accent);
 }
 .welcome-cards .value small {
-  font-size: 13px;
-  color: var(--text-muted);
+  font-size: 12px;
+  color: var(--ink-3);
   font-weight: 400;
   font-family: var(--font-body);
 }

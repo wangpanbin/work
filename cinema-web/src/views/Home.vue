@@ -22,6 +22,11 @@ const genreOptions = ['动作', '喜剧', '科幻', '爱情', '悬疑', '动画'
 const regionOptions = ['中国大陆', '美国', '日本', '韩国', '欧洲', '印度', '泰国']
 let debounceTimer: number | null = null
 
+/**
+ * Hero 副券上的装饰条码 —— 纯 CSS, 宽度写死只为"像票", 不可扫描。
+ */
+const barcodeBars = [2, 1, 3, 1, 2, 2, 1, 3, 1, 2, 1, 3, 2, 1]
+
 async function loadMovies(silent = false) {
   if (!silent) loading.value = true
   try {
@@ -76,14 +81,15 @@ onMounted(() => {
 
 <template>
   <div v-loading="loading" class="home">
-    <!-- Hero Banner -->
+    <!-- Hero: 一张横向票根。主券是品牌主张, 副券是票面数据, 中间齿孔撕口分隔。
+         原稿这里是金色渐变 + 双 radial 光斑 + 两个旋转胶片盘, 已整体删除。 -->
     <section class="hero">
-      <div class="hero-bg"></div>
-      <div class="hero-overlay"></div>
       <div class="hero-content">
         <div class="hero-badge">{{ t('home.heroBadge') }}</div>
         <h1 class="hero-title">{{ t('home.heroTitle') }}</h1>
         <p class="hero-subtitle">{{ t('home.heroSubtitle') }}</p>
+      </div>
+      <div class="hero-stub">
         <div class="hero-stats">
           <div class="stat">
             <span class="stat-num">{{ movies.length }}</span>
@@ -100,13 +106,10 @@ onMounted(() => {
             <span class="stat-label">{{ t('home.statImmersive') }}</span>
           </div>
         </div>
-      </div>
-      <!-- Decorative film reel -->
-      <div class="film-reel film-reel-left">
-        <div class="reel-circle"></div>
-      </div>
-      <div class="film-reel film-reel-right">
-        <div class="reel-circle"></div>
+        <!-- 装饰条码, 纯 CSS, 不是可扫描的条码 -->
+        <div class="hero-barcode" aria-hidden="true">
+          <i v-for="(w, i) in barcodeBars" :key="i" :style="{ width: w + 'px' }"></i>
+        </div>
       </div>
     </section>
 
@@ -198,58 +201,43 @@ onMounted(() => {
   animation: fadeInUp 0.5s ease;
 }
 
-/* --- Hero Banner --- */
+/* --- Hero: 一张横向票根 ---
+   主券 = 品牌主张, 副券 = 票面数据, 中间是齿孔撕口(.stub-perf) */
 .hero {
   position: relative;
-  height: 340px;
-  border-radius: var(--radius-xl);
-  overflow: hidden;
-  margin-bottom: 40px;
-  background: var(--gradient-hero);
+  min-height: 240px;
   display: flex;
-  align-items: center;
-  padding: 0 48px;
-}
-
-.hero-bg {
-  position: absolute;
-  inset: 0;
-  background-image:
-    radial-gradient(circle at 20% 80%, rgba(245, 158, 11, 0.15) 0%, transparent 50%),
-    radial-gradient(circle at 80% 20%, rgba(168, 85, 247, 0.12) 0%, transparent 50%),
-    radial-gradient(circle at 50% 50%, rgba(6, 182, 212, 0.08) 0%, transparent 60%);
-}
-
-.hero-overlay {
-  position: absolute;
-  inset: 0;
-  background-image:
-    repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 2px,
-      rgba(0, 0, 0, 0.03) 2px,
-      rgba(0, 0, 0, 0.03) 4px
-    );
+  align-items: stretch;
+  margin-bottom: 40px;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-paper);
+  max-width: 100%;
 }
 
 .hero-content {
   position: relative;
-  z-index: 2;
-  max-width: 600px;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 40px 48px;
 }
 
+/* NOW SHOWING: 印色小标签, 印刷风不做脉冲发光 */
 .hero-badge {
   display: inline-block;
-  font-family: var(--font-display);
-  font-size: 11px;
-  letter-spacing: 4px;
-  color: var(--accent-gold);
-  border: 1px solid var(--accent-gold);
-  padding: 6px 16px;
-  border-radius: 20px;
-  margin-bottom: 20px;
-  animation: pulse-glow 3s ease-in-out infinite;
+  align-self: flex-start;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 16px;
 }
 
 .hero-title {
@@ -257,24 +245,47 @@ onMounted(() => {
   font-size: 36px;
   font-weight: 700;
   letter-spacing: 2px;
-  margin-bottom: 12px;
-  background: linear-gradient(135deg, #f9fafb 0%, var(--accent-gold-light) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--ink);
+  margin-bottom: 10px;
+  line-height: 1.2;
 }
 
 .hero-subtitle {
-  color: var(--text-secondary);
+  color: var(--ink-2);
   font-size: 16px;
-  margin-bottom: 28px;
-  line-height: 1.6;
+  line-height: 1.7;
+  max-width: 42em;
+}
+
+/* --- 副券 --- */
+.hero-stub {
+  position: relative;
+  flex-shrink: 0;
+  width: 300px;
+  border-left: 1px dashed var(--rule);
+  padding: 40px 32px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 20px;
+}
+/* 齿孔撕口: 沿副券左缘打出半圆缺口, 露出背后纸面 */
+.hero-stub::before {
+  content: "";
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  left: -6px;
+  width: 12px;
+  pointer-events: none;
+  background: radial-gradient(circle at 6px 6px, var(--paper) 5.5px, transparent 6px)
+    center top / 12px 18px repeat-y;
 }
 
 .hero-stats {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 16px;
 }
 
 .stat {
@@ -282,77 +293,39 @@ onMounted(() => {
   flex-direction: column;
 }
 
+/* 票面数据 → 等宽 */
 .stat-num {
-  font-family: var(--font-display);
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--accent-gold);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--accent);
   line-height: 1;
 }
 
 .stat-label {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-top: 4px;
+  font-size: 11px;
+  color: var(--ink-3);
+  margin-top: 5px;
   letter-spacing: 1px;
 }
 
 .stat-divider {
   width: 1px;
-  height: 32px;
-  background: var(--border-color);
+  height: 30px;
+  background: var(--rule);
 }
 
-/* Film reel decorations */
-.film-reel {
-  position: absolute;
-  width: 120px;
-  height: 120px;
-  opacity: 0.08;
-  animation: float 6s ease-in-out infinite;
+.hero-barcode {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 24px;
 }
-
-.film-reel-left {
-  left: -30px;
-  bottom: -30px;
-}
-
-.film-reel-right {
-  right: -30px;
-  top: -30px;
-  animation-delay: -3s;
-}
-
-.reel-circle {
-  width: 100%;
+.hero-barcode i {
+  display: block;
+  background: var(--ink-3);
   height: 100%;
-  border-radius: 50%;
-  border: 12px solid var(--accent-gold);
-  position: relative;
-}
-
-.reel-circle::before,
-.reel-circle::after {
-  content: '';
-  position: absolute;
-  background: var(--accent-gold);
-}
-
-.reel-circle::before {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-}
-
-.reel-circle::after {
-  width: 100%;
-  height: 4px;
-  top: 50%;
-  left: 0;
-  transform: translateY(-50%);
 }
 
 /* --- Movies Section --- */
@@ -382,13 +355,13 @@ onMounted(() => {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--accent-gold);
+  background: var(--accent);
 }
 
 .deco-line {
   flex: 1;
   height: 1px;
-  background: linear-gradient(90deg, var(--border-color), transparent);
+  background: var(--rule);
 }
 
 /* --- Movie Grid --- */
@@ -400,18 +373,18 @@ onMounted(() => {
 
 .movie-card {
   position: relative;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   overflow: hidden;
   cursor: pointer;
-  transition: transform var(--transition-normal);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
+  transition: border-color var(--transition-normal);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  box-shadow: var(--shadow-paper);
   animation: fadeInUp 0.5s ease both;
 }
 
 .movie-card:hover {
-  transform: translateY(-8px);
-  border-color: rgba(245, 158, 11, 0.4);
+  border-color: var(--rule-strong);
 }
 
 .movie-card:hover .card-glow {
@@ -419,7 +392,7 @@ onMounted(() => {
 }
 
 .movie-card:hover .poster img {
-  transform: scale(1.08);
+  transform: scale(1.05);
 }
 
 .movie-card:hover .poster-overlay {
@@ -430,7 +403,7 @@ onMounted(() => {
   position: relative;
   height: 300px;
   overflow: hidden;
-  background: var(--bg-tertiary);
+  background: var(--paper-sunk);
 }
 
 .poster img {
@@ -440,13 +413,15 @@ onMounted(() => {
   transition: transform 0.5s ease;
 }
 
+/* 海报兜底: 原稿是紫蓝三段渐变 + 金色竖条纹 + 文字投影, 与新色板无关。
+   改成纸面 + 极淡的印色纹理, 文字用墨色, 不再需要 text-shadow。 */
 .poster-fallback {
   width: 100%;
   height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4c1d95 100%);
+  background: var(--paper-sunk);
   position: relative;
 }
 
@@ -454,36 +429,31 @@ onMounted(() => {
   content: '';
   position: absolute;
   inset: 0;
-  background:
-    repeating-linear-gradient(90deg,
-      transparent 0,
-      transparent 8px,
-      rgba(245, 158, 11, 0.06) 8px,
-      rgba(245, 158, 11, 0.06) 10px
-    );
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0,
+    transparent 8px,
+    var(--accent-wash) 8px,
+    var(--accent-wash) 10px
+  );
 }
 
 .fallback-text {
   font-family: var(--font-display);
   font-size: 20px;
   font-weight: 700;
-  color: var(--text-primary);
+  color: var(--ink-2);
   text-align: center;
   padding: 0 16px;
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
   position: relative;
   z-index: 1;
 }
 
+/* 悬停蒙版: 海报上是深色压暗(为了白字可读), 保留, 但去掉底部渐变的浓重感 */
 .poster-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    to top,
-    rgba(0, 0, 0, 0.85) 0%,
-    rgba(0, 0, 0, 0.4) 40%,
-    transparent 100%
-  );
+  background: rgba(31, 27, 22, 0.6);
   opacity: 0;
   transition: opacity var(--transition-normal);
   display: flex;
@@ -494,15 +464,14 @@ onMounted(() => {
 }
 
 .play-btn {
-  width: 56px;
-  height: 56px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
-  background: var(--gradient-gold);
-  color: var(--text-inverse);
+  background: var(--accent);
+  color: var(--ink-inverse);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: var(--shadow-glow-gold);
   transform: scale(0.8);
   transition: transform var(--transition-normal);
 }
@@ -513,7 +482,7 @@ onMounted(() => {
 
 .view-detail {
   font-size: 13px;
-  color: var(--text-primary);
+  color: var(--ink-inverse);
   letter-spacing: 1px;
 }
 
@@ -522,9 +491,10 @@ onMounted(() => {
 }
 
 .title {
+  font-family: var(--font-display);
   font-size: 16px;
-  font-weight: 600;
-  color: var(--text-primary);
+  font-weight: 700;
+  color: var(--ink);
   margin-bottom: 8px;
   white-space: nowrap;
   overflow: hidden;
@@ -542,7 +512,7 @@ onMounted(() => {
   align-items: center;
   gap: 6px;
   font-size: 13px;
-  color: var(--text-muted);
+  color: var(--ink-3);
 }
 
 .meta-item svg {
@@ -555,16 +525,17 @@ onMounted(() => {
   text-overflow: ellipsis;
 }
 
+/* 卡片顶部一道印色, hover 时显形 —— 替代原来的金色渐变光条 */
 .card-glow {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   height: 2px;
-  background: var(--gradient-gold);
+  background: var(--accent);
   opacity: 0;
   transition: opacity var(--transition-normal);
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  z-index: 2;
 }
 
 /* F1 搜索筛选栏 */
@@ -575,9 +546,10 @@ onMounted(() => {
   margin-bottom: 24px;
   flex-wrap: wrap;
   padding: 14px 18px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-paper);
 }
 .search-input {
   flex: 1;
@@ -593,7 +565,7 @@ onMounted(() => {
 .filter-meta {
   margin-left: auto;
   font-size: 13px;
-  color: var(--text-muted);
+  color: var(--ink-3);
   letter-spacing: 0.5px;
 }
 @media (max-width: 640px) {
@@ -605,10 +577,12 @@ onMounted(() => {
 
 /* --- Responsive --- */
 @media (max-width: 768px) {
+  /* 窄屏: 副券落到主券下方, 撕口转成横向 */
   .hero {
-    height: 260px;
-    padding: 0 24px;
-    margin-bottom: 28px;
+    flex-direction: column;
+  }
+  .hero-content {
+    padding: 28px 24px 20px;
   }
   .hero-title {
     font-size: 24px;
@@ -616,15 +590,30 @@ onMounted(() => {
   .hero-subtitle {
     font-size: 14px;
   }
+  .hero-stub {
+    width: auto;
+    border-left: none;
+    border-top: 1px dashed var(--rule);
+    padding: 20px 24px 22px;
+  }
+  .hero-stub::before {
+    top: -6px;
+    bottom: auto;
+    left: 14px;
+    right: 14px;
+    width: auto;
+    height: 12px;
+    background: radial-gradient(circle at 6px 6px, var(--paper) 5.5px, transparent 6px)
+      left top / 18px 12px repeat-x;
+  }
   .hero-stats {
-    gap: 16px;
+    gap: 12px;
   }
   .stat-num {
     font-size: 18px;
   }
-  .film-reel {
-    width: 80px;
-    height: 80px;
+  .hero-barcode {
+    display: none;
   }
   .movie-grid {
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -639,9 +628,8 @@ onMounted(() => {
 }
 
 @media (max-width: 480px) {
-  .hero {
-    height: 220px;
-    padding: 0 20px;
+  .hero-content {
+    padding: 24px 20px 18px;
   }
   .hero-title {
     font-size: 20px;

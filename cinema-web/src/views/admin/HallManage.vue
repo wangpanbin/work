@@ -103,10 +103,18 @@ onMounted(load)
 </template>
 
 <style scoped>
+/* 页面标题: 衬线 */
+h2 {
+  margin: 0 0 12px;
+  font-family: var(--font-display);
+  font-size: 22px;
+  color: var(--ink);
+}
 .id-cell {
-  font-family: 'Consolas', 'Monaco', monospace;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 13px;
-  color: var(--text-secondary);
+  color: var(--ink-2);
   display: inline-block;
   max-width: 78px;
   overflow: hidden;

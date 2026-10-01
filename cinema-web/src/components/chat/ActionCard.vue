@@ -37,16 +37,15 @@ function onClick() {
 
 <style scoped>
 .action-card {
-  border: 1px solid var(--border-color, #e5e5e5);
-  border-radius: 10px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
   padding: 10px 12px;
-  background: #fff;
+  background: var(--paper-raised);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color var(--transition-fast);
 }
 .action-card:hover {
-  border-color: var(--accent-gold, #f59e0b);
-  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15);
+  border-color: var(--accent);
 }
 .action-card-header {
   display: flex;
@@ -56,12 +55,15 @@ function onClick() {
 }
 .action-card-type {
   font-size: 11px;
-  color: var(--text-muted, #999);
+  color: var(--ink-3);
   letter-spacing: 0.5px;
 }
+/* 票价 / 总价: 等宽 + tabular-nums */
 .action-card-price {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-weight: 700;
-  color: var(--accent-gold, #f59e0b);
+  color: var(--accent);
   font-size: 14px;
 }
 .action-card-body {
@@ -70,24 +72,27 @@ function onClick() {
 .action-card-title {
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-primary, #333);
+  color: var(--ink);
 }
+/* 场次时间 / 座位号 / 金额: 等宽数据 */
 .action-card-meta {
+  font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--text-secondary, #666);
+  color: var(--ink-2);
   margin-top: 2px;
 }
 .action-card-btn {
-  background: var(--accent-gold, #f59e0b);
-  color: #1a1a1a;
+  background: var(--accent);
+  color: var(--ink-inverse);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   padding: 6px 12px;
   font-size: 12px;
   cursor: pointer;
   width: 100%;
+  transition: background-color var(--transition-fast);
 }
 .action-card-btn:hover {
-  background: var(--accent-gold-light, #fbbf24);
+  background: var(--accent-hover);
 }
 </style>
