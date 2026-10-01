@@ -35,7 +35,15 @@ public class KnowledgeService {
 
     private List<Knowledge> knowledgeList = new ArrayList<>();
 
-    /** 触发初始化(测试可手工调,生产由 Spring 启动时 @PostConstruct 触发)。 */
+    /**
+     * 触发初始化: 从 DB 全量加载 FAQ 到内存并拆 keywordList。
+     *
+     * <p><b>必须有 {@code @PostConstruct}</b> —— 本方法唯一的生产调用点是 Spring 容器回调。
+     * E2E 2026-10-01 曾因缺该注解导致线上 {@code knowledgeList} 恒为空、{@code searchFaq} 永远返空,
+     * 而 {@code KnowledgeServiceTest} 因为在每个 case 里手工调 {@code init()} 仍然全绿。
+     * 回归锁见 {@code KnowledgeServiceLifecycleTest}。
+     */
+    @PostConstruct
     public void init() {
         knowledgeList = knowledgeMapper.selectList(null);
         for (Knowledge k : knowledgeList) {
