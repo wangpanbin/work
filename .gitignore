@@ -69,3 +69,11 @@ cinema-server/.factorypath
 META-INF/
 cinema-server/.tmp/
 opennlp/
+
+# 课程设计汇报物料 (一次性交付素材, 不属于 cinema 业务代码)
+# deck/  —— 汇报幻灯片生成器与产物 (PPTX / 图片 / 中间文件)
+# video/ —— 汇报演示前端 + 配音流水线 + 成片, 含约 44MB 的 mp3/音频二进制
+# 二者均可由脚本重新生成, 入库只会永久撑大仓库且污染业务代码的 diff。
+# / 前缀限定仅匹配 git root, 避免误伤子模块内同名目录。
+/deck/
+/video/
