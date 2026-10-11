@@ -8,12 +8,14 @@ import { listByMovieAndDate } from '../api/session'
 import { useMovieCache } from '../stores/movieCache'
 import type { Movie, SessionVO } from '../types'
 import { useUserStore } from '../stores/user'
+import { usePosterFallback } from '../composables/usePosterFallback'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const cache = useMovieCache()
 const { t } = useI18n()
+const { isBroken: isPosterBroken, markBroken: markPosterBroken } = usePosterFallback()
 
 const movieId = route.params.id as string
 const movie = ref<Movie | null>(null)
@@ -105,7 +107,12 @@ onMounted(async () => {
           <div class="poster-wrapper">
             <div class="poster-glow"></div>
             <div class="poster">
-              <img v-if="movie.poster" :src="movie.poster" :alt="movie.title" />
+              <img
+                v-if="movie.poster && !isPosterBroken(movie.id)"
+                :src="movie.poster"
+                :alt="movie.title"
+                @error="markPosterBroken(movie.id)"
+              />
               <div v-else class="poster-fallback"><span>{{ movie.title }}</span></div>
             </div>
           </div>
@@ -280,6 +287,8 @@ onMounted(async () => {
   line-height: 1.8;
   margin-bottom: 20px;
   font-size: 15px;
+  /* 影片描述常含分段换行, 不加这条会被折叠成一整段 */
+  white-space: pre-wrap;
 }
 
 .meta-tags {

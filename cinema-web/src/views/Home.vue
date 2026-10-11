@@ -5,12 +5,14 @@ import { useI18n } from 'vue-i18n'
 import { search as searchMovies } from '../api/movie'
 import { useMovieCache } from '../stores/movieCache'
 import type { Movie } from '../types'
+import { usePosterFallback } from '../composables/usePosterFallback'
 
 const router = useRouter()
 const { t } = useI18n()
 const movies = ref<Movie[]>([])
 const loading = ref(false)
 const cache = useMovieCache()
+const { isBroken: isPosterBroken, markBroken: markPosterBroken } = usePosterFallback()
 
 // F1 搜索 + 筛选
 const keyword = ref('')
@@ -157,10 +159,11 @@ onMounted(() => {
         >
           <div class="poster">
             <img
-              v-if="m.poster"
+              v-if="m.poster && !isPosterBroken(m.id)"
               :src="m.poster"
               :alt="m.title"
               loading="lazy"
+              @error="markPosterBroken(m.id)"
             />
             <div v-else class="poster-fallback">
               <span class="fallback-text">{{ m.title }}</span>

@@ -38,6 +38,7 @@ public class AdminMovieController {
 
     @PostMapping
     public R<Movie> create(@Valid @RequestBody MovieDTO dto) {
+        assertTitleFree(dto.getTitle(), null);
         Movie m = new Movie();
         applyDto(m, dto);
         movieMapper.insert(m);
@@ -50,6 +51,7 @@ public class AdminMovieController {
         if (m == null) {
             throw new BizException("影片不存在");
         }
+        assertTitleFree(dto.getTitle(), id);
         applyDto(m, dto);
         movieMapper.updateById(m);
         return R.ok(m);
@@ -63,6 +65,24 @@ public class AdminMovieController {
         }
         movieMapper.deleteById(id);
         return R.ok();
+    }
+
+    /**
+     * 片名查重 —— movie.title 上没有唯一索引, 重复提交会攒出一堆同名影片,
+     * 首页和搜索结果里彼此无法区分。
+     *
+     * @param excludeId 更新时排除自身 id, 否则"只改时长、不改片名"会把自己判成重名;
+                  新增时传 null 表示不排除任何行
+     */
+    private void assertTitleFree(String title, Long excludeId) {
+        LambdaQueryWrapper<Movie> qw = new LambdaQueryWrapper<Movie>().eq(Movie::getTitle, title);
+        if (excludeId != null) {
+            qw.ne(Movie::getId, excludeId);
+        }
+        Long count = movieMapper.selectCount(qw);
+        if (count != null && count > 0) {
+            throw new BizException("片名已存在：" + title);
+        }
     }
 
     private void applyDto(Movie m, MovieDTO dto) {
