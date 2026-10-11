@@ -53,6 +53,15 @@ public class SessionBitmapReader {
             }
             return padded;
         }
+        // P0 修复(2026-10-11 稳定性测试): 原实现"只向上 padding, 从不向下截断", 只要 Redis 里的
+        // 字符串比 expected 长就原样返回。而越界 SETBIT 会把位图撑大(实测 18B → 12501B),
+        // SeatService 再把它 Base64 编码进响应, 于是公开的 GET /seat-map 被放大到 61~2399 倍。
+        // 座位索引校验(OrderCore#requireSeatsInRange)已从写入侧堵住根因; 这里再截断一次,
+        // 一是抵御历史脏位图(位图没有缩容操作, 已被撑大的 key 不会自己变小),
+        // 二是保证响应体积只由 seatCount 决定, 与 Redis 内部残留无关。
+        if (bytes.length > expected) {
+            return java.util.Arrays.copyOf(bytes, expected);
+        }
         return bytes;
     }
 }
