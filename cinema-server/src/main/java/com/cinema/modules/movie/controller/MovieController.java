@@ -2,6 +2,7 @@ package com.cinema.modules.movie.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cinema.common.result.R;
+import com.cinema.common.web.PageParams;
 import com.cinema.modules.movie.entity.Movie;
 import com.cinema.modules.movie.service.MovieService;
 import lombok.RequiredArgsConstructor;
@@ -34,7 +35,8 @@ public class MovieController {
                                  @RequestParam(required = false) String genre,
                                  @RequestParam(required = false) String region,
                                  @RequestParam(required = false) Integer status) {
-        return R.ok(movieService.search(page, size, keyword, genre, region, status));
+        return R.ok(movieService.search(PageParams.page(page), PageParams.size(size),
+                keyword, genre, region, status));
     }
 
     @GetMapping("/{id}")

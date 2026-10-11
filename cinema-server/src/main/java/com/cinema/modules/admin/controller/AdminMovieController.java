@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cinema.common.exception.BizException;
 import com.cinema.common.result.R;
+import com.cinema.common.web.PageParams;
 import com.cinema.modules.movie.dto.MovieDTO;
 import com.cinema.modules.movie.entity.Movie;
 import com.cinema.modules.movie.mapper.MovieMapper;
@@ -33,7 +34,8 @@ public class AdminMovieController {
         LambdaQueryWrapper<Movie> qw = new LambdaQueryWrapper<Movie>()
                 .like(keyword != null && !keyword.isBlank(), Movie::getTitle, keyword)
                 .orderByDesc(Movie::getCreatedAt);
-        return R.ok(movieMapper.selectPage(new Page<>(page, size), qw));
+        return R.ok(movieMapper.selectPage(
+                new Page<>(PageParams.page(page), PageParams.size(size)), qw));
     }
 
     @PostMapping
