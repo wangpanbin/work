@@ -9,6 +9,7 @@ import { useUserStore } from '../../stores/user'
 import { detectLoginRequired } from '../../utils/loginRequiredDetector'
 import type { ChatResponseVO } from '../../types'
 import ChatMessage from './ChatMessage.vue'
+import ChatIcon from './ChatIcon.vue'
 
 const userStore = useUserStore()
 const router = useRouter()
@@ -98,7 +99,7 @@ defineExpose({ toggle })
       :aria-label="t('chat.fabAria')"
       @click="toggle"
     >
-      💬
+      <ChatIcon name="chat" :size="28" />
     </button>
 
     <div v-if="open" class="chat-panel">
@@ -106,7 +107,9 @@ defineExpose({ toggle })
         <span class="chat-header-title">{{ t('chat.title') }}</span>
         <span class="chat-header-meta" v-if="userStore.isLogin">{{ t('chat.metaLogged') }}</span>
         <span class="chat-header-meta anon" v-else>{{ t('chat.metaAnon') }}</span>
-        <button class="chat-header-close" :aria-label="t('chat.closeAria')" @click="open = false">×</button>
+        <button class="chat-header-close" :aria-label="t('chat.closeAria')" @click="open = false">
+          <ChatIcon name="close" :size="16" />
+        </button>
       </div>
 
       <div class="chat-messages">
@@ -134,7 +137,8 @@ defineExpose({ toggle })
           @keydown="onKeydownEnter"
         />
         <button class="chat-send-btn" :disabled="!inputText.trim() || sending" @click="send">
-          {{ sending ? t('chat.sending') : t('chat.sendBtn') }}
+          <ChatIcon name="send" :size="14" />
+          <span>{{ sending ? t('chat.sending') : t('chat.sendBtn') }}</span>
         </button>
       </div>
     </div>
@@ -155,14 +159,22 @@ defineExpose({ toggle })
   background: var(--accent);
   color: var(--ink-inverse);
   border: 1px solid var(--accent);
-  font-size: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   box-shadow: var(--shadow-modal);
-  transition: background-color var(--transition-fast);
+  transition:
+    background-color var(--transition-fast),
+    transform var(--transition-fast);
 }
 .chat-fab:hover {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
+  transform: translateY(-2px);
+}
+.chat-fab:active {
+  transform: translateY(0);
 }
 .chat-panel {
   width: 360px;
@@ -202,10 +214,23 @@ defineExpose({ toggle })
 .chat-header-close {
   background: none;
   border: none;
-  font-size: 22px;
+  padding: 0;
   cursor: pointer;
   color: var(--ink-3);
   margin-left: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-md);
+  transition:
+    color var(--transition-fast),
+    background-color var(--transition-fast);
+}
+.chat-header-close:hover {
+  color: var(--ink);
+  background: var(--paper-raised);
 }
 .chat-messages {
   flex: 1;
@@ -246,6 +271,9 @@ defineExpose({ toggle })
   color: var(--ink);
 }
 .chat-send-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   background: var(--accent);
   color: var(--ink-inverse);
   border: none;
@@ -254,6 +282,7 @@ defineExpose({ toggle })
   cursor: pointer;
   font-size: 13px;
   font-weight: 600;
+  white-space: nowrap;
   transition: background-color var(--transition-fast);
 }
 .chat-send-btn:hover:not(:disabled) {
@@ -262,5 +291,16 @@ defineExpose({ toggle })
 .chat-send-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+/* chat-fab 的 -2px 位移是本次新增的运动,动效敏感用户下直接关掉 */
+@media (prefers-reduced-motion: reduce) {
+  .chat-fab,
+  .chat-header-close {
+    transition: none;
+  }
+  .chat-fab:hover,
+  .chat-fab:active {
+    transform: none;
+  }
 }
 </style>
