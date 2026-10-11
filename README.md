@@ -93,6 +93,9 @@ mysql -uroot -p < sql/02_init_data.sql
 mysql -uroot -p < sql/03_p0_increment.sql   # P0 增量: movie 加列 + refund_log + ticket
 # 可选: 更多演示影片(12 部含真实海报) + 未来 14 天场次; 必须带 --default-character-set=utf8mb4
 mysql -uroot -p --default-character-set=utf8mb4 < sql/04_extra_demo_data.sql
+# 演示/截图前补场次: 生成今天起 3 天的排片(前端日期选择器只看今天/明天/后天)
+#   幂等, 可重复执行; 不要用 04 重跑补种, 它的 ID 会与历史数据冲突并被静默跳过
+mysql -uroot -p --default-character-set=utf8mb4 < sql/05_refresh_sessions_for_demo.sql
 # 可选: 对话助手 FAQ 知识库(18 条常见问答; 迁移 PR #15 数据,spec #20)
 #   ⚠️ 需手动执行并**重启后端**才生效; 未执行时 searchFaq 工具查不到表,
 #      KnowledgeService 会记录「知识库不可用」日志并降级(其余 7 个工具不受影响)。
@@ -209,6 +212,7 @@ F:/test/work/
 │   ├── 02_init_data.sql                 演示数据(3 部影片 + 3 天场次)
 │   ├── 03_p0_increment.sql              P0 增量: movie 扩列 + refund_log + ticket
 │   ├── 04_extra_demo_data.sql           扩展演示: 12 部影片(带 TMDB 海报) + 14 天场次
+│   ├── 05_refresh_sessions_for_demo.sql 演示场次补种: 今天起 3 天(绝对日期 ID, 真幂等)
 │   └── 06_qa_knowledge.sql              对话助手 FAQ 知识库(18 条常见问答,spec #20)
 ├── cinema-server/                       Spring Boot 后端(按领域分包)
 │   ├── pom.xml
@@ -431,7 +435,8 @@ export DEEPSEEK_API_KEY=sk-xxx         # bash (source)
 
 | 限制 | 现象 | 原因 | 处理 |
 | --- | --- | --- | --- |
-| **种子场次是固定日期窗口** | 隔一段时间后进影片详情,场次列表为空 | `sql/02_init_data.sql` / `04_extra_demo_data.sql` 生成的是**一次性固定区间**场次(如 2026-09-08 ~ 09-21),不会随日期滚动;`GET /api/movies/{id}/sessions` 不带 `?date=` 时**默认查当天** | 演示前重跑 `sql/04_extra_demo_data.sql` 生成新区间;或调接口时显式传 `?date=YYYY-MM-DD`(实测传 `2026-09-10` 可正常返回 4 场) |
+| **种子场次是固定日期窗口** | 隔一段时间后进影片详情,场次列表为空 | `sql/02_init_data.sql` / `04_extra_demo_data.sql` 生成的是**一次性固定区间**场次(如 2026-09-08 ~ 09-21);`MovieDetail.vue` 的日期选择器**只提供今天/明天/后天**且默认选中明天,窗口一过就全部落空 | 演示前执行 `sql/05_refresh_sessions_for_demo.sql` 补齐 3 天场次(幂等,可重复执行);调接口时也可显式传 `?date=YYYY-MM-DD` |
+| **⚠️ 重跑 `04_extra_demo_data.sql` 不但没用,而且会静默失败** | 脚本执行"成功"但 `session` 表一行没多 | 它的确定性 ID 是 `movie*1e7 + hall*1e5 + d*100 + s`,`d` 为**相对天数**、不含绝对日期;跑过一次后各 `d` 均已被占用,重跑时算出同一批 ID,被脚本内的 `INSERT IGNORE` 全部丢弃 | **改用 `05_refresh_sessions_for_demo.sql`**:ID 用 `DAYOFMONTH*100 + slot` 绝对日期编码,跨天不撞、同天重跑真幂等 |
 | **FAQ 知识库需手动灌** | 对话助手问流程类问题不走知识库兜底 | `sql/06_qa_knowledge.sql` 默认不执行,`qa_knowledge` 表可能不存在 | 按「快速开始 §1」执行该 SQL 并重启后端;不执行时 `searchFaq` 降级,其余 7 个工具不受影响 |
 | **Vite dev 只监听 IPv6** | 用 `http://127.0.0.1:5173` 探测会「连接被拒绝」,误判前端没起 | Vite 6 默认绑 `[::1]`(localhost 解析到 IPv6) | 用 `http://localhost:5173` 访问即可;不是服务故障 |
 
