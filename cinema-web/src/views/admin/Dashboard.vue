@@ -429,7 +429,7 @@ onMounted(load)
   background: var(--paper-raised);
   border: 1px solid var(--rule-strong);
   border-radius: var(--radius-sm);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-tooltip);
   pointer-events: none;
 }
 .trend-tip.below {

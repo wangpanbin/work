@@ -225,8 +225,9 @@ function onMobileSelect(key: string | number) {
 .mobile-only  { display: none; }
 
 /* 移动端头像菜单按钮 —— 收编进墨色系
-   ⚠️ 原稿这里是靛蓝 rgba(99,102,241)/rgb(165,168,255)/rgb(199,201,255),
-      是全站第 4 个品牌色且 :root 里没有任何对应 token, 现已统一到墨色系。 */
+   ⚠️ 原稿这里是第 4 个品牌色且 :root 里没有任何对应 token, 现已统一到墨色系。
+      2026-10-12 换肤后再收敛一次: 全站只剩 --accent(#2563eb) 一个强调色,
+      本按钮属中性操作, 刻意不借用主色, 避免与 chip-primary 抢注意力。 */
 .avatar-btn {
   background: var(--paper-sunk);
   border: 1px solid var(--rule);

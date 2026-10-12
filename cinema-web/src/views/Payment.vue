@@ -683,9 +683,11 @@ const barcodeBars = [2, 1, 3, 1, 2, 1, 1, 3, 2, 1, 2, 3, 1, 2, 1, 3]
   margin-bottom: 14px;
 }
 
-/* ⚠️ 白底是扫码硬要求 —— 禁止改成纸色/浅色。
+/* ⚠️ 白底是扫码硬要求 —— 禁止改成纸色/浅色/冷靛蓝。
    二维码的 dark/light 也写死在 script 的 QRCode.toDataURL 里
-   (dark:'#111827', light:'#ffffff'), 换肤时不要动。 */
+   (dark:'#111827', light:'#ffffff'), 换肤时不要动。
+   2026-10-12 冷靛蓝换肤已确认跳过此处: 全站走「浅色内容区」方案正是为了
+   让这块白底不成为暗色主题下的刺眼孤岛。 */
 .qr-real {
   display: block;
   width: 220px;

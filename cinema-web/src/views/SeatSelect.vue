@@ -338,7 +338,7 @@ function seatClick(idx: number) {
   min-width: 280px;
   height: 30px;
   border-radius: 50% 50% 0 0 / 100% 100% 0 0;
-  background: rgba(232, 224, 210, 0.07);
+  background: var(--hall-wash);
   border: 1px solid var(--hall-rule);
   border-bottom: none;
   display: flex;
@@ -362,7 +362,7 @@ function seatClick(idx: number) {
   transform: translateX(-50%);
   width: 50%;
   height: 14px;
-  background: linear-gradient(180deg, rgba(232, 224, 210, 0.07), transparent);
+  background: linear-gradient(180deg, var(--hall-wash), transparent);
   border-radius: 50%;
 }
 
@@ -426,7 +426,7 @@ function seatClick(idx: number) {
   color: var(--hall-ink-2);
   margin-bottom: 12px;
   padding: 6px 12px;
-  background: rgba(232, 224, 210, 0.04);
+  background: var(--hall-wash-soft);
   border-radius: var(--radius-sm);
   border: 1px dashed var(--hall-rule);
 }
@@ -440,19 +440,20 @@ function seatClick(idx: number) {
       不要在图例里另写一套色值(原稿就是这么写的, 改座位忘改图例)。
    ============================================ */
 .seat-select {
-  --seat-avail-bg: #2e2a22;
+  --seat-avail-bg: #1e2a40;
   --seat-avail-border: var(--hall-rule);
   --seat-avail-ink: var(--hall-ink-2);
   --seat-sel-bg: var(--accent);
   --seat-sel-border: var(--accent-press);
+  /* mine 三态刻意保留原值: 动它会把 5 态灰度间隔压回 1 级, 违反上方验收硬要求 */
   --seat-mine-bg: #2f6b4f;
   --seat-mine-border: #245239;
   --seat-mine-ink: #dcece2;
-  --seat-locked-border: #4a4237;
-  --seat-locked-ink: #6b6152;
-  --seat-sold-bg: #211d18;
-  --seat-sold-border: #2f2a22;
-  --seat-sold-ink: #3d372e;
+  --seat-locked-border: #3d4a63;
+  --seat-locked-ink: #6b7a94;
+  --seat-sold-bg: #151f33;
+  --seat-sold-border: #232f47;
+  --seat-sold-ink: #46536b;
 }
 
 .seat {
@@ -489,7 +490,7 @@ function seatClick(idx: number) {
   border-color: var(--seat-avail-border);
 }
 
-/* 已选: 实心朱红 + 2px 粗描边 (粗细是非颜色通道) */
+/* 已选: 实心主色 + 2px 粗描边 (粗细是非颜色通道) */
 .seat.selected {
   background: var(--seat-sel-bg);
   border: 2px solid var(--seat-sel-border);
@@ -510,7 +511,7 @@ function seatClick(idx: number) {
   top: 3px;
   bottom: 3px;
   width: 2px;
-  background: #7fc4a0;
+  background: var(--hall-mine-bar);
   border-radius: 1px;
 }
 
@@ -528,7 +529,7 @@ function seatClick(idx: number) {
   background-image: repeating-linear-gradient(
     45deg,
     transparent 0 3px,
-    rgba(232, 224, 210, 0.06) 3px 4px
+    var(--hall-stripe) 3px 4px
   );
   color: var(--seat-sold-ink);
   cursor: not-allowed;
@@ -582,7 +583,7 @@ function seatClick(idx: number) {
   top: 3px;
   bottom: 3px;
   width: 2px;
-  background: #7fc4a0;
+  background: var(--hall-mine-bar);
 }
 .legend .dot.locked {
   background: transparent;
@@ -593,7 +594,7 @@ function seatClick(idx: number) {
   background-image: repeating-linear-gradient(
     45deg,
     transparent 0 3px,
-    rgba(232, 224, 210, 0.06) 3px 4px
+    var(--hall-stripe) 3px 4px
   );
   border: 1px solid var(--seat-sold-border);
 }
@@ -717,18 +718,18 @@ function seatClick(idx: number) {
   flex-shrink: 0;
 }
 .ws-status.ws-open {
-  background: rgba(47, 107, 79, 0.08);
-  border-color: rgba(47, 107, 79, 0.3);
+  background: rgb(var(--ok-rgb) / 0.08);
+  border-color: rgb(var(--ok-rgb) / 0.3);
   color: var(--ok);
 }
 .ws-status.ws-open .ws-dot {
   background: var(--ok);
-  box-shadow: 0 0 0 0 rgba(47, 107, 79, 0.5);
+  box-shadow: 0 0 0 0 rgb(var(--ok-rgb) / 0.5);
   animation: ws-pulse 2s ease-in-out infinite;
 }
 .ws-status.ws-connecting {
-  background: rgba(138, 109, 31, 0.08);
-  border-color: rgba(138, 109, 31, 0.3);
+  background: rgb(var(--warn-rgb) / 0.08);
+  border-color: rgb(var(--warn-rgb) / 0.3);
   color: var(--warn);
 }
 .ws-status.ws-connecting .ws-dot {
@@ -736,8 +737,8 @@ function seatClick(idx: number) {
   animation: ws-blink 1s ease-in-out infinite;
 }
 .ws-status.ws-closed {
-  background: rgba(161, 39, 28, 0.08);
-  border-color: rgba(161, 39, 28, 0.3);
+  background: rgb(var(--danger-rgb) / 0.08);
+  border-color: rgb(var(--danger-rgb) / 0.3);
   color: var(--danger);
 }
 .ws-status.ws-closed .ws-dot {
@@ -745,8 +746,8 @@ function seatClick(idx: number) {
   animation: ws-blink 0.6s ease-in-out infinite;
 }
 @keyframes ws-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(47, 107, 79, 0.5); }
-  50% { box-shadow: 0 0 0 6px rgba(47, 107, 79, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgb(var(--ok-rgb) / 0.5); }
+  50% { box-shadow: 0 0 0 6px rgb(var(--ok-rgb) / 0); }
 }
 @keyframes ws-blink {
   0%, 100% { opacity: 1; }
@@ -773,7 +774,7 @@ function seatClick(idx: number) {
   50% { transform: scale(1.18); }
 }
 @keyframes seat-conflict-ring {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(161, 39, 28, 0.55); }
-  50% { opacity: 0.5; box-shadow: 0 0 0 6px rgba(161, 39, 28, 0); }
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgb(var(--danger-rgb) / 0.55); }
+  50% { opacity: 0.5; box-shadow: 0 0 0 6px rgb(var(--danger-rgb) / 0); }
 }
 </style>

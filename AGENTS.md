@@ -20,12 +20,16 @@ Test accounts seeded by backend on startup: `user1/123456`, `user2/123456`, `adm
 
 ## Commands
 
-- Frontend: `pnpm dev` · `pnpm build` · `pnpm type-check` (`vue-tsc --noEmit`) · `pnpm test` (vitest 3.x, `tests/**/*.test.ts`,**177 用例跨 18 个 `.test.ts` 文件**,2026-10-12 实测). First test file: `tests/views/order/constants.test.ts` (**16 用例**覆盖 ORDER_STATUS 5 态 + 跨态 round-trip). `tests/utils/markdown.test.ts` 是 P2-2 聊天 Markdown 渲染的 24 用例,其中一组专门锁 XSS(先转义后拼标签).
+- Frontend: `pnpm dev` · `pnpm build` · `pnpm type-check` (`vue-tsc --noEmit`) · `pnpm test` (vitest 3.x, `tests/**/*.test.ts`,**216 用例跨 19 个 `.test.ts` 文件**,2026-10-12 实测;上一次 177/18)。新增 `tests/styles/themeTokens.test.ts`(39 用例)是换肤闸门,见下方「主题 token」。First test file: `tests/views/order/constants.test.ts` (**16 用例**覆盖 ORDER_STATUS 5 态 + 跨态 round-trip). `tests/utils/markdown.test.ts` 是 P2-2 聊天 Markdown 渲染的 24 用例,其中一组专门锁 XSS(先转义后拼标签).
 - Backend: `mvn spring-boot:run` · `mvn test` (**169 JUnit5+Mockito unit tests across 32 classes**,2026-10-11 实测;上一次 150/29,早期数字 29/8 → 69/17 → 105/24 → 118/24 → 115/25 → 127/26 → 139/26 过期). 本轮新增的 3 个类锁的是 P0 修复: `OrderCoreSeatRangeTest`(`seatIndex` 必须落在场次 `[0, seatCount)` 否则 40001)、`LockSeatsDTOValidationTest`(元素级 `@NotNull/@Min/@Max`)、`PageParamsTest`(分页钳制).
 - There is no linter configured in either module. **build 要单独验**:`pnpm build` 与 `pnpm type-check` 查出的问题不重叠(SCSS 变量/模板编译错误只有 build 报)。
 - **数字以实测为准**:README/AGENTS 里的用例数会随测试增长漂移,别照抄文档 —— 跑一次 `mvn test`(或聚合 `target/surefire-reports/TEST-*.xml`)和 `pnpm test` 取真值再更新。
 
 ## Conventions & gotchas
+- **主题色一律走 `src/styles/main.css` 的 `:root` token,禁止在 `.vue` 里写死色值**。唯一例外是 `Payment.vue` 的二维码三处(`#fff` / `#111827` / `#ffffff`,扫码硬要求)。`tests/styles/themeTokens.test.ts` 用静态扫描锁这条:扫 `src/**` 的 `*.vue` 找 `#rrggbb` 与 `rgba(数字`,白名单外的直接判红。**改色只改 token,不要去改组件。**
+- **换主题的最小改动面就是 `:root` 那几组 token** —— `Dashboard.vue` / `Login.vue` / `AdminHome.vue` 已全部 token 化,主色一改,折线图、面积渐变、票房柱、选座高亮、header chip 全站自动跟随。当前色板(2026-10-12 换肤):主色 `#2563eb`(唯一强调色)、内容区冷灰白 `#eef1f6`、墨色 `#0f172a`、管理端侧栏深靛蓝 `#0f172a`(与座位图暗场 `--hall` 同值,构成一个暗色家族)。
+- **⚠️ `rgba(var(--x-rgb), a)` 是非法 CSS,浏览器会静默丢弃整条声明**(2026-10-12 踩过:侧栏激活态底色因此变 transparent,页面看着像没上色)。`rgba()` 的逗号形式要求 R/G/B 也用逗号分隔,而 token 里存的是空格分隔。**正确写法是斜杠语法 `rgb(var(--x-rgb) / a)`**。themeTokens.test.ts 有一条断言专门锁这个。
+- **座位图 5 态转灰度后必须仍可分辨** —— 这是 `SeatSelect.vue` 的既有验收硬要求,现已固化成 `themeTokens.test.ts` 里的可执行断言(相邻灰度差 ≥ 2)。**改 `--seat-*` 任何一色前先跑这条**;实测 `--seat-mine-bg: #2f6b4f` 动一下间隔就掉到 1。
 
 - **前端 vitest 跑在 `environment: 'node'`, 且没装 jsdom / `@vue/test-utils`**(`vite.config.ts` 的 `test` 段 + `package.json` devDependencies)。**挂不了 Vue 组件**, 涉及视图层的测试只有三条路: ① 把判断逻辑下沉到纯函数/composable 测(如 `usePosterFallback`); ② 对 `.vue` 源码做静态契约断言(`tests/i18n/key-coverage.test.ts` 扫 `t()`、`tests/views/posterWiring.test.ts` 断言 `@error` 接线, 都是这一类, 脆性写在文件头注释里); ③ 上 Playwright 驱动真浏览器。**jsdom 也测不出真实渲染** —— `white-space` 这类 CSS 级联结果在 node/jsdom 下都取不到, 只能靠浏览器验证, 别用静态断言冒充渲染验证。也别为了"能挂组件"随手改 `environment`, 会波及全部 16 个测试文件。
 

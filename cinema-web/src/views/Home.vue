@@ -456,7 +456,7 @@ onMounted(() => {
 .poster-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(31, 27, 22, 0.6);
+  background: var(--overlay-poster);
   opacity: 0;
   transition: opacity var(--transition-normal);
   display: flex;

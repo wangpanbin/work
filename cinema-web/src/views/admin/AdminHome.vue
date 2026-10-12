@@ -183,11 +183,17 @@ function logout() {
   }
 }
 
-/* ========== 侧边栏：与全局票根浅色主题统一 ========== */
+/* ========== 侧边栏：深靛蓝暗面（与 --hall 同族，构成「一个暗色家族」） ==========
+   局部 token 作用域限定在 .aside, 不污染 :root —— 前台内容区仍是浅色纸面。 */
 .aside {
-  background: var(--paper-raised);
-  color: var(--ink);
-  border-right: 1px solid var(--rule);
+  --aside-bg: #0f172a;
+  --aside-ink: #e2e8f0;
+  --aside-ink-2: #94a3b8;
+  --aside-rule: #1e293b;
+  --aside-hover: #1e293b;
+  background: var(--aside-bg);
+  color: var(--aside-ink);
+  border-right: 1px solid var(--aside-rule);
   position: relative;
 }
 
@@ -199,7 +205,7 @@ function logout() {
   justify-content: center;
   gap: 10px;
   padding: 0 16px;
-  border-bottom: 1px solid var(--rule);
+  border-bottom: 1px solid var(--aside-rule);
   position: relative;
 }
 .brand-icon {
@@ -209,7 +215,8 @@ function logout() {
   font-family: var(--font-display);
   font-size: 18px;
   font-weight: 700;
-  color: var(--accent);
+  /* 深底上蓝色文字对比不足, 改用白字承担品牌识别 */
+  color: var(--aside-ink);
   letter-spacing: 2px;
 }
 
@@ -225,7 +232,7 @@ function logout() {
   padding: 12px 8px;
 }
 .aside :deep(.el-menu-item) {
-  color: var(--ink-2);
+  color: var(--aside-ink-2);
   height: 48px;
   line-height: 48px;
   border-radius: var(--radius-md);
@@ -235,17 +242,25 @@ function logout() {
   letter-spacing: 0.5px;
   transition: all var(--transition-fast);
 }
+/* 深底上「实心蓝块」会和背景糊成一团, 改用微蓝底 + 左侧 3px 亮条。
+   实测该组合下 --aside-ink 对合成底色(≈#132349) 达 12.49:1 AAA。 */
 .aside :deep(.el-menu-item.is-active) {
-  color: var(--ink-inverse);
-  background: var(--accent);
+  color: var(--aside-ink);
+  background: rgb(var(--accent-rgb) / 0.16);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 .aside :deep(.el-menu-item:hover) {
-  color: var(--ink);
-  background: var(--paper-sunk);
+  color: var(--aside-ink);
+  background: var(--aside-hover);
 }
 .aside :deep(.el-menu-item.is-active:hover) {
-  color: var(--ink-inverse);
-  background: var(--accent-hover);
+  color: var(--aside-ink);
+  background: rgb(var(--accent-rgb) / 0.24);
+}
+/* 深色底上的键盘焦点环必须自带, 否则 EP 默认焦点样式看不见 */
+.aside :deep(.el-menu-item:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 /* ========== 右侧内容区 ========== */

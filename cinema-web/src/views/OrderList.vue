@@ -306,8 +306,8 @@ onMounted(() => {
   animation: pulse-red-dot 1.5s ease-in-out infinite;
 }
 @keyframes pulse-red-dot {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(161, 39, 28, 0.5); }
-  50% { box-shadow: 0 0 0 8px rgba(161, 39, 28, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgb(var(--danger-rgb) / 0.5); }
+  50% { box-shadow: 0 0 0 8px rgb(var(--danger-rgb) / 0); }
 }
 
 .order-main {

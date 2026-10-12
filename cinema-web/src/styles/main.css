@@ -1,6 +1,6 @@
 /* ============================================
-   星辉影城 · 票根 Ticket Stub 浅色主题
-   暖米纸底 / 墨黑字 / 票根朱红单一印色 / 发丝线印刷质感
+   星辉影城 · 票根 Ticket Stub 冷靛蓝主题
+   冷灰白纸底 / 靛蓝墨字 / 皇家蓝单一印色 / 发丝线印刷质感
    签名装置: 存根联齿孔撕口 + 等宽票号 + 暗场座位票面
    ============================================ */
 
@@ -8,45 +8,57 @@
 :root {
   color-scheme: light;
 
-  --paper: #f2ece1; /* 页面底 */
-  --paper-raised: #faf7f0; /* 卡片 / 票面 (比底更亮 = 浮起) */
-  --paper-sunk: #e7ddcb; /* 凹陷面 / 表头 / 表格底 */
-  --rule: #d6c9b3; /* 1px 发丝线 */
-  --rule-strong: #b9a88c; /* 强线: 撕口 / 表格框 */
+  --paper: #eef1f6; /* 页面底 */
+  --paper-raised: #f8fafc; /* 卡片 / 票面 (比底更亮 = 浮起) */
+  --paper-sunk: #e2e8f0; /* 凹陷面 / 表头 / 表格底 */
+  --rule: #ccd5e2; /* 1px 发丝线 */
+  --rule-strong: #a8b5c9; /* 强线: 撕口 / 表格框 */
 }
 
 /* --- 设计 Token: 墨 (文字) --- */
 :root {
-  --ink: #1f1b16;
-  --ink-2: #574f43;
-  --ink-3: #8a8071;
-  --ink-inverse: #faf7f0; /* 反色文字 (红底上的字) */
+  --ink: #0f172a; /* 与 --hall 同色, 全站锚定「一个暗色家族」 */
+  --ink-2: #475569;
+  --ink-3: #7c8ba1;
+  --ink-inverse: #f8fafc; /* 反色文字 (主色底上的字) */
 }
 
 /* --- 设计 Token: 印色 (朱红) --- */
 :root {
-  --accent: #b8352a;
-  --accent-hover: #a52c22;
-  --accent-press: #8e241b;
-  --accent-wash: rgba(184, 53, 42, 0.08);
-  --accent-stamp: rgba(184, 53, 42, 0.14);
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-press: #1e40af;
+  --accent-wash: rgba(37, 99, 235, 0.08);
+  --accent-stamp: rgba(37, 99, 235, 0.14);
+  /* RGB 分量(空格分隔)。拼 alpha 必须用斜杠语法 rgb(var(--accent-rgb) / a),
+     绝不能写 rgba(var(--accent-rgb), a) —— 那是非法值, 浏览器会静默丢弃整条声明。 */
+  --accent-rgb: 37 99 235;
 }
 
 /* --- 设计 Token: 功能色 (克制, 只用于状态) --- */
 :root {
-  --ok: #2f6b4f; /* 我锁的座位 / WS 已连接 */
-  --warn: #8a6d1f; /* WS 连接中 / warning */
-  --danger: #a1271c; /* 冲突 / 超时 */
-  --info: #574f43;
+  --ok: #2a6b52; /* 我锁的座位 / WS 已连接 */
+  --warn: #86691c; /* WS 连接中 / warning */
+  --danger: #a8271b; /* 冲突 / 超时 */
+  --info: #475569;
+  /* 语义色 RGB 分量: 供脉冲动画 / 状态底色拼 alpha, 避免各处硬编码 */
+  --ok-rgb: 42 107 82;
+  --warn-rgb: 134 105 28;
+  --danger-rgb: 168 39 27;
 }
 
 /* --- 设计 Token: 暗场 Hall (仅座位图面板) --- */
 :root {
-  --hall: #171410;
-  --hall-raised: #221e18;
-  --hall-rule: #3a342b;
-  --hall-ink: #e8e0d2;
-  --hall-ink-2: #9c9284;
+  --hall: #0f172a;
+  --hall-raised: #16203a;
+  --hall-rule: #2c3a55;
+  --hall-ink: #e2e8f0;
+  --hall-ink-2: #93a3ba;
+  /* 暗场内的低透叠加: 银幕辉光 / 提示条底 / 已售斜纹, 统一走 --hall-ink 派生 */
+  --hall-wash: rgba(226, 232, 240, 0.07);
+  --hall-wash-soft: rgba(226, 232, 240, 0.04);
+  --hall-stripe: rgba(226, 232, 240, 0.06);
+  --hall-mine-bar: #6ee0ae; /* 我锁的座位左侧亮条 */
 }
 
 /* --- 字体三档 --- */
@@ -68,9 +80,12 @@
 
 /* --- 阴影: 只保留 1px 票面浮起 + 弹层 --- */
 :root {
-  --shadow-paper: 0 1px 0 rgba(31, 27, 22, 0.04);
-  --shadow-modal: 0 12px 32px rgba(31, 27, 22, 0.12);
-  --shadow-hall: 0 1px 0 rgba(31, 27, 22, 0.08);
+  --shadow-paper: 0 1px 0 rgba(15, 23, 42, 0.05);
+  --shadow-paper-hover: 0 1px 0 rgba(15, 23, 42, 0.05), 0 6px 16px rgba(15, 23, 42, 0.03), 0 8px 20px rgba(15, 23, 42, 0.07);
+  --shadow-modal: 0 12px 32px rgba(15, 23, 42, 0.14);
+  --shadow-hall: 0 1px 0 rgba(15, 23, 42, 0.1);
+  --shadow-tooltip: 0 2px 8px rgba(15, 23, 42, 0.12); /* 图表悬浮提示 */
+  --overlay-poster: rgba(15, 23, 42, 0.62); /* 海报悬停蒙版: 压暗底图让白字可读 */
 }
 
 /* --- 过渡 --- */
@@ -85,17 +100,18 @@
    不再用手写 !important 去拧 EP —— 见下方组件段落。
    ============================================ */
 :root {
-  --el-color-primary: #b8352a;
-  --el-color-primary-light-3: #cd726a;
-  --el-color-primary-light-5: #dc9a95;
-  --el-color-primary-light-7: #eac2bf;
-  --el-color-primary-light-8: #f1d7d4;
-  --el-color-primary-light-9: #f8ebea;
+  --el-color-primary: #2563eb;
+  --el-color-primary-light-3: #6692f1;
+  --el-color-primary-light-5: #92b1f5;
+  --el-color-primary-light-7: #bed0f9;
+  --el-color-primary-light-8: #d3e0fb;
+  --el-color-primary-light-9: #e9effd;
+  --el-color-primary-dark-2: #1e4fbc;
 
-  --el-color-success: #2f6b4f;
-  --el-color-warning: #8a6d1f;
-  --el-color-danger: #a1271c;
-  --el-color-info: #574f43;
+  --el-color-success: var(--ok);
+  --el-color-warning: var(--warn);
+  --el-color-danger: var(--danger);
+  --el-color-info: var(--ink-2);
 
   --el-border-radius-base: 3px;
   --el-font-family: var(--font-body);
@@ -106,27 +122,28 @@
   --el-text-color-placeholder: var(--ink-3);
 
   --el-border-color: var(--rule);
-  --el-border-color-light: #e2d8c6;
-  --el-border-color-lighter: #ece4d6;
-  --el-border-color-extra-light: #f2ece1;
+  --el-border-color-light: #dae2ee;
+  --el-border-color-lighter: #e6ecf5;
+  --el-border-color-extra-light: #eef1f6;
 
   --el-bg-color: var(--paper-raised);
   --el-bg-color-page: var(--paper);
   --el-bg-color-overlay: var(--paper-raised);
-  --el-fill-color-light: #ece4d6;
-  --el-fill-color-lighter: #f2ece1;
+  --el-fill-color-light: #e6ecf5;
+  --el-fill-color-lighter: #eef1f6;
   --el-fill-color-blank: var(--paper-raised);
 }
 
 /* --- 管理端冷调报表变体 ---
    同 token、覆盖面覆盖三个变量, 一处定义全管理端 6 个 view 生效。
-   印色 / 墨色与全站一致, 保证品牌统一, 只把纸面换成冷灰。 */
+   印色 / 墨色与全站一致, 保证品牌统一, 只把纸面压深一档做报表底。
+   ⚠️ 换肤时这五个值必须与 :root 同步换冷调, 否则会残留旧暖灰与新冷调打架。 */
 .app-main.is-admin {
-  --paper: #eef0f1;
-  --paper-raised: #f7f8f9;
-  --paper-sunk: #e4e8ea;
-  --rule: #d0d5d8;
-  --rule-strong: #b3bcc2;
+  --paper: #e9edf3;
+  --paper-raised: #f4f7fb;
+  --paper-sunk: #dde4ef;
+  --rule: #c7d0de;
+  --rule-strong: #a4b0c4;
 }
 
 /* --- 全局重置 --- */
@@ -343,7 +360,7 @@ img {
   border-color: var(--rule);
 }
 .header-chip.chip-danger:hover {
-  background: rgba(161, 39, 28, 0.08);
+  background: rgb(var(--danger-rgb) / 0.08);
   border-color: var(--danger);
   color: var(--danger);
 }
@@ -490,8 +507,8 @@ img {
 }
 .el-button--primary.is-disabled,
 .el-button--primary.is-disabled:hover {
-  background: #d8b0ab !important;
-  border-color: #d8b0ab !important;
+  background: #a7bfe8 !important;
+  border-color: #a7bfe8 !important;
 }
 
 /* 次按钮: 纸面 + 发丝线 */
@@ -515,8 +532,8 @@ img {
   color: var(--ink-inverse) !important;
 }
 .el-button--danger:hover {
-  background: #8c2118 !important;
-  border-color: #8c2118 !important;
+  background: #8f2015 !important;
+  border-color: #8f2015 !important;
 }
 
 .el-button--warning {
@@ -525,8 +542,8 @@ img {
   color: var(--ink-inverse) !important;
 }
 .el-button--warning:hover {
-  background: #765c17 !important;
-  border-color: #765c17 !important;
+  background: #6e5516 !important;
+  border-color: #6e5516 !important;
 }
 
 /* 空状态: 恢复 EP 默认插画
