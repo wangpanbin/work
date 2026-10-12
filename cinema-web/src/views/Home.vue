@@ -309,7 +309,7 @@ onMounted(() => {
 .stat-label {
   font-size: 11px;
   color: var(--ink-3);
-  margin-top: 5px;
+  margin-top: 4px;
   letter-spacing: 1px;
 }
 
@@ -379,7 +379,10 @@ onMounted(() => {
   border-radius: var(--radius-md);
   overflow: hidden;
   cursor: pointer;
-  transition: border-color var(--transition-normal);
+  transition:
+    border-color var(--transition-normal),
+    box-shadow var(--transition-normal),
+    transform var(--transition-normal);
   background: var(--paper-raised);
   border: 1px solid var(--rule);
   box-shadow: var(--shadow-paper);
@@ -388,6 +391,10 @@ onMounted(() => {
 
 .movie-card:hover {
   border-color: var(--rule-strong);
+  box-shadow: var(--shadow-paper-hover);
+}
+.movie-card:active {
+  transform: translateY(1px);
 }
 
 .movie-card:hover .card-glow {
@@ -597,7 +604,7 @@ onMounted(() => {
     width: auto;
     border-left: none;
     border-top: 1px dashed var(--rule);
-    padding: 20px 24px 22px;
+    padding: 20px 24px;
   }
   .hero-stub::before {
     top: -6px;

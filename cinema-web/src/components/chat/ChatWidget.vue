@@ -206,7 +206,7 @@ defineExpose({ toggle })
   background: var(--paper-raised);
   border: 1px solid var(--rule);
   padding: 2px 8px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
 }
 .chat-header-meta.anon {
   color: var(--ink-2);
@@ -273,7 +273,7 @@ defineExpose({ toggle })
 .chat-send-btn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   background: var(--accent);
   color: var(--ink-inverse);
   border: none;
@@ -284,6 +284,12 @@ defineExpose({ toggle })
   font-weight: 600;
   white-space: nowrap;
   transition: background-color var(--transition-fast);
+}
+.chat-send-btn:active:not(:disabled) {
+  filter: brightness(0.94);
+}
+.chat-send-btn:active:not(:disabled) {
+  filter: brightness(0.94);
 }
 .chat-send-btn:hover:not(:disabled) {
   background: var(--accent-hover);

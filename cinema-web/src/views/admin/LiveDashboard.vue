@@ -139,7 +139,7 @@ onUnmounted(() => {
 .live-header h2 { margin: 0; font-family: var(--font-display); font-size: 22px; }
 .conn-status {
   display: flex; align-items: center; gap: 6px;
-  font-size: 13px; padding: 4px 12px; border-radius: 12px;
+  font-size: 13px; padding: 4px 12px; border-radius: var(--radius-sm);
   background: var(--paper-sunk);
   border: 1px solid var(--rule);
 }

@@ -334,3 +334,109 @@ describe('主题契约 · 票根签名装置与表格修复未被误删', () => 
   })
 })
 
+
+// =====================================================================
+// describe 追加于 2026-10-12「UI 视觉质感优化」。
+// 只新增, 不修改/不删除上面任何一条既有断言。
+// 背景: 实测 --ink-3 (#7c8ba1) 在纸面上只有 3.06:1, 低于 WCAG AA 的 4.5:1;
+//      它却是全站用得最广的三级文字 token。本组把「对比度达标」固化成闸门,
+//      防止后续换肤/调色又把它调回不可读。
+// =====================================================================
+describe('主题契约 · 文字对比度达 WCAG AA', () => {
+  const tokens = parseRootTokens(MAIN_CSS)
+
+  /** WCAG 2.x 对比度 = (L1+0.05)/(L2+0.05) */
+  function contrastRatio(fg: string, bg: string): number {
+    const a = relativeLuminance(fg)
+    const b = relativeLuminance(bg)
+    const [hi, lo] = a > b ? [a, b] : [b, a]
+    return (hi + 0.05) / (lo + 0.05)
+  }
+
+  function hexToken(name: string): string {
+    return resolveToken(name, tokens)
+  }
+
+  /** 管理端纸面覆盖块里的 token(与 :root 同名但不同值) */
+  function adminToken(name: string): string {
+    const block = MAIN_CSS.match(/\.app-main\.is-admin\s*\{([^}]*)\}/)?.[1] ?? ''
+    const m = block.match(new RegExp(`${name}:\\s*(#[0-9a-fA-F]{3,8})`))
+    if (!m) throw new Error(`.app-main.is-admin 里找不到 ${name}`)
+    return m[1]
+  }
+
+  it('--ink-3 在三种纸面上均达 4.5:1 (AA 正文线)', () => {
+    const ink3 = hexToken('--ink-3')
+    const surfaces: [string, string][] = [
+      ['--paper', hexToken('--paper')],
+      ['--paper-raised', hexToken('--paper-raised')],
+      ['--paper-sunk', hexToken('--paper-sunk')],
+    ]
+    for (const [name, bg] of surfaces) {
+      const r = contrastRatio(ink3, bg)
+      expect(r, `--ink-3 (${ink3}) on ${name} (${bg}) 只有 ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  it('--ink-3 在管理端纸面上同样达 4.5:1', () => {
+    const ink3 = hexToken('--ink-3')
+    for (const name of ['--paper', '--paper-raised', '--paper-sunk']) {
+      const r = contrastRatio(ink3, adminToken(name))
+      expect(r, `--ink-3 (${ink3}) on admin ${name} 只有 ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  it('--ink-2 / --ink / --accent 不低于各自基线 (防回归式变暗)', () => {
+    // 基线取 2026-10-12 换肤后的实测值; 允许变亮, 不允许明显变暗。
+    // ⚠️ 基线一律向下取整到 2 位: 直接抄打印出的 15.77 会因为浮点尾数
+    //    (真值 15.7683) 把当前值自己判为不达标 —— 断言必须能被现状满足。
+    const baselines: [string, number][] = [
+      ['--ink-2', 6.6],
+      ['--ink', 15.7],
+      ['--accent', 4.5],
+    ]
+    for (const [name, floor] of baselines) {
+      const r = contrastRatio(hexToken(name), hexToken('--paper'))
+      expect(r, `${name} on --paper 降到 ${r.toFixed(2)}:1, 低于基线 ${floor}`).toBeGreaterThanOrEqual(floor)
+    }
+  })
+
+  it('卡片描边可见, 且 --rule 仍浅于 --rule-strong (层级不倒置)', () => {
+    const rule = hexToken('--rule')
+    const strong = hexToken('--rule-strong')
+    expect(contrastRatio(rule, hexToken('--paper')), '描边太淡, 卡片边界会糊').toBeGreaterThan(1.4)
+    // 相对亮度越高 = 颜色越浅; --rule 必须比 --rule-strong 浅, 强线才强得过弱线
+    expect(
+      relativeLuminance(rule),
+      `--rule (${rule}) 应浅于 --rule-strong (${strong}), 线层级倒置了`,
+    ).toBeGreaterThan(relativeLuminance(strong))
+  })
+
+  it('管理端 --rule 与 :root 同步 (防残留旧描边)', () => {
+    expect(adminToken('--rule')).toBe(hexToken('--rule'))
+  })
+})
+
+// =====================================================================
+describe('主题契约 · favicon 跟随主题', () => {
+  /**
+   * 2026-10-12 换肤回归: index.html 的 data-URI 一直写着旧暖米纸 + 朱红,
+   * 换肤时漏改, 标签页至今是旧图标。本组把它锁住。
+   */
+  // SRC = cinema-web/src, 故 index.html 在其同级上一层的 cinema-web/ 下
+  const HTML = readFileSync(resolve(SRC, '../index.html'), 'utf8')
+
+  it('favicon 不含已下线的暖色值', () => {
+    for (const retired of ['%23f2ece1', '%23b8352a']) {
+      expect(HTML, `index.html favicon 仍含旧色 ${retired}`).not.toContain(retired)
+    }
+  })
+
+  it('favicon 使用当前主题的 --paper / --accent', () => {
+    const tokens = parseRootTokens(MAIN_CSS)
+    const paper = resolveToken('--paper', tokens).replace('#', '%23').toLowerCase()
+    const accent = resolveToken('--accent', tokens).replace('#', '%23').toLowerCase()
+    expect(HTML).toContain(paper)
+    expect(HTML).toContain(accent)
+  })
+})

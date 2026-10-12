@@ -291,7 +291,7 @@ function logout() {
   color: var(--accent);
   border: 1px solid var(--accent);
   padding: 4px 14px;
-  border-radius: 16px;
+  border-radius: var(--radius-sm);
   margin-bottom: 16px;
   position: relative;
   z-index: 1;

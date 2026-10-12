@@ -477,7 +477,7 @@ const barcodeBars = [3, 1, 2, 1, 3, 2, 1, 1, 3, 1, 2, 3, 1, 2]
 @media (max-width: 820px) and (min-width: 481px) {
   .stub {
     width: 240px;
-    padding: 22px 18px 16px;
+    padding: 24px 20px 16px;
   }
   .stub-brand {
     font-size: 17px;

@@ -188,7 +188,7 @@ const renderedReply = computed(() => renderMarkdown(props.response?.reply))
 .chat-followup-chip {
   background: var(--accent-wash);
   border: 1px solid var(--rule-strong);
-  border-radius: 16px;
+  border-radius: var(--radius-sm);
   padding: 4px 10px;
   font-size: 12px;
   color: var(--accent);

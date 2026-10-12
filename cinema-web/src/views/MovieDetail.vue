@@ -335,21 +335,31 @@ onMounted(async () => {
 .session-list {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 
 .session-card {
   display: flex;
   align-items: center;
-  gap: 28px;
+  gap: 24px;
   padding: 20px 28px;
   background: var(--paper-raised);
   border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-paper);
   cursor: pointer;
-  transition: border-color var(--transition-normal);
+  transition:
+    border-color var(--transition-normal),
+    box-shadow var(--transition-normal),
+    transform var(--transition-normal);
   animation: fadeInUp 0.4s ease both;
+}
+.session-card:hover {
+  border-color: var(--rule-strong);
+  box-shadow: var(--shadow-paper-hover);
+}
+.session-card:active {
+  transform: translateY(1px);
 }
 
 /* 印刷风不做位移, 只提亮边框 */

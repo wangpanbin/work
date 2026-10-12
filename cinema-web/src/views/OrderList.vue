@@ -278,13 +278,20 @@ onMounted(() => {
   border-radius: var(--radius-lg);
   overflow: hidden;
   box-shadow: var(--shadow-paper);
-  transition: border-color var(--transition-normal);
+  transition:
+    border-color var(--transition-normal),
+    box-shadow var(--transition-normal),
+    transform var(--transition-normal);
   animation: fadeInUp 0.4s ease both;
 }
 
 /* 印刷风不做悬浮位移, 只提亮边框 */
 .order-card:hover {
   border-color: var(--rule-strong);
+  box-shadow: var(--shadow-paper-hover);
+}
+.order-card:active {
+  transform: translateY(1px);
 }
 
 .order-card.status-2 {
@@ -529,7 +536,7 @@ onMounted(() => {
   font-weight: 500;
   height: 16px;
   line-height: 16px;
-  padding: 0 5px;
+  padding: 0 4px;
   border: none;
 }
 </style>
