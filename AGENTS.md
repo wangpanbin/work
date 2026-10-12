@@ -20,7 +20,7 @@ Test accounts seeded by backend on startup: `user1/123456`, `user2/123456`, `adm
 
 ## Commands
 
-- Frontend: `pnpm dev` · `pnpm build` · `pnpm type-check` (`vue-tsc --noEmit`) · `pnpm test` (vitest 3.x, `tests/**/*.test.ts`,**148 用例跨 16 个 `.test.ts` 文件**,2026-10-11 实测). First test file: `tests/views/order/constants.test.ts` (**16 用例**覆盖 ORDER_STATUS 5 态 + 跨态 round-trip). `tests/utils/markdown.test.ts` 是 P2-2 聊天 Markdown 渲染的 24 用例,其中一组专门锁 XSS(先转义后拼标签).
+- Frontend: `pnpm dev` · `pnpm build` · `pnpm type-check` (`vue-tsc --noEmit`) · `pnpm test` (vitest 3.x, `tests/**/*.test.ts`,**177 用例跨 18 个 `.test.ts` 文件**,2026-10-12 实测). First test file: `tests/views/order/constants.test.ts` (**16 用例**覆盖 ORDER_STATUS 5 态 + 跨态 round-trip). `tests/utils/markdown.test.ts` 是 P2-2 聊天 Markdown 渲染的 24 用例,其中一组专门锁 XSS(先转义后拼标签).
 - Backend: `mvn spring-boot:run` · `mvn test` (**150 JUnit5+Mockito unit tests across 27 classes**,2026-10-11 实测;早期数字 29/8 → 69/17 → 105/24 → 118/24 → 115/25 → 127/26 → 139/26 过期).
 - There is no linter configured in either module. **build 要单独验**:`pnpm build` 与 `pnpm type-check` 查出的问题不重叠(SCSS 变量/模板编译错误只有 build 报)。
 - **数字以实测为准**:README/AGENTS 里的用例数会随测试增长漂移,别照抄文档 —— 跑一次 `mvn test`(或聚合 `target/surefire-reports/TEST-*.xml`)和 `pnpm test` 取真值再更新。

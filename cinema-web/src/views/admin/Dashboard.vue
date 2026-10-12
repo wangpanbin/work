@@ -15,6 +15,15 @@ import {
   EXPORT_PRESETS,
   type ExportPreset,
 } from './constants'
+import {
+  buildTrendChart,
+  tooltipPlacement,
+  CHART_WIDTH,
+  CHART_HEIGHT,
+  PAD_LEFT,
+  PAD_RIGHT,
+  PAD_TOP,
+} from './trendChart'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -95,10 +104,23 @@ function fmtRate(r: number | undefined) {
   return (Number(r) * 100).toFixed(1) + '%'
 }
 
-function maxTrend(): number {
-  if (!data.value?.weeklyTrend?.length) return 0
-  return Math.max(...data.value.weeklyTrend.map((p) => Number(p.amount)), 1)
-}
+// ====== 7 日票房趋势折线图 ======
+/** hover 中的数据点下标; -1 = 未 hover。纯 UI 态,无持久化 */
+const hoverIndex = ref(-1)
+
+/** 坐标映射下沉到 views/admin/trendChart.ts 纯函数,便于单测(挂不了 SFC) */
+const chart = computed(() => buildTrendChart(data.value?.weeklyTrend ?? []))
+
+/**
+ * 当前 hover 的点。load() 刷新后点数可能变化使 hoverIndex 越界,
+ * 故此处显式判空 —— tsconfig 未开 noUncheckedIndexedAccess,索引越界不会报类型错。
+ */
+const hovered = computed(() => {
+  const i = hoverIndex.value
+  return i >= 0 && i < chart.value.points.length ? chart.value.points[i] : null
+})
+
+const hoveredTip = computed(() => (hovered.value ? tooltipPlacement(hovered.value) : null))
 
 function maxMovie(): number {
   if (!data.value?.topMovies?.length) return 0
@@ -142,16 +164,67 @@ onMounted(load)
         </div>
       </div>
 
-      <!-- 7 日票房趋势(柱状) -->
+      <!-- 7 日票房趋势(折线)。0 值照实连线 —— 0 是真实业务事实,隐藏等于对数据撒谎 -->
       <div class="panel">
         <h3>{{ t('admin.trendTitle') }}</h3>
-        <div class="bar-chart">
-          <div v-for="p in data.weeklyTrend" :key="p.date" class="bar-col">
-            <div class="bar-value">¥{{ fmtAmount(p.amount) }}</div>
-            <div class="bar" :style="{ height: (Number(p.amount) / maxTrend() * 180) + 'px' }"></div>
-            <div class="bar-label">{{ (p.date || '').slice(5) }}</div>
+        <div v-if="!chart.empty" class="trend-chart">
+          <svg
+            :viewBox="`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`"
+            preserveAspectRatio="xMidYMid meet"
+            class="trend-svg"
+          >
+            <defs>
+              <!-- 面积渐变:印色 stamp -> wash,不新增 CSS 变量、不硬编码 rgba -->
+              <linearGradient id="trendFadeGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" style="stop-color: var(--accent-stamp)" />
+                <stop offset="100%" style="stop-color: var(--accent-wash)" />
+              </linearGradient>
+            </defs>
+            <line
+              v-for="(y, i) in chart.gridLines"
+              :key="'g' + i"
+              :x1="PAD_LEFT"
+              :x2="CHART_WIDTH - PAD_RIGHT"
+              :y1="y"
+              :y2="y"
+              class="grid-line"
+            />
+            <path :d="chart.areaPath" class="trend-area" />
+            <path :d="chart.linePath" class="trend-line" />
+            <circle v-for="(p, i) in chart.points" :key="'d' + i" :cx="p.x" :cy="p.y" :r="3" class="trend-dot" />
+            <text
+              v-for="(p, i) in chart.points"
+              :key="'t' + i"
+              :x="p.x"
+              :y="CHART_HEIGHT - 10"
+              class="trend-tick"
+              text-anchor="middle"
+            >{{ p.label }}</text>
+            <!-- 量级标注用 chart.max(实际最大值),不是 scaleMax —— 全零时才不会显示成 ¥1.00 -->
+            <text :x="CHART_WIDTH - PAD_RIGHT" :y="PAD_TOP - 6" class="trend-max" text-anchor="end">¥{{ fmtAmount(chart.max) }}</text>
+            <!-- hover 热区必须排在圆点之后(SVG 后绘制在上层),否则 3px 圆点几乎点不中 -->
+            <circle
+              v-for="(p, i) in chart.points"
+              :key="'h' + i"
+              :cx="p.x"
+              :cy="p.y"
+              :r="14"
+              class="trend-hit"
+              @mouseenter="hoverIndex = i"
+              @mouseleave="hoverIndex = -1"
+            />
+          </svg>
+          <div
+            v-if="hovered && hoveredTip"
+            class="trend-tip"
+            :class="{ below: hoveredTip.below }"
+            :style="{ left: hoveredTip.leftPct + '%', top: hoveredTip.topPct + '%' }"
+          >
+            <span class="tip-date">{{ hovered.date }}</span>
+            <span class="tip-amount">¥{{ fmtAmount(hovered.amount) }}</span>
           </div>
         </div>
+        <div v-else class="empty">{{ t('admin.emptyTrend') }}</div>
       </div>
 
       <!-- TOP 5 影片 -->
@@ -300,41 +373,79 @@ onMounted(load)
 }
 .panel h3 { margin: 0 0 16px 0; font-family: var(--font-display); font-size: 16px; color: var(--ink); }
 
-.bar-chart {
-  display: flex;
-  align-items: flex-end;
-  gap: 16px;
-  height: 200px;
-  padding: 0 8px;
+.trend-chart {
+  position: relative;
 }
-.bar-col {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  height: 100%;
-  justify-content: flex-end;
-}
-.bar-value {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  font-size: 11px;
-  color: var(--ink-3);
-  margin-bottom: 4px;
-  white-space: nowrap;
-}
-.bar {
+.trend-svg {
+  display: block;
   width: 100%;
-  background: var(--accent);
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
-  min-height: 2px;
-  transition: height 0.4s;
+  height: auto;
+  overflow: visible;
 }
-.bar-label {
+.grid-line {
+  stroke: var(--rule);
+  stroke-width: 1;
+}
+.trend-area {
+  fill: url(#trendFadeGrad);
+}
+.trend-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.trend-dot {
+  fill: var(--accent);
+}
+.trend-tick {
+  fill: var(--ink-3);
   font-family: var(--font-mono);
   font-size: 12px;
+}
+.trend-max {
+  fill: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.trend-hit {
+  fill: transparent;
+  pointer-events: all;
+  cursor: crosshair;
+}
+
+/* 按左上角对齐:上方态整体上移一格,下方态原地 —— 与 tooltipPlacement().below 配套 */
+.trend-tip {
+  position: absolute;
+  z-index: 2;
+  transform: translateY(-100%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  white-space: nowrap;
+  padding: 6px 8px;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  pointer-events: none;
+}
+.trend-tip.below {
+  transform: translateY(0);
+}
+.tip-date {
+  font-family: var(--font-mono);
+  font-size: 11px;
   color: var(--ink-3);
-  margin-top: 8px;
+}
+.tip-amount {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
 }
 
 .movie-bar { display: flex; flex-direction: column; gap: 12px; }
@@ -402,5 +513,8 @@ onMounted(load)
 @media (max-width: 768px) {
   .cards { grid-template-columns: repeat(2, 1fr); }
   .movie-row { grid-template-columns: 24px 80px 1fr 100px; font-size: 12px; }
+  /* tooltip 是 HTML 固定 px 宽,窄屏下缩小以缓解出血 */
+  .trend-tip { padding: 4px 6px; }
+  .tip-amount { font-size: 12px; }
 }
 </style>

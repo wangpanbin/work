@@ -262,6 +262,7 @@ const messages: SameShape<typeof zhCN> = {
     ordersUnit: 'orders',
     emptyMovies: 'No revenue data this week',
     emptySessions: 'No session data',
+    emptyTrend: "No revenue trend data",
     homeWelcome: 'Welcome,',
     homeLogout: 'Sign out',
     liveEmpty: 'No live data',

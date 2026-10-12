@@ -267,6 +267,7 @@ export default {
     ordersUnit: '单',
     emptyMovies: '本周暂无票房数据',
     emptySessions: '暂无场次数据',
+    emptyTrend: '暂无票房趋势数据',
     homeWelcome: '欢迎,',
     homeLogout: '退出登录',
     liveEmpty: '暂无实时数据',
