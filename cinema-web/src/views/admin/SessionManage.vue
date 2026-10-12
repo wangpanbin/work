@@ -5,6 +5,12 @@ import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 import { sessionList, sessionCreate, sessionUpdate, sessionDelete, hallList } from '../../api/admin'
 import { page as moviePage } from '../../api/movie'
+import {
+  SESSION_STATUS_CODES,
+  SESSION_STATUS_LABEL_KEY,
+  resolveSessionStatusLabelKey,
+  resolveSessionStatusTagType,
+} from '../session/constants'
 import type { Session } from '../../api/session'
 import type { Movie } from '../../types'
 import type { Hall } from '../../api/session'
@@ -18,9 +24,6 @@ const editing = ref<Session | null>(null)
 const form = reactive({ movieId: 0, hallId: 0, startTime: '', price: 49.9, status: 1 })
 const movieMap = computed(() => Object.fromEntries(movies.value.map((m) => [m.id, m])))
 const hallMap = computed(() => Object.fromEntries(halls.value.map((h) => [h.id, h])))
-
-// 场次状态文案 (后端 0/1/2/3 → i18n key)
-const sessionStatusLabelKey = ['admin.sessionStatusPending', '', 'admin.sessionStatusStarted', 'admin.sessionStatusEnded']
 
 async function load() {
   list.value = await sessionList()
@@ -97,8 +100,8 @@ onMounted(async () => {
       <el-table-column prop="price" :label="t('admin.sessionsPriceLabel')" width="100" />
       <el-table-column :label="t('admin.moviesStatusCol')" width="100">
         <template #default="{ row }">
-          <el-tag :type="row.status === 1 ? 'success' : 'info'">
-            {{ sessionStatusLabelKey[row.status] ? t(sessionStatusLabelKey[row.status]) : t('admin.sessionStatusUnknown') }}
+          <el-tag :type="resolveSessionStatusTagType(row.status)">
+            {{ t(resolveSessionStatusLabelKey(row.status)) }}
           </el-tag>
         </template>
       </el-table-column>
@@ -130,10 +133,12 @@ onMounted(async () => {
         <el-form-item :label="t('admin.sessionsPriceLabel')"><el-input-number v-model="form.price" :min="0.01" :precision="2" /></el-form-item>
         <el-form-item :label="t('admin.moviesStatusCol')">
           <el-select v-model="form.status">
-            <el-option :value="0" :label="t('admin.sessionStatusPending')" />
-            <el-option :value="1" :label="t('admin.sessionStatusSelling')" />
-            <el-option :value="2" :label="t('admin.sessionStatusStarted')" />
-            <el-option :value="3" :label="t('admin.sessionStatusEnded')" />
+            <el-option
+              v-for="code in SESSION_STATUS_CODES"
+              :key="code"
+              :value="code"
+              :label="t(SESSION_STATUS_LABEL_KEY[code])"
+            />
           </el-select>
         </el-form-item>
       </el-form>
