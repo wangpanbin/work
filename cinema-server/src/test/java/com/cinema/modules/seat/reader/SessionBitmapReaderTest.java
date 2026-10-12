@@ -78,4 +78,36 @@ class SessionBitmapReaderTest {
         assertThat(out).hasSize(1);
         verify(valueOps).setBit("cinema:session:lock:1", 7L, false);
     }
+
+    /**
+     * P0 修复回归(2026-10-11 稳定性测试): 原实现"只向上 padding, 从不向下截断",
+     * 只要 Redis 里的字符串比 expected 长就原样返回, 再被 SeatService Base64 进响应体。
+     * 越界 SETBIT 把位图撑大后(实测 18B → 12501B), 公开的 GET /seat-map 就被放大 61~2399 倍。
+     * 写入侧已由 OrderCore#requireSeatsInRange 堵住根因, 读侧这一刀是抵御历史脏位图
+     * (bitmap 没有缩容操作, 已被撑大的 key 不会自己变小)。
+     */
+    @Test
+    @DisplayName("P0 回归: Redis 位图被越界 SETBIT 撑大时, 读侧截断到 ceil(seatCount/8)")
+    void readWithPadding_truncatesOversizedBitmap() {
+        // 模拟 140 座场次被 offset=100000 写脏后的位图长度
+        byte[] dirty = new byte[12501];
+        dirty[0] = (byte) 0b1000_0000;   // seat 0 处于已锁状态
+        when(redisTemplate.execute(any(RedisCallback.class))).thenReturn(dirty);
+
+        byte[] out = reader.readWithPadding("cinema:session:1130201104:lock", 140);
+
+        assertThat(out).hasSize(18);                        // ceil(140/8)
+        assertThat(out[0]).isEqualTo((byte) 0b1000_0000);   // 截断保留前 18 字节内容
+        // 截断路径不应回写 Redis
+        verify(redisTemplate, never()).opsForValue();
+    }
+
+    @Test
+    @DisplayName("长度恰好等于 expected 时原样返回, 不做多余拷贝")
+    void readWithPadding_exactSize_returnsSameInstance() {
+        byte[] exact = new byte[18];
+        when(redisTemplate.execute(any(RedisCallback.class))).thenReturn(exact);
+
+        assertThat(reader.readWithPadding("cinema:session:1:lock", 140)).isSameAs(exact);
+    }
 }

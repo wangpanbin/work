@@ -9,6 +9,7 @@ import com.cinema.modules.order.entity.OrderItem;
 import com.cinema.modules.order.enums.OrderStatus;
 import com.cinema.modules.order.mapper.OrderItemMapper;
 import com.cinema.modules.order.mapper.OrderMapper;
+import com.cinema.modules.seat.reader.SessionInfoLoader;
 import com.cinema.modules.session.entity.Session;
 import com.cinema.modules.session.mapper.SessionMapper;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public class OrderCore {
     private final OrderItemMapper orderItemMapper;
     private final SessionMapper sessionMapper;
     private final StringRedisTemplate redisTemplate;
+    private final SessionInfoLoader sessionInfoLoader;
 
     /**
      * 校验订单属于本人 + 存在,否则抛 BizException
@@ -86,6 +88,40 @@ public class OrderCore {
     public void requirePending(Order order) {
         if (order.getStatus() != OrderStatus.PENDING_PAY.getCode()) {
             throw new BizException("当前状态不可取消");
+        }
+    }
+
+    /**
+     * 校验座位索引落在此场次的真实座位范围内 —— 防越界 SETBIT 撑爆 Redis 位图.
+     *
+     * <p>P0 修复(2026-10-11 稳定性测试): {@code LockSeatsDTO} 只有 {@code @NotEmpty} +
+     * {@code @Size(max=4)}, 上界取决于场次(1 号厅 96 座 / 2 号厅 140 座), 无法用常量注解表达。
+     * 缺少这道校验时越界索引会一路进到 {@code lock_seat.lua} 的 {@code SETBIT}, 而 Redis bitmap
+     * 会按 offset <b>立即分配内存且永不回收</b>:
+     * <ul>
+     *   <li>实测 offset=100000 → 位图 18B 撑到 12501B(694 倍), 公开的 {@code GET /seat-map}
+     *       响应从 278B 放大到 16969B(61 倍)</li>
+     *   <li>实测 offset=4000000 → 响应 666959B(2399 倍)</li>
+     *   <li>SETBIT 硬上界 2^32-1 → 单个 key 分配 512MiB, 实测 Redis used_memory_peak 冲至 641MiB</li>
+     * </ul>
+     * 由于 {@code /api/auth/register} 公开、位图 key 无 TTL, 这是一个无门槛的远程内存耗尽路径。
+     *
+     * <p>上界取 {@link SessionInfoLoader} 的 seatCount(与 {@code GET /seat-map} 同一来源),
+     * 保证"客户端看得到的座位"与"服务端允许锁的座位"完全一致。
+     *
+     * @throws BizException code=40001 座位索引越界
+     */
+    public void requireSeatsInRange(Long sessionId, List<Integer> seats) {
+        int seatCount = sessionInfoLoader.load(sessionId).getSeatCount();
+        if (seatCount <= 0) {
+            throw new BizException(ResultCode.BAD_REQUEST.getCode(),
+                    "场次座位数异常, 无法锁座(sessionId=" + sessionId + ", seatCount=" + seatCount + ")", null);
+        }
+        for (Integer idx : seats) {
+            if (idx == null || idx < 0 || idx >= seatCount) {
+                throw new BizException(ResultCode.BAD_REQUEST.getCode(),
+                        "座位索引越界: " + idx + ", 本场次有效范围 [0, " + (seatCount - 1) + "]", null);
+            }
         }
     }
 

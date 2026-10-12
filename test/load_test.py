@@ -151,6 +151,13 @@ def scenario_b_lock(tokens, session_id, target_seats, concurrency, duration_s):
 
 def scenario_c_mix(tokens, session_id, concurrency, duration_s):
     """混合: 80% 读座位图 + 15% 锁座(随机座) + 5% 我的订单"""
+    # 2026-10-11(郑浩) 修复: 原实现把选座硬编码成 random.randint(0, 139), 当 --session
+    # 指向 1 号厅(96 座)时会发出 96..139 的越界座位索引。越界索引不会被业务拒绝, 而是
+    # 直接落进 Redis SETBIT 把该场次位图撑大(实测 offset=100000 → 12501 字节, 正常 18
+    # 字节), 且座位图接口会把膨胀后的位图原样返回。改为先读 seatCount 再在合法区间选座。
+    _sm = json.load(urllib.request.urlopen(f"{BASE}/api/sessions/{session_id}/seat-map", timeout=10))["data"]
+    seat_count = int(_sm["seatCount"])
+    print(f"场景C 座位索引合法区间: 0..{seat_count - 1} (seatCount={seat_count})")
     print(f"启动场景C(混合): 并发={concurrency}, 时长={duration_s}s")
     deadline = time.time() + duration_s
     results = []
@@ -164,7 +171,7 @@ def scenario_c_mix(tokens, session_id, concurrency, duration_s):
             return timed(f"{BASE}/api/sessions/{session_id}/seat-map")
         elif r < 0.95:
             # 随机选 1~2 个未大概率未占用的座位
-            seat = random.randint(0, 139)
+            seat = random.randint(0, seat_count - 1)
             return timed(f"{BASE}/api/orders/lock", method="POST", token=token,
                          body={"sessionId": session_id, "seatIndexes": [seat]})
         else:
