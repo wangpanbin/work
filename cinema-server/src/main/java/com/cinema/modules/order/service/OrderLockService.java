@@ -61,12 +61,21 @@ public class OrderLockService {
     /** 锁座下单 */
     public LockResultVO lockSeats(Long userId, LockSeatsDTO dto) {
         Long sessionId = dto.getSessionId();
-        List<Integer> seats = dto.getSeatIndexes().stream().distinct().sorted().toList();
+        // P0 修复(2026-10-11): 过滤 null 后再去重排序, 避免 stream.sorted() 对 null 抛 NPE。
+        // DTO 上已加 @NotNull 元素约束, 这里是"绕过 Controller 直接调 service"时的兜底。
+        List<Integer> seats = dto.getSeatIndexes().stream()
+                .filter(java.util.Objects::nonNull)
+                .distinct().sorted().toList();
         if (seats.isEmpty() || seats.size() > 4) {
             throw new BizException("每次最多选择4个座位");
         }
 
         Session session = orderCore.requirePurchasableSession(sessionId);
+
+        // P0 修复(2026-10-11 稳定性测试): 座位索引必须落在本场次真实范围内。
+        // 越界索引会进到 lock_seat.lua 的 SETBIT, 让 Redis 位图按 offset 立即分配内存且永不回收
+        // (实测 offset=100000 即 694 倍膨胀; 上界 2^32-1 时单 key 512MiB)。详见 OrderCore#requireSeatsInRange。
+        orderCore.requireSeatsInRange(sessionId, seats);
 
         // P5: 锁座前兜底, 若位图缺失则从 DB 重建(防服务重启后超卖)
         seatBitmapGuard.ensureBitmaps(sessionId);

@@ -5,6 +5,7 @@ import com.cinema.common.annotation.Idempotent;
 import com.cinema.common.annotation.RateLimit;
 import com.cinema.common.context.UserContext;
 import com.cinema.common.result.R;
+import com.cinema.common.web.PageParams;
 import com.cinema.modules.order.dto.LockSeatsDTO;
 import com.cinema.modules.order.service.OrderCancelService;
 import com.cinema.modules.order.service.OrderLockService;
@@ -50,7 +51,8 @@ public class OrderController {
     public R<Page<OrderVO>> my(@RequestParam(required = false) Integer status,
                                @RequestParam(defaultValue = "1") int page,
                                @RequestParam(defaultValue = "10") int size) {
-        return R.ok(orderQueryService.myOrders(UserContext.userId(), status, page, size));
+        return R.ok(orderQueryService.myOrders(UserContext.userId(), status,
+                PageParams.page(page), PageParams.size(size)));
     }
 
     /** 订单详情 */
