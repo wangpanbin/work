@@ -26,12 +26,20 @@ const movieMap = computed(() => Object.fromEntries(movies.value.map((m) => [m.id
 const hallMap = computed(() => Object.fromEntries(halls.value.map((h) => [h.id, h])))
 
 async function load() {
-  list.value = await sessionList()
+  try {
+    list.value = await sessionList()
+  } catch {
+    // 拦截器已提示
+  }
 }
 
 async function loadOptions() {
-  movies.value = (await moviePage({ page: 1, size: 100 })).records
-  halls.value = await hallList()
+  try {
+    movies.value = (await moviePage({ page: 1, size: 100 })).records
+    halls.value = await hallList()
+  } catch {
+    // 拦截器已提示
+  }
 }
 
 function openCreate() {
@@ -58,21 +66,29 @@ function openEdit(row: Session) {
 }
 
 async function onSubmit() {
-  if (editing.value) {
-    await sessionUpdate(editing.value.id, { ...form, price: Number(form.price) })
-    ElMessage.success(t('admin.sessionsUpdated'))
-  } else {
-    await sessionCreate({ ...form, price: Number(form.price) })
-    ElMessage.success(t('admin.sessionsCreated'))
+  try {
+    if (editing.value) {
+      await sessionUpdate(editing.value.id, { ...form, price: Number(form.price) })
+      ElMessage.success(t('admin.sessionsUpdated'))
+    } else {
+      await sessionCreate({ ...form, price: Number(form.price) })
+      ElMessage.success(t('admin.sessionsCreated'))
+    }
+    dialogVisible.value = false
+    load()
+  } catch {
+    // 拦截器已提示; 保留弹窗让用户修正后重试
   }
-  dialogVisible.value = false
-  load()
 }
 
 async function onDelete(row: Session) {
-  await sessionDelete(row.id)
-  ElMessage.success(t('admin.hallsDeleted'))
-  load()
+  try {
+    await sessionDelete(row.id)
+    ElMessage.success(t('admin.hallsDeleted'))
+    load()
+  } catch {
+    // 拦截器已提示
+  }
 }
 
 onMounted(async () => {

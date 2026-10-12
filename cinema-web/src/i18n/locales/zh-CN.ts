@@ -19,6 +19,15 @@ export default {
     back: '返回',
   },
 
+  // request.ts 拦截器的兜底文案(后端返回 body.msg 时优先用后端的)。
+  // ⚠️ needLogin / networkError 的 zh-CN 值必须与排障约定逐字一致, 不要改写 ——
+  //    networkError 是本地拉起后端失败时的定位线索(见 AGENTS.md「网络错误的本地化文案」)。
+  api: {
+    needLogin: '请先登录',
+    requestFailed: '请求失败',
+    networkError: '网络异常,请确认后端已启动(8080)',
+  },
+
   app: {
     brand: '星辉影城',
     brandTag: 'CINEMA',

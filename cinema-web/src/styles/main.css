@@ -30,6 +30,7 @@
   --accent-press: #1e40af;
   --accent-wash: rgba(37, 99, 235, 0.08);
   --accent-stamp: rgba(37, 99, 235, 0.14);
+  --accent-disabled: #a7bfe8; /* 主按钮 disabled 态: 比 --accent 更淡, 读到"不可用" */
   /* RGB 分量(空格分隔)。拼 alpha 必须用斜杠语法 rgb(var(--accent-rgb) / a),
      绝不能写 rgba(var(--accent-rgb), a) —— 那是非法值, 浏览器会静默丢弃整条声明。 */
   --accent-rgb: 37 99 235;
@@ -40,6 +41,8 @@
   --ok: #2a6b52; /* 我锁的座位 / WS 已连接 */
   --warn: #86691c; /* WS 连接中 / warning */
   --danger: #a8271b; /* 冲突 / 超时 */
+  --danger-hover: #8f2015; /* danger 按钮 hover: 压深一档 */
+  --warn-hover: #6e5516; /* warning 按钮 hover: 压深一档 */
   --info: #475569;
   /* 语义色 RGB 分量: 供脉冲动画 / 状态底色拼 alpha, 避免各处硬编码 */
   --ok-rgb: 42 107 82;
@@ -82,7 +85,6 @@
 :root {
   --shadow-paper: 0 1px 0 rgba(15, 23, 42, 0.05), 0 6px 16px rgba(15, 23, 42, 0.03);
   --shadow-paper-hover: 0 1px 0 rgba(15, 23, 42, 0.05), 0 6px 16px rgba(15, 23, 42, 0.03), 0 8px 20px rgba(15, 23, 42, 0.07);
-  --shadow-paper-hover: 0 1px 0 rgba(15, 23, 42, 0.05), 0 6px 16px rgba(15, 23, 42, 0.03), 0 8px 20px rgba(15, 23, 42, 0.07);
   --shadow-modal: 0 12px 32px rgba(15, 23, 42, 0.14);
   --shadow-hall: 0 1px 0 rgba(15, 23, 42, 0.1);
   --shadow-tooltip: 0 2px 8px rgba(15, 23, 42, 0.12); /* 图表悬浮提示 */
@@ -101,13 +103,15 @@
    不再用手写 !important 去拧 EP —— 见下方组件段落。
    ============================================ */
 :root {
-  --el-color-primary: #2563eb;
-  --el-color-primary-light-3: #6692f1;
-  --el-color-primary-light-5: #92b1f5;
-  --el-color-primary-light-7: #bed0f9;
-  --el-color-primary-light-8: #d3e0fb;
-  --el-color-primary-light-9: #e9effd;
-  --el-color-primary-dark-2: #1e4fbc;
+  --el-color-primary: var(--accent);
+  /* EP 色阶由 --accent 派生(EP 的 light-N = 混入 N*10% 白 / dark-2 = 混入 20% 黑),
+     换印色时这 6 档自动跟随, 无需再逐个手改 hex。 */
+  --el-color-primary-light-3: color-mix(in srgb, #fff 30%, var(--accent));
+  --el-color-primary-light-5: color-mix(in srgb, #fff 50%, var(--accent));
+  --el-color-primary-light-7: color-mix(in srgb, #fff 70%, var(--accent));
+  --el-color-primary-light-8: color-mix(in srgb, #fff 80%, var(--accent));
+  --el-color-primary-light-9: color-mix(in srgb, #fff 90%, var(--accent));
+  --el-color-primary-dark-2: color-mix(in srgb, #000 20%, var(--accent));
 
   --el-color-success: var(--ok);
   --el-color-warning: var(--warn);
@@ -508,8 +512,8 @@ img {
 }
 .el-button--primary.is-disabled,
 .el-button--primary.is-disabled:hover {
-  background: #a7bfe8 !important;
-  border-color: #a7bfe8 !important;
+  background: var(--accent-disabled) !important;
+  border-color: var(--accent-disabled) !important;
 }
 
 /* 次按钮: 纸面 + 发丝线 */
@@ -533,8 +537,8 @@ img {
   color: var(--ink-inverse) !important;
 }
 .el-button--danger:hover {
-  background: #8f2015 !important;
-  border-color: #8f2015 !important;
+  background: var(--danger-hover) !important;
+  border-color: var(--danger-hover) !important;
 }
 
 .el-button--warning {
@@ -543,8 +547,8 @@ img {
   color: var(--ink-inverse) !important;
 }
 .el-button--warning:hover {
-  background: #6e5516 !important;
-  border-color: #6e5516 !important;
+  background: var(--warn-hover) !important;
+  border-color: var(--warn-hover) !important;
 }
 
 /* 空状态: 恢复 EP 默认插画

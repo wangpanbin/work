@@ -20,6 +20,8 @@ async function load() {
   try {
     const data = await moviePage({ page: 1, size: 20, keyword: keyword.value || undefined })
     list.value = data.records
+  } catch {
+    // 拦截器已提示
   } finally {
     loading.value = false
   }
@@ -38,22 +40,36 @@ function openEdit(row: Movie) {
 }
 
 async function onSubmit() {
-  await formRef.value?.validate()
-  if (editing.value) {
-    await movieUpdate(editing.value.id, form)
-    ElMessage.success(t('admin.moviesUpdated'))
-  } else {
-    await movieCreate(form)
-    ElMessage.success(t('admin.moviesCreated'))
+  // validate() 校验失败会 reject —— 必须显式捕获并提前返回, 否则每次校验不通过
+  // 都会产生一条未处理的 Promise rejection (与 Login.vue 的 P3-3 同一个坑)
+  try {
+    await formRef.value?.validate()
+  } catch {
+    return
   }
-  dialogVisible.value = false
-  load()
+  try {
+    if (editing.value) {
+      await movieUpdate(editing.value.id, form)
+      ElMessage.success(t('admin.moviesUpdated'))
+    } else {
+      await movieCreate(form)
+      ElMessage.success(t('admin.moviesCreated'))
+    }
+    dialogVisible.value = false
+    load()
+  } catch {
+    // 拦截器已提示; 保留弹窗让用户修正后重试
+  }
 }
 
 async function onDelete(row: Movie) {
-  await movieDelete(row.id)
-  ElMessage.success(t('admin.moviesDeleted'))
-  load()
+  try {
+    await movieDelete(row.id)
+    ElMessage.success(t('admin.moviesDeleted'))
+    load()
+  } catch {
+    // 拦截器已提示
+  }
 }
 
 onMounted(load)

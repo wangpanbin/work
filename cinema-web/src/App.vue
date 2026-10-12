@@ -89,11 +89,11 @@ function onMobileSelect(key: string | number) {
   <el-config-provider :locale="epLocale">
   <el-container class="app">
     <el-header class="app-header">
-      <div class="brand" @click="router.push('/')">
+      <router-link to="/" class="brand">
         <BrandMark :size="24" />
         <span class="brand-text">{{ $t('app.brand') }}</span>
         <span class="brand-tag">{{ $t('app.brandTag') }}</span>
-      </div>
+      </router-link>
       <!-- 桌面端: 横向 chip 列表 -->
       <div class="user-area desktop-only">
         <!-- T9: 语言切换 chip(spec §4.3)— 点击立即切换,刷新保持 -->
@@ -179,6 +179,7 @@ function onMobileSelect(key: string | number) {
   align-items: center;
   gap: 10px;
   cursor: pointer;
+  text-decoration: none;   /* router-link 渲染为 <a>, 去掉默认下划线 */
   user-select: none;
   flex-shrink: 0;        /* 防止被 user-area 挤碎 */
   min-width: 0;           /* 允许内部收缩 */

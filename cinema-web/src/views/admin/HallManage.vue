@@ -12,7 +12,11 @@ const editing = ref<Hall | null>(null)
 const form = reactive({ cinemaId: 1, name: '', seatRows: 8, seatCols: 12, vipFromRow: 7 as number | undefined })
 
 async function load() {
-  list.value = await hallList()
+  try {
+    list.value = await hallList()
+  } catch {
+    // 拦截器已提示
+  }
 }
 
 function openCreate() {
@@ -33,21 +37,29 @@ function openEdit(row: Hall) {
 async function onSubmit() {
   const data = { ...form }
   if (data.vipFromRow == null || (data.vipFromRow as unknown) === '') delete (data as Record<string, unknown>).vipFromRow
-  if (editing.value) {
-    await hallUpdate(editing.value.id, data as typeof form)
-    ElMessage.success(t('admin.hallsUpdated'))
-  } else {
-    await hallCreate(data as typeof form)
-    ElMessage.success(t('admin.hallsCreated'))
+  try {
+    if (editing.value) {
+      await hallUpdate(editing.value.id, data as typeof form)
+      ElMessage.success(t('admin.hallsUpdated'))
+    } else {
+      await hallCreate(data as typeof form)
+      ElMessage.success(t('admin.hallsCreated'))
+    }
+    dialogVisible.value = false
+    load()
+  } catch {
+    // 拦截器已提示; 保留弹窗让用户修正后重试
   }
-  dialogVisible.value = false
-  load()
 }
 
 async function onDelete(row: Hall) {
-  await hallDelete(row.id)
-  ElMessage.success(t('admin.hallsDeleted'))
-  load()
+  try {
+    await hallDelete(row.id)
+    ElMessage.success(t('admin.hallsDeleted'))
+    load()
+  } catch {
+    // 拦截器已提示
+  }
 }
 
 onMounted(load)

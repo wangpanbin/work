@@ -161,29 +161,40 @@ describe('主题契约 · 主色与侧边栏', () => {
     expect(MAIN_CSS).toMatch(/--accent-rgb:\s*37\s+99\s+235\s*;/)
   })
 
-  it('Element Plus primary 六阶 + dark-2 全部就位', () => {
-    const ramp: [string, string][] = [
-      ['--el-color-primary', '#2563eb'],
-      ['--el-color-primary-light-3', '#6692f1'],
-      ['--el-color-primary-light-5', '#92b1f5'],
-      ['--el-color-primary-light-7', '#bed0f9'],
-      ['--el-color-primary-light-8', '#d3e0fb'],
-      ['--el-color-primary-light-9', '#e9effd'],
-      ['--el-color-primary-dark-2', '#1e4fbc'],
+  it('Element Plus primary 六阶 + dark-2 全部就位, 且都从 --accent 派生', () => {
+    // EP 色阶已不再手写 hex, 而是从 --accent 派生: 主色直接引用 token,
+    // light-N = 混入 (N*10)% 白, dark-2 = 混入 20% 黑。
+    // 这样换印色只需改 --accent 一处, 6 档自动跟随(见 main.css :root 注释)。
+    // 基准色由上面「--accent 是皇家蓝 #2563eb」那条锁定, 这里只锁"派生关系还在"。
+    expect(MAIN_CSS, '--el-color-primary 应引用 --accent').toMatch(
+      /--el-color-primary:\s*var\(--accent\)\s*;/,
+    )
+    const mixRamp: [string, number][] = [
+      ['--el-color-primary-light-3', 30],
+      ['--el-color-primary-light-5', 50],
+      ['--el-color-primary-light-7', 70],
+      ['--el-color-primary-light-8', 80],
+      ['--el-color-primary-light-9', 90],
     ]
-    for (const [token, hex] of ramp) {
-      expect(MAIN_CSS, `${token} 应为 ${hex}`).toMatch(
-        new RegExp(`${token}:\\s*${hex}\\s*;`),
+    for (const [token, pct] of mixRamp) {
+      expect(MAIN_CSS, `${token} 应为 ${pct}% 白 + --accent`).toMatch(
+        new RegExp(`${token}:\\s*color-mix\\(in srgb,\\s*#fff\\s+${pct}%,\\s*var\\(--accent\\)\\)\\s*;`),
       )
     }
+    expect(MAIN_CSS, '--el-color-primary-dark-2 应为 20% 黑 + --accent').toMatch(
+      /--el-color-primary-dark-2:\s*color-mix\(in srgb,\s*#000\s+20%,\s*var\(--accent\)\)\s*;/,
+    )
   })
 
   it('全站只有一个强调色 —— 侧边栏深靛蓝是结构底色, 不许再加第二个印色', () => {
-    // :root 里只允许一个 --accent, 不得出现第二套品牌色
+    // :root 里只允许一套 --accent 家族, 不得出现第二套品牌色
     const rootBlock = MAIN_CSS.split(/\.app-main\.is-admin/)[0]
     const accentDecls = rootBlock.match(/^\s*--accent[a-z-]*\s*:/gm) ?? []
-    // --accent / hover / press / wash / stamp / rgb 共 6 条, 多一条就是加了新品牌色
-    expect(accentDecls.length).toBe(6)
+    // 家族成员 7 条: --accent / hover / press / wash / stamp / rgb / disabled。
+    // --accent-disabled(#a7bfe8) 是主按钮 disabled 态的同族浅色 tint, 2026-10-12 认定
+    // 为「同一印色家族」而非新品牌色, 故计入。再多一条即说明真加了第二套印色, 需人工裁决。
+    expect(accentDecls.length).toBe(7)
+    expect(accentDecls.some((d) => d.includes('--accent-disabled'))).toBe(true)
   })
 
   it('管理端侧边栏是深靛蓝底, 且不再复用浅色纸面', () => {

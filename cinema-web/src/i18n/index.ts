@@ -30,6 +30,21 @@ export const i18n = createI18n({
 })
 
 /**
+ * 把当前 locale 同步到 `<html lang>`。
+ *
+ * index.html 里的 `lang="zh-CN"` 只是 JS 执行前的默认值 —— 屏幕阅读器与浏览器
+ * 翻译/断词都读这个属性, 用户切到英文后它必须跟着变, 否则英文页面仍被当作中文朗读。
+ * 非浏览器环境(node 测试)无 document, 静默跳过。
+ */
+function applyHtmlLang(locale: SupportedLocale): void {
+  if (typeof document !== 'undefined') {
+    document.documentElement.lang = locale
+  }
+}
+
+applyHtmlLang(i18n.global.locale.value as SupportedLocale)
+
+/**
  * 切换语言的胶水函数。
  *
  * 把"setLocale 的持久化逻辑"和"vue-i18n 的 reactive locale 更新"绑在一起,
@@ -43,5 +58,6 @@ export const i18n = createI18n({
 export function i18nSetLocale(next: SupportedLocale): void {
   setLocale(next, (l) => {
     i18n.global.locale.value = l
+    applyHtmlLang(l)
   })
 }

@@ -45,11 +45,18 @@ const a11yLabel = computed(
   () => t('seat.rowColFormat', { row: pos.value.row, col: pos.value.col }) + ' · ' + statusLabel.value,
 )
 
+/**
+ * 键盘可达性: 座位是 role="button" 的 div, 必须有 tabindex 才能被 Tab 聚焦,
+ * 且 Enter / Space 要能触发点击(role=button 的预期键)。
+ * 已售 / 他人锁定不可选 → tabindex="-1" 从 Tab 顺序里摘掉, 不制造无意义的焦点停靠。
+ */
+const unavailable = computed(() => status.value === 'SOLD' || status.value === 'LOCKED_OTHER')
+
 function onClick() {
   const ok = seatStore.toggle(props.index)
   if (ok) return
   // 切换失败: 给出原因提示
-  if (status.value === 'SOLD' || status.value === 'LOCKED_OTHER') {
+  if (unavailable.value) {
     ElMessage.info(t('seat.infoUnavailable'))
   } else if (seatStore.selected.size >= seatStore.maxSelect) {
     ElMessage.warning(t('seat.warnMaxSelect', { n: seatStore.maxSelect }))
@@ -62,9 +69,12 @@ function onClick() {
     :class="['seat', status.toLowerCase(), { mine: status === 'LOCKED_MINE', flash: isFlashing }]"
     :title="a11yLabel"
     :aria-label="a11yLabel"
-    :aria-disabled="status === 'SOLD' || status === 'LOCKED_OTHER'"
+    :aria-disabled="unavailable"
+    :tabindex="unavailable ? -1 : 0"
     role="button"
     @click="onClick"
+    @keydown.enter.prevent="onClick"
+    @keydown.space.prevent="onClick"
   >
     {{ pos.col }}
   </div>

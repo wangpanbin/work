@@ -66,11 +66,12 @@ function logout() {
           :key="item.path"
           :to="item.path"
           custom
-          v-slot="{ navigate, isActive }"
+          v-slot="{ href, navigate, isActive }"
         >
           <a
             class="nav-item"
             :class="{ active: isActive || $route.path === item.path }"
+            :href="href"
             @click="navigate"
           >
             {{ t(item.labelKey) }}

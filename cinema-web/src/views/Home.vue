@@ -1,13 +1,11 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { search as searchMovies } from '../api/movie'
 import { useMovieCache } from '../stores/movieCache'
 import type { Movie } from '../types'
 import { usePosterFallback } from '../composables/usePosterFallback'
 
-const router = useRouter()
 const { t } = useI18n()
 const movies = ref<Movie[]>([])
 const loading = ref(false)
@@ -150,12 +148,12 @@ onMounted(() => {
       <el-empty v-if="!loading && movies.length === 0" :description="t('home.empty')" />
 
       <div v-else class="movie-grid">
-        <div
+        <router-link
           v-for="(m, idx) in movies"
           :key="m.id"
           class="movie-card"
           :style="{ animationDelay: `${idx * 0.08}s` }"
-          @click="router.push(`/movie/${m.id}`)"
+          :to="`/movie/${m.id}`"
         >
           <div class="poster">
             <img
@@ -193,7 +191,7 @@ onMounted(() => {
             </div>
           </div>
           <div class="card-glow"></div>
-        </div>
+        </router-link>
       </div>
     </section>
   </div>
@@ -379,6 +377,7 @@ onMounted(() => {
   border-radius: var(--radius-md);
   overflow: hidden;
   cursor: pointer;
+  text-decoration: none;   /* router-link 渲染为 <a>, 去掉默认下划线 */
   transition:
     border-color var(--transition-normal),
     box-shadow var(--transition-normal),

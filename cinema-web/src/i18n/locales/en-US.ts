@@ -19,6 +19,13 @@ const messages: SameShape<typeof zhCN> = {
     back: 'Back',
   },
 
+  // axios interceptor fallbacks (backend body.msg wins when present)
+  api: {
+    needLogin: 'Please sign in first',
+    requestFailed: 'Request failed',
+    networkError: 'Network error — make sure the backend is running (8080)',
+  },
+
   app: {
     brand: 'Star Cinema',
     brandTag: 'CINEMA',

@@ -347,22 +347,11 @@ onMounted(async () => {
   border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-paper);
-  cursor: pointer;
-  transition:
-    border-color var(--transition-normal),
-    box-shadow var(--transition-normal),
-    transform var(--transition-normal);
+  transition: border-color var(--transition-normal);
   animation: fadeInUp 0.4s ease both;
 }
-.session-card:hover {
-  border-color: var(--rule-strong);
-  box-shadow: var(--shadow-paper-hover);
-}
-.session-card:active {
-  transform: translateY(1px);
-}
-
-/* 印刷风不做位移, 只提亮边框 */
+/* 整卡本身不可点(只有内部"选座"按钮可点), 因此不设 pointer、不做 hover 浮起/按下位移,
+   只提亮边框 —— 与全站 .el-card:hover 同一套 hover 语言, 不假装整卡可点。 */
 .session-card:hover {
   border-color: var(--rule-strong);
 }

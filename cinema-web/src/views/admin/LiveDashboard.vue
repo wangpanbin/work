@@ -10,6 +10,10 @@ const data = ref<DashboardSummary | null>(null)
 const events = ref<Array<{ time: string; type: string; text: string }>>([])
 const connected = ref(false)
 let ws: WebSocket | null = null
+let pollTimer: ReturnType<typeof setInterval> | null = null
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+/** 卸载后置 true: 阻止 onclose 再排重连, 否则定时器会重建 WS 形成泄漏 */
+let disposed = false
 
 function fmt(n: number | undefined) {
   if (n == null) return '0'
@@ -39,7 +43,7 @@ function connectWs() {
   ws.onclose = () => {
     connected.value = false
     pushEvent('WARN', t('admin.liveWsClosed'))
-    setTimeout(connectWs, 3000)
+    if (!disposed) reconnectTimer = setTimeout(connectWs, 3000)
   }
   ws.onerror = () => {
     pushEvent('ERR', t('admin.liveWsError'))
@@ -79,11 +83,19 @@ onMounted(() => {
   loadSummary()
   connectWs()
   // 每 5s 刷一次统计
-  setInterval(loadSummary, 5000)
+  pollTimer = setInterval(loadSummary, 5000)
 })
 
 onUnmounted(() => {
-  if (ws) ws.close()
+  disposed = true
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
+  if (ws) {
+    // 先摘掉 onclose: close() 会同步触发它, 否则会在已卸载的组件上再 pushEvent / 排重连
+    ws.onclose = null
+    ws.close()
+    ws = null
+  }
 })
 </script>
 
