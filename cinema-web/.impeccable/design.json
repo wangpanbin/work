@@ -1,0 +1,192 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-12T00:00:00.000Z",
+  "title": "Design System: Star Cinema 星辉影城",
+  "extensions": {
+    "colorMeta": {
+      "accent": {
+        "role": "primary",
+        "displayName": "Royal Stamp Blue",
+        "canonical": "#2563eb",
+        "tonalRamp": ["#071a45", "#0d2c73", "#1e4fbc", "#2563eb", "#6692f1", "#92b1f5", "#bed0f9", "#e9effd"]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Cold Tally Paper",
+        "canonical": "#eef1f6",
+        "tonalRamp": ["#0f172a", "#2c3a55", "#475569", "#576579", "#a8b5c9", "#bac5d7", "#e2e8f0", "#f8fafc"]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Counter Ink",
+        "canonical": "#0f172a",
+        "tonalRamp": ["#0f172a", "#1e293b", "#2c3a55", "#475569", "#576579", "#93a3ba", "#bac5d7", "#e2e8f0"]
+      },
+      "hall": {
+        "role": "neutral",
+        "displayName": "Midnight Auditorium",
+        "canonical": "#0f172a",
+        "tonalRamp": ["#0f172a", "#131c33", "#16203a", "#1c2942", "#243352", "#2c3a55", "#3d4a63", "#93a3ba"]
+      },
+      "ok": {
+        "role": "tertiary",
+        "displayName": "Seat Green",
+        "canonical": "#2a6b52",
+        "tonalRamp": ["#12291f", "#1b4335", "#2a6b52", "#3d8a6b", "#5aa88a", "#7fc0a6", "#a8d8c4", "#d6ece2"]
+      },
+      "warn": {
+        "role": "tertiary",
+        "displayName": "Ledger Amber",
+        "canonical": "#86691c",
+        "tonalRamp": ["#2a2109", "#4a3910", "#86691c", "#a8852a", "#c2a24b", "#d8bd77", "#e9d7a8", "#f5ecd2"]
+      },
+      "danger": {
+        "role": "tertiary",
+        "displayName": "Void Red",
+        "canonical": "#a8271b",
+        "tonalRamp": ["#2d0b07", "#5c1710", "#8f2015", "#a8271b", "#c94a3c", "#dd7a6e", "#ecaaa1", "#f8d9d4"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display Serif", "purpose": "The single largest headline — admin welcome. Nothing competes at this size." },
+      "title": { "displayName": "Section Title", "purpose": "Section headings, always with the 3px ink bar on the left edge." },
+      "headline": { "displayName": "Wordmark", "purpose": "The two-character brand mark, widened by 2px tracking." },
+      "body": { "displayName": "Body Sans", "purpose": "Default voice: paragraphs, labels, table cells, buttons." },
+      "label": { "displayName": "Ticket Mono", "purpose": "Ticket numbers, showtimes, amounts, countdowns, seat and grid coordinates." }
+    },
+    "shadows": [
+      { "name": "paper-lift", "value": "0 1px 0 rgba(15, 23, 42, 0.05), 0 6px 16px rgba(15, 23, 42, 0.03)", "purpose": "Rest state of every card and ticket — reads as the sheet's own thickness." },
+      { "name": "paper-lift-hover", "value": "0 1px 0 rgba(15, 23, 42, 0.05), 0 6px 16px rgba(15, 23, 42, 0.03), 0 8px 20px rgba(15, 23, 42, 0.07)", "purpose": "Hover only, and only on cards that are genuinely interactive." },
+      { "name": "modal", "value": "0 12px 32px rgba(15, 23, 42, 0.14)", "purpose": "Dialogs, message boxes, poppers, toasts — the only convincing shadow in the system." },
+      { "name": "hall-edge", "value": "0 1px 0 rgba(15, 23, 42, 0.1)", "purpose": "Single-pixel separation inside the dark auditorium panel." },
+      { "name": "chart-tooltip", "value": "0 2px 8px rgba(15, 23, 42, 0.12)", "purpose": "Chart hover readouts." }
+    ],
+    "motion": [
+      { "name": "transition-fast", "value": "0.15s ease", "purpose": "Colour transitions on buttons, links, chips, seats — the default." },
+      { "name": "transition-normal", "value": "0.25s ease", "purpose": "Border colour on cards." },
+      { "name": "fade-in-up", "value": "0.5s ease (translateY(12px) → 0, opacity 0 → 1)", "purpose": "Panel and page-section entrance." },
+      { "name": "conflict-flash", "value": "1.8s", "purpose": "How long a seat taken by someone else keeps its red pulsing ring." },
+      { "name": "reduced-motion", "value": "animation/transition-duration: 0.01ms", "purpose": "Global override for prefers-reduced-motion; do not remove." }
+    ],
+    "breakpoints": [
+      { "name": "content-max", "value": "1280px" },
+      { "name": "tablet", "value": "768px" },
+      { "name": "small", "value": "640px" },
+      { "name": "phone", "value": "480px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single ink action. Darkens on hover; never lifts, glows, or gradients.",
+      "html": "<button class=\"ds-btn-primary\">锁定座位 · LOCK SEATS</button>",
+      "css": ".ds-btn-primary { height: 36px; padding: 0 18px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-family: var(--font-body, system-ui); font-size: 14px; font-weight: 500; border: 1px solid var(--accent); border-radius: var(--radius-md, 3px); background: var(--accent); color: var(--ink-inverse); box-shadow: none; cursor: pointer; transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease; } .ds-btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); } .ds-btn-primary:active { background: var(--accent-press); border-color: var(--accent-press); } .ds-btn-primary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-btn-primary[disabled] { background: var(--accent-disabled); border-color: var(--accent-disabled); cursor: not-allowed; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Raised sheet with a hairline border; hover steps the surface down and the rule up.",
+      "html": "<button class=\"ds-btn-secondary\">取消订单 · CANCEL</button>",
+      "css": ".ds-btn-secondary { height: 36px; padding: 0 18px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-family: var(--font-body, system-ui); font-size: 14px; font-weight: 500; border: 1px solid var(--rule); border-radius: var(--radius-md, 3px); background: var(--paper-raised); color: var(--ink-2); cursor: pointer; transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease; } .ds-btn-secondary:hover { background: var(--paper-sunk); border-color: var(--rule-strong); color: var(--ink); } .ds-btn-secondary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }"
+    },
+    {
+      "name": "Header Chip",
+      "kind": "button",
+      "refersTo": "header-chip",
+      "description": "Header primitive. Geometry is locked at 36×136px across every variant; variants change colour only.",
+      "html": "<div class=\"ds-chip-row\"><a class=\"ds-chip ds-chip-primary\">我的订单</a><span class=\"ds-chip ds-chip-user\">user1</span><a class=\"ds-chip ds-chip-danger\">退出</a></div>",
+      "css": ".ds-chip-row { display: flex; gap: 12px; align-items: center; } .ds-chip { height: 36px; min-width: 136px; padding: 0 18px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; box-sizing: border-box; font-family: var(--font-body, system-ui); font-size: 14px; font-weight: 500; border: 1px solid transparent; border-radius: var(--radius-md, 3px); white-space: nowrap; text-decoration: none; cursor: pointer; user-select: none; transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease; } .ds-chip-primary { background: var(--accent); border-color: var(--accent); color: var(--ink-inverse); } .ds-chip-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); } .ds-chip-user { background: var(--paper-sunk); border-color: var(--rule); color: var(--ink-2); cursor: default; } .ds-chip-danger { background: transparent; border-color: var(--rule); color: var(--danger); } .ds-chip-danger:hover { background: rgb(var(--danger-rgb) / 0.08); border-color: var(--danger); } .ds-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }"
+    },
+    {
+      "name": "Sheet Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "A sheet lying on the page. Tonal lift plus the paper-shadow pair; the highlighted variant uses the stamp wash.",
+      "html": "<div class=\"ds-card-row\"><div class=\"ds-card\"><div class=\"ds-card-label\">今日票房</div><div class=\"ds-card-value\">¥12840.00</div></div><div class=\"ds-card ds-card-stamp\"><div class=\"ds-card-label\">今日订单</div><div class=\"ds-card-value\">326</div></div></div>",
+      "css": ".ds-card-row { display: flex; gap: 12px; } .ds-card { padding: 16px; border: 1px solid var(--rule); border-radius: var(--radius-lg, 4px); background: var(--paper-raised); box-shadow: 0 1px 0 rgba(15, 23, 42, 0.05), 0 6px 16px rgba(15, 23, 42, 0.03); transition: border-color 0.25s ease; } .ds-card:hover { border-color: var(--rule-strong); } .ds-card-stamp { background: var(--accent-wash); border-color: var(--rule-strong); } .ds-card-label { font-family: var(--font-body, system-ui); font-size: 13px; color: var(--ink-3); letter-spacing: 0.5px; margin-bottom: 8px; } .ds-card-value { font-family: var(--font-mono, monospace); font-variant-numeric: tabular-nums; font-size: 24px; font-weight: 700; color: var(--ink); } .ds-card-stamp .ds-card-value { color: var(--accent); }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Raised sheet, hairline border, 3px radius. Focus uses the same global 2px ink ring as everything else.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">手机号 / PHONE</span><input class=\"ds-input\" placeholder=\"请输入手机号\" /></label>",
+      "css": ".ds-field { display: block; } .ds-field-label { display: block; font-family: var(--font-body, system-ui); font-size: 13px; color: var(--ink-2); margin-bottom: 6px; } .ds-input { width: 240px; height: 36px; box-sizing: border-box; padding: 0 12px; font-family: var(--font-body, system-ui); font-size: 14px; color: var(--ink); background: var(--paper-raised); border: 1px solid var(--rule); border-radius: var(--radius-md, 3px); outline: none; transition: border-color 0.15s ease; } .ds-input::placeholder { color: var(--ink-3); } .ds-input:hover { border-color: var(--rule-strong); } .ds-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }"
+    },
+    {
+      "name": "Admin Nav Item",
+      "kind": "nav",
+      "description": "Sidebar item on the dark shell. Active is a 16% ink tint plus a 3px inset bar — never a solid blue block.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-item\">实时大屏</a><a class=\"ds-nav-item ds-nav-item-active\">经营看板</a><a class=\"ds-nav-item\">影片管理</a></nav>",
+      "css": ".ds-nav { width: 220px; padding: 12px 8px; background: var(--hall); border-right: 1px solid #1e293b; display: flex; flex-direction: column; } .ds-nav-item { height: 48px; line-height: 48px; padding: 0 20px; margin: 4px 0; font-family: var(--font-body, system-ui); font-size: 14px; font-weight: 500; letter-spacing: 0.5px; color: var(--hall-ink-2); border-radius: var(--radius-md, 3px); text-decoration: none; cursor: pointer; transition: background-color 0.15s ease, color 0.15s ease; } .ds-nav-item:hover { color: var(--hall-ink); background: #1e293b; } .ds-nav-item-active { color: var(--hall-ink); background: rgb(var(--accent-rgb) / 0.16); box-shadow: inset 3px 0 0 var(--accent); } .ds-nav-item-active:hover { background: rgb(var(--accent-rgb) / 0.24); } .ds-nav-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }"
+    },
+    {
+      "name": "Seat (5 states)",
+      "kind": "custom",
+      "description": "The signature component. Each state carries a non-colour channel as well as a fill, so the map survives grayscale.",
+      "html": "<div class=\"ds-hall\"><div class=\"ds-seat ds-seat-available\">4</div><div class=\"ds-seat ds-seat-selected\">5</div><div class=\"ds-seat ds-seat-mine\">6</div><div class=\"ds-seat ds-seat-locked\">7</div><div class=\"ds-seat ds-seat-sold\">8</div></div>",
+      "css": ".ds-hall { display: flex; gap: 6px; padding: 16px; background: var(--hall); border-radius: var(--radius-lg, 4px); } .ds-seat { width: 34px; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; position: relative; font-family: var(--font-mono, monospace); font-size: 11px; border-radius: 4px 4px 8px 8px; transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease; } .ds-seat-available { background: #1e2a40; border: 1px solid var(--hall-rule); color: var(--hall-ink-2); cursor: pointer; } .ds-seat-selected { background: var(--accent); border: 2px solid var(--accent-press); color: var(--ink-inverse); cursor: pointer; } .ds-seat-mine { background: #2f6b4f; border: 1px solid #245239; color: #dcece2; } .ds-seat-mine::before { content: ''; position: absolute; left: 2px; top: 20%; bottom: 20%; width: 3px; border-radius: 2px; background: var(--hall-mine-bar); } .ds-seat-locked { background: transparent; border: 1px dashed #3d4a63; color: #6b7a94; } .ds-seat-sold { background-color: #151f33; background-image: repeating-linear-gradient(45deg, transparent 0 3px, var(--hall-stripe) 3px 4px); border: 1px solid #232f47; color: #46536b; }"
+    },
+    {
+      "name": "Ticket Stub Perforation",
+      "kind": "custom",
+      "description": "The recurring physical device: half-circle notches punched along a container edge so two sheets look separable.",
+      "html": "<div class=\"ds-stub\"><div class=\"ds-stub-title\">取票凭证 · TICKET</div><div class=\"ds-stub-code\">NO. 8821400396</div></div><div class=\"ds-stub-tear\"></div>",
+      "css": ".ds-stub { position: relative; padding: 20px 24px; background: var(--paper-raised); border: 1px solid var(--rule); border-radius: var(--radius-lg, 4px); } .ds-stub-title { font-family: var(--font-body, system-ui); font-size: 13px; color: var(--ink-3); letter-spacing: 0.5px; } .ds-stub-code { font-family: var(--font-mono, monospace); font-variant-numeric: tabular-nums; font-size: 20px; font-weight: 700; color: var(--ink); } .ds-stub-tear { position: relative; height: 12px; margin: 0 14px; background: radial-gradient(circle at 6px 6px, var(--paper) 5.5px, transparent 6px) left top / 18px 12px repeat-x; }"
+    },
+    {
+      "name": "Section Title",
+      "kind": "custom",
+      "description": "Serif heading opened by a 3px ink bar — the system's cheapest identity device.",
+      "html": "<h2 class=\"ds-section-title\">正在热映</h2>",
+      "css": ".ds-section-title { position: relative; padding-left: 16px; margin: 0 0 24px; font-family: var(--font-display, Georgia, serif); font-size: 24px; font-weight: 700; letter-spacing: 1px; color: var(--ink); } .ds-section-title::before { content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 3px; height: 24px; border-radius: 1px; background: var(--accent); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Printed Ticket Stub",
+    "overview": "This is a piece of printed matter that happens to be on a screen. Every surface behaves like a cinema ticket that has been through a press: cold grey-white paper stock, exactly one ink colour, hairline rules doing all the structural work, and a perforated tear separating the stub from the ticket body. Nothing floats. Nothing glows. A card is a sheet lying on other sheets, and the only thing that distinguishes it is that it is a shade brighter than what's underneath.\n\nThe density is that of a box-office counter — information-dense, aligned, unemotional, and quick to scan. Structure comes from 1px rules and tonal steps rather than shadows, gradients, or fills; the tabular rhythm is carried by monospaced figures so that ticket numbers, showtimes, amounts and countdowns never reflow when a digit changes. Expression is spent in exactly two places: the single royal-blue ink, and the small library of physical printing devices (perforation notches, mono ticket numbers, the short ink bar that opens a section).\n\nThe one deliberate exception is the auditorium: the seat map is a single dark ticket face mounted on the paper, and the admin sidebar is its structural twin. That dark family is the same ink colour inverted, not a second identity — it exists so five saturated seat states stay separable instead of collapsing into grey.",
+    "keyCharacteristics": [
+      "Cold grey-white paper stock. Never warm, never cream.",
+      "Exactly one ink colour. Its rarity is the point.",
+      "Hairline 1px rules carry structure; shadows do not.",
+      "Monospaced tabular figures for anything that must not reflow.",
+      "One dark family (#0f172a) shared by the admin sidebar and the auditorium panel.",
+      "Perforated tear notches as the recurring signature device.",
+      "Near-zero corner radii — a printed sheet has no rounded corners."
+    ],
+    "rules": [
+      { "name": "The One Ink Rule", "body": "There is one accent. It is applied to less than a tenth of any given screen, and it is never duplicated by a second hue. When something needs emphasis and blue is already spent, reach for a heavier rule weight or a darker ink, not a new colour.", "section": "colors" },
+      { "name": "The Inverted Family Rule", "body": "Dark surfaces are the ink colour inverted, never a new palette. The sidebar and the auditorium must stay the same value, because it is one family.", "section": "colors" },
+      { "name": "The Slash-Syntax Rule", "body": "Alpha is composed as rgb(var(--x-rgb) / a). The comma form rgba(var(--x-rgb), a) is invalid CSS — the browser drops the declaration silently and the surface turns transparent.", "section": "colors" },
+      { "name": "The Ticket Number Rule", "body": "Anything that is a number on this system is set in mono with font-variant-numeric: tabular-nums — order numbers, showtimes, amounts, countdowns, seat labels, row/column labels, and dashboard statistics. Proportional figures are a bug here: a ticking countdown must not move its own frame.", "section": "typography" },
+      { "name": "The Two-Voice Rule", "body": "Serif is for headings and the brand mark only. Body copy never sets in serif, and headings never set in the body sans. The contrast between the two is the hierarchy.", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "Surfaces are flat at rest. Nothing lifts, glows, or translates on hover — a primary button answers with a darker ink, not a raised one. The only motion permitted on a surface is a colour transition.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do route every colour through the :root tokens in src/styles/main.css. Changing a token changes the whole site, including the Element Plus ramp, the chart series, and the favicon.",
+      "Do compose alpha as rgb(var(--x-rgb) / a).",
+      "Do keep the single ink at under a tenth of any screen, and answer \"I need more emphasis\" with a heavier rule or a darker ink.",
+      "Do set every figure that can change in mono with tabular figures.",
+      "Do give seat states and any colour-coded status a non-colour channel (edge weight, dash, stripe, bar) alongside the fill.",
+      "Do keep the five seat grounds at adjacent grayscale gaps ≥2/255.",
+      "Do reuse the shared seat/legend token pair rather than restating seat colours in the legend.",
+      "Do draw a visible focus ring on any dark surface; Element Plus's default disappears there.",
+      "Do honour prefers-reduced-motion — it is already wired globally."
+    ],
+    "donts": [
+      "Don't hard-code a colour in a .vue file. The only permitted literals are the payment QR code's white and #111827 and the token declarations themselves.",
+      "Don't add a second brand colour. Exactly six --accent* declarations exist in :root; a seventh fails the test suite.",
+      "Don't lift, translate, glow, or gradient a primary action on hover. Darken the ink instead.",
+      "Don't use colourful emoji as icons, decoration, or section markers.",
+      "Don't put a solid blue block on the dark sidebar as an active state; use the tint plus the 3px inset bar.",
+      "Don't reintroduce a shadow as rest-state decoration on a non-overlay surface.",
+      "Don't round a corner past 6px, or give a sheet a pill silhouette.",
+      "Don't set body copy in the display serif, or a heading in the body sans.",
+      "Don't change any --seat-* value without re-running the grayscale-separation assertion.",
+      "Don't delete the table's white-space: nowrap rule — it is a functional fix that stops snowflake IDs from wrapping and inflating table rows, not a style preference."
+    ]
+  }
+}
