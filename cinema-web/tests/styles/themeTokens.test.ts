@@ -201,7 +201,8 @@ describe('主题契约 · 主色与侧边栏', () => {
     const admin = readSrc('views/admin/AdminHome.vue')
     const asideBlock = admin.match(/\.aside\s*\{([^}]*)\}/)?.[1] ?? ''
     expect(asideBlock, '.aside 块没匹配到').not.toBe('')
-    expect(asideBlock).toContain('--aside-bg: #0f172a')
+    // 2026-10-12 收口: 侧栏暗面改为引用 --hall 家族 —— 锁「引用」而非字面量, 换肤才跟得动
+    expect(asideBlock).toContain('--aside-bg: var(--hall)')
     expect(asideBlock).toContain('background: var(--aside-bg)')
     expect(asideBlock).not.toContain('var(--paper-raised)')
   })

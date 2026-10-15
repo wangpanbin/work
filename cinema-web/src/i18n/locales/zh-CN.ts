@@ -21,7 +21,7 @@ export default {
 
   // request.ts 拦截器的兜底文案(后端返回 body.msg 时优先用后端的)。
   // ⚠️ needLogin / networkError 的 zh-CN 值必须与排障约定逐字一致, 不要改写 ——
-  //    networkError 是本地拉起后端失败时的定位线索(见 AGENTS.md「网络错误的本地化文案」)。
+  //    networkError 是本地拉起后端失败时的定位线索(见 `cinema-web/CLAUDE.md`「网络错误的本地化文案」)。
   api: {
     needLogin: '请先登录',
     requestFailed: '请求失败',
@@ -364,6 +364,7 @@ export default {
     hallsConfirmDelete2: '删除影厅会同时删除座位,确定?',
     sessionsUpdated: '已更新',
     sessionsCreated: '已创建',
+    sessionsDeleted: '已删除',
     sessionsAddTitle: '新增场次',
     sessionsEditTitle: '编辑场次',
     sessionsHallLabelCol: '影厅',

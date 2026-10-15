@@ -56,7 +56,7 @@ typography:
   label:
     fontFamily: "IBM Plex Mono, Roboto Mono, ui-monospace, Consolas, monospace"
     fontSize: "11px"
-    fontWeight: 500
+    fontWeight: 400
     lineHeight: 1.4
     letterSpacing: "0.02em"
 rounded:
@@ -151,7 +151,7 @@ A cold, restrained palette: one high-chroma royal blue against a five-step cool 
 - **Stamp wash** (rgba(37, 99, 235, 0.08) / 0.14): the tint used for the highlighted card background and the stamped badge. Tints are always built with `rgb(var(--accent-rgb) / a)`, never `rgba(var(--accent-rgb), a)` — the comma form is invalid CSS and the browser silently drops the whole declaration.
 - **Ink, disabled** (#a7bfe8): the disabled primary, lightened so "unavailable" reads as a separate state rather than a dimmed active one.
 
-No Secondary or Tertiary ramp exists. `themeTokens.test.ts` asserts there are exactly six `--accent*` declarations in `:root`; a seventh means someone added a second brand colour.
+No Secondary or Tertiary ramp exists. `themeTokens.test.ts` asserts there are exactly seven `--accent*` declarations in `:root` (base / hover / press / wash / stamp / disabled / rgb); an eighth means someone added a second brand colour.
 
 ### Neutral
 
@@ -192,7 +192,7 @@ No Secondary or Tertiary ramp exists. `themeTokens.test.ts` asserts there are ex
 - **Title** (700, 24px, line-height 1.3, letter-spacing 1px): section titles, marked by the 3px ink bar on their left edge.
 - **Headline** (700, 22px, line-height 1.3, letter-spacing 2px): the wordmark in both headers. Wide tracking is what makes two Chinese characters read as a brand mark.
 - **Body** (400, 14px, line-height 1.6): the default voice for every paragraph, label, table cell, and button.
-- **Label** (500, 11px, mono, letter-spacing 0.02em; badges push to 4px and uppercase): ticket numbers, column labels, the `ADMIN CONSOLE` eyebrow, and any figure that must not reflow.
+- **Label** (400, 11px, mono, letter-spacing 0.02em; badges push to 4px and uppercase — the mono face loads 400/600 only, so no code may ask for 500): ticket numbers, column labels, the `ADMIN CONSOLE` eyebrow, and any figure that must not reflow.
 
 ### Named Rules
 
@@ -244,7 +244,7 @@ Three silhouette devices carry the identity:
 
 - **Shape:** squared with a softened corner (3px radius), 1px border, 36px height, 0 18px padding, 14px/500 label. A fixed-width variant snaps to 128px for stacked action rows.
 - **Primary:** solid royal ink with ticket-reverse text. No shadow, no gradient, no lift.
-- **Hover / Focus:** hover darkens the ink to `#1d4ed8`, active presses to `#1e40af`; the transition is colour-only at 0.15s. Keyboard focus is a 2px ink outline with 2px offset, drawn globally so it survives on both paper and dark surfaces.
+- **Hover / Focus:** hover darkens the ink to `#1d4ed8`, active presses to `#1e40af`; the transition is colour-only at 0.15s. Keyboard focus is a 2px accent outline with 2px offset, drawn globally (`main.css :focus-visible`) so it survives on both paper and dark surfaces — accent reads 3.5:1 against the dark family, clearing the 3:1 non-text bar.
 - **Disabled:** the ink is lightened to `#a7bfe8` so it reads as a distinctly unavailable state instead of a dim active one.
 - **Secondary:** raised sheet with a hairline border and counter-ink text; hover steps the surface down to the sunk tone and the border up to the strong weight. Danger and warning variants are the semantic solids, each with exactly one darker hover step.
 
@@ -263,7 +263,7 @@ A chip is the header's only interactive primitive, and the system insists they a
 ### Inputs / Fields
 
 - **Style:** raised sheet, hairline border, 3px radius, 36px height, body-sized text; Element Plus supplies the mechanics and the tokens supply the skin.
-- **Focus:** the global 2px ink outline — the same treatment as every other focusable thing, which is what keeps focus legible on paper and on the dark shell.
+- **Focus:** the global 2px accent outline — the same treatment as every other focusable thing, which is what keeps focus legible on paper and on the dark shell.
 - **Error:** validation text is pressed to the semantic danger rather than Element Plus's brighter default.
 
 ### Navigation
@@ -280,7 +280,7 @@ Seats are square with a deepened bottom radius, set in mono at 11px, and separat
 | State | Ground | Non-colour channel |
 | --- | --- | --- |
 | Available | `#1e2a40` | 1px solid hairline |
-| Selected (mine, pending) | Royal ink | 2px solid ink edge |
+| Selected (mine, pending) | Royal ink | 2px solid edge in the pressed ink (`--accent-press`) |
 | Locked (mine) | `#2f6b4f` | 1px solid edge |
 | Locked (someone else) | transparent | 1px dashed edge |
 | Sold | `#151f33` | 45° stripe fill |
@@ -295,7 +295,7 @@ The perforation, the mono ticket number, the ink-bar section title, and the hand
 
 ### Do:
 
-- **Do** route every colour through the `:root` tokens in `src/styles/main.css`. Changing a token changes the whole site, including the Element Plus ramp, the chart series, and the favicon.
+- **Do** route every colour through the `:root` tokens in `src/styles/main.css`. Changing a token changes the whole site, including the Element Plus ramp and the chart series. The favicon is a static data-URI in `index.html` that tokens cannot reach — `themeTokens.test.ts` re-derives it from the current tokens and fails the suite if the two drift apart.
 - **Do** compose alpha as `rgb(var(--x-rgb) / a)`.
 - **Do** keep the single ink at under a tenth of any screen, and answer "I need more emphasis" with a heavier rule or a darker ink.
 - **Do** set every figure that can change in mono with tabular figures.
@@ -308,7 +308,7 @@ The perforation, the mono ticket number, the ink-bar section title, and the hand
 ### Don't:
 
 - **Don't** hard-code a colour in a `.vue` file. The only permitted literals are the payment QR code's white and `#111827` and the token declarations themselves.
-- **Don't** add a second brand colour. Exactly six `--accent*` declarations exist in `:root`; a seventh fails the test suite.
+- **Don't** add a second brand colour. Exactly seven `--accent*` declarations exist in `:root`; an eighth fails the test suite.
 - **Don't** lift, translate, glow, or gradient a primary action on hover. Darken the ink instead.
 - **Don't** use colourful emoji as icons, decoration, or section markers.
 - **Don't** put a solid blue block on the dark sidebar as an active state; use the tint plus the 3px inset bar.

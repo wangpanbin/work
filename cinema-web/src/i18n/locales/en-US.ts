@@ -357,6 +357,7 @@ const messages: SameShape<typeof zhCN> = {
     hallsConfirmDelete2: 'Deleting a hall also removes its seats — proceed?',
     sessionsUpdated: 'Updated',
     sessionsCreated: 'Created',
+    sessionsDeleted: 'Deleted',
     sessionsAddTitle: 'Add session',
     sessionsEditTitle: 'Edit session',
     sessionsHallLabelCol: 'Hall',

@@ -187,11 +187,14 @@ function logout() {
 /* ========== 侧边栏：深靛蓝暗面（与 --hall 同族，构成「一个暗色家族」） ==========
    局部 token 作用域限定在 .aside, 不污染 :root —— 前台内容区仍是浅色纸面。 */
 .aside {
-  --aside-bg: #0f172a;
-  --aside-ink: #e2e8f0;
-  --aside-ink-2: #94a3b8;
+  /* 别名一律指向 :root 的 --hall 家族 —— 换肤只改 :root, 侧栏自动跟随;
+     不要再手抄暗色 hex(旧稿 #94a3b8 就是这么和 --hall-ink-2 漂移开的)。
+     唯一保留的字面量是 --aside-rule: 侧栏边框比座位面板再深一档, :root 无对应 token。 */
+  --aside-bg: var(--hall);
+  --aside-ink: var(--hall-ink);
+  --aside-ink-2: var(--hall-ink-2);
+  --aside-hover: var(--hall-raised);
   --aside-rule: #1e293b;
-  --aside-hover: #1e293b;
   background: var(--aside-bg);
   color: var(--aside-ink);
   border-right: 1px solid var(--aside-rule);

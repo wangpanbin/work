@@ -380,8 +380,7 @@ onMounted(() => {
   text-decoration: none;   /* router-link 渲染为 <a>, 去掉默认下划线 */
   transition:
     border-color var(--transition-normal),
-    box-shadow var(--transition-normal),
-    transform var(--transition-normal);
+    box-shadow var(--transition-normal);
   background: var(--paper-raised);
   border: 1px solid var(--rule);
   box-shadow: var(--shadow-paper);
@@ -391,9 +390,6 @@ onMounted(() => {
 .movie-card:hover {
   border-color: var(--rule-strong);
   box-shadow: var(--shadow-paper-hover);
-}
-.movie-card:active {
-  transform: translateY(1px);
 }
 
 .movie-card:hover .card-glow {

@@ -84,7 +84,7 @@ async function onSubmit() {
 async function onDelete(row: Session) {
   try {
     await sessionDelete(row.id)
-    ElMessage.success(t('admin.hallsDeleted'))
+    ElMessage.success(t('admin.sessionsDeleted'))
     load()
   } catch {
     // 拦截器已提示

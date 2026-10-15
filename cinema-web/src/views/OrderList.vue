@@ -278,20 +278,14 @@ onMounted(() => {
   border-radius: var(--radius-lg);
   overflow: hidden;
   box-shadow: var(--shadow-paper);
-  transition:
-    border-color var(--transition-normal),
-    box-shadow var(--transition-normal),
-    transform var(--transition-normal);
+  transition: border-color var(--transition-normal);
   animation: fadeInUp 0.4s ease both;
 }
 
-/* 印刷风不做悬浮位移, 只提亮边框 */
+/* 整卡本身不可点(只有内部按钮可点): 不做 hover 抬升、不做按压位移, 只提亮边框 ——
+   与 MovieDetail.session-card 同一套 hover 语言, 交互态阴影只留给真可点的卡片。 */
 .order-card:hover {
   border-color: var(--rule-strong);
-  box-shadow: var(--shadow-paper-hover);
-}
-.order-card:active {
-  transform: translateY(1px);
 }
 
 .order-card.status-2 {

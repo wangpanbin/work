@@ -285,14 +285,13 @@ defineExpose({ toggle })
   white-space: nowrap;
   transition: background-color var(--transition-fast);
 }
-.chat-send-btn:active:not(:disabled) {
-  filter: brightness(0.94);
-}
-.chat-send-btn:active:not(:disabled) {
-  filter: brightness(0.94);
-}
 .chat-send-btn:hover:not(:disabled) {
   background: var(--accent-hover);
+}
+/* 按压: token 压深一档(DESIGN「深化印色, 不做亮度滤镜/位移」)。
+   必须排在 :hover 之后 —— 按下时两者同特异性同时成立, 靠后的声明生效。 */
+.chat-send-btn:active:not(:disabled) {
+  background: var(--accent-press);
 }
 .chat-send-btn:disabled {
   opacity: 0.5;
