@@ -17,6 +17,13 @@ colors:
   accent-wash: "rgba(37, 99, 235, 0.08)"
   accent-stamp: "rgba(37, 99, 235, 0.14)"
   accent-disabled: "#a7bfe8"
+  accent-rgb: "37 99 235"
+  scene-browse: "#f97316"
+  scene-browse-ink: "#9a3412"
+  scene-browse-rgb: "249 115 22"
+  scene-seat: "#0891b2"
+  scene-seat-ink: "#155e75"
+  scene-seat-rgb: "8 145 178"
   ok: "#2a6b52"
   warn: "#86691c"
   danger: "#a8271b"
@@ -28,6 +35,8 @@ colors:
   hall-ink: "#e2e8f0"
   hall-ink-2: "#93a3ba"
   hall-mine-bar: "#6ee0ae"
+  hall-scene: "var(--scene-seat)"
+  hall-glow: "rgb(var(--scene-seat-rgb) / 0.22)"
 typography:
   display:
     fontFamily: "Noto Serif SC, Source Han Serif SC, Songti SC, Georgia, serif"
@@ -65,6 +74,7 @@ rounded:
   lg: "4px"
   xl: "6px"
 spacing:
+  docOnly: true
   xs: "6px"
   sm: "12px"
   md: "16px"
@@ -117,16 +127,16 @@ components:
 
 **Creative North Star: "The Printed Ticket Stub"**
 
-This is a piece of printed matter that happens to be on a screen. Every surface behaves like a cinema ticket that has been through a press: cold grey-white paper stock, exactly one ink colour, hairline rules doing all the structural work, and a perforated tear separating the stub from the ticket body. Nothing floats. Nothing glows. A card is a sheet lying on other sheets, and the only thing that distinguishes it is that it is a shade brighter than what's underneath.
+This is a piece of printed matter that happens to be on a screen. Every surface behaves like a cinema ticket that has been through a press: cold grey-white paper stock, one global ink colour, hairline rules doing all the structural work, and a perforated tear separating the stub from the ticket body. At rest, nothing floats and nothing glows. A card is a sheet lying on other sheets, and the only thing that distinguishes it is that it is a shade brighter than what's underneath.
 
-The density is that of a box-office counter — information-dense, aligned, unemotional, and quick to scan. Structure comes from 1px rules and tonal steps rather than shadows, gradients, or fills; the tabular rhythm is carried by monospaced figures so that ticket numbers, showtimes, amounts and countdowns never reflow when a digit changes. Expression is spent in exactly two places: the single royal-blue ink, and the small library of physical printing devices (perforation notches, mono ticket numbers, the short ink bar that opens a section).
+The density is that of a box-office counter — information-dense, aligned, unemotional, and quick to scan. Structure comes from 1px rules and tonal steps rather than shadows, gradients, or fills; the tabular rhythm is carried by monospaced figures so that ticket numbers, showtimes, amounts and countdowns never reflow when a digit changes. Expression is spent in exactly three places: the single global royal-blue ink, the small library of physical printing devices (perforation notches, mono ticket numbers, the short ink bar that opens a section), and — from 2026-10-19 — one **scene ink** per business domain, spent only on that domain's own small surfaces.
 
 The one deliberate exception is the auditorium: the seat map is a single dark ticket face mounted on the paper, and the admin sidebar is its structural twin. That dark family is the same ink colour inverted, not a second identity — it exists so five saturated seat states stay separable instead of collapsing into grey.
 
 **Key Characteristics:**
 
 - Cold grey-white paper stock. Never warm, never cream.
-- Exactly one ink colour. Its rarity is the point.
+- One **global** ink colour. Its rarity is the point. Each business domain adds exactly one **local** scene ink, and that scene ink never leaves its domain.
 - Hairline 1px rules carry structure; shadows do not.
 - Monospaced tabular figures for anything that must not reflow.
 - One dark family (`#0f172a`) shared by the admin sidebar and the auditorium panel.
@@ -136,22 +146,38 @@ The one deliberate exception is the auditorium: the seat map is a single dark ti
 **Confirmed visual rejections** (committed in the implementation, do not reintroduce):
 
 - Colourful emoji as iconography or decoration.
-- Gold gradients, 40px glows, and hover translation/lift on primary actions.
-- A second brand or accent colour.
+- Gold gradients and 40px glows.
+- Hover translation or lift on **primary actions** — a primary button answers with a darker ink, never with motion. (Non-primary interactive surfaces may move, but only under The Flat-By-Default Rule below.)
+- A second **global** brand or accent colour. A scene ink is a domain-local exception, not a second global colour — see The Scene Ink Rule.
+- A scene ink on a global emphasis surface — primary CTA, link, focus ring, section title bar, hairline border, or nav active state.
+- A scene ink outside its own domain.
 - Shadows used as rest-state decoration rather than as a response to state.
 
 ## Colors
 
-A cold, restrained palette: one high-chroma royal blue against a five-step cool grey-white paper scale, with a single inverted dark family for the auditorium and the admin shell.
+A cold, restrained palette: one high-chroma royal blue against a five-step cool grey-white paper scale, with a single inverted dark family for the auditorium and the admin shell. From 2026-10-19, each business domain additionally carries its own **scene ink** — one hue per domain, spent only on that domain's small surfaces.
 
 ### Primary
 
-- **Royal Stamp Blue** (#2563eb): the only ink on the sheet. Primary buttons, links, active nav, focus rings, the section-title bar, `::selection`, the brand mark, and the single "highlighted" stat card. Its rarity is deliberate — it is used on well under a tenth of any screen.
+- **Royal Stamp Blue** (#2563eb): the only **global** ink on the sheet. Primary buttons, links, active nav, focus rings, the section-title bar, `::selection`, the brand mark, and the single "highlighted" stat card. Its rarity is deliberate — it is used on well under a tenth of any screen, and it never changes hue between domains.
 - **Royal Stamp Blue, pressed** (#1d4ed8 / #1e40af): hover and active steps. Depth comes from darkening the ink, never from lifting the element.
 - **Stamp wash** (rgba(37, 99, 235, 0.08) / 0.14): the tint used for the highlighted card background and the stamped badge. Tints are always built with `rgb(var(--accent-rgb) / a)`, never `rgba(var(--accent-rgb), a)` — the comma form is invalid CSS and the browser silently drops the whole declaration.
 - **Ink, disabled** (#a7bfe8): the disabled primary, lightened so "unavailable" reads as a separate state rather than a dimmed active one.
 
-No Secondary or Tertiary ramp exists. `themeTokens.test.ts` asserts there are exactly seven `--accent*` declarations in `:root` (base / hover / press / wash / stamp / disabled / rgb); an eighth means someone added a second brand colour.
+There is no global secondary or tertiary ramp. `themeTokens.test.ts` asserts there are exactly seven `--accent*` declarations in `:root` (base / hover / press / wash / stamp / disabled / rgb); an eighth means someone added a second **global** brand colour.
+
+### Scene Identity Inks (domain-local, 2026-10-19)
+
+A global ink cannot carry every role. Before this change, the same #2563eb was simultaneously a badge, a price, a play button, a full-bleed background and a decorative dot — which is why the interface read as one flat tone. The fix is not "more blues"; it is **one hue per role**, scoped to a domain.
+
+| Domain | Scene | base | ink | rgb |
+| --- | --- | --- | --- | --- |
+| Browse | `Home`, `MovieDetail` | `#f97316` marquee orange | `#9a3412` | `249 115 22` |
+| Seat | `SeatSelect`, `SeatItem` | `#0891b2` projector cyan | `#155e75` | `8 145 178` |
+
+Each family has exactly three members: **base** (graphic, fill, chart series), **ink** (text-safe, ≥4.5:1 on every paper tone) and **rgb** (for `rgb(var(--scene-x-rgb) / a)` washes). `themeTokens.test.ts` asserts the family count, the member set, the ink contrast, the ≥25° hue distance from the global ink, and the separation from any semantic colour that co-occurs in the same domain.
+
+Two more domains (`order`, `payment`) are reserved for the next round; they are deliberately **not** defined yet, because a token nobody uses is a promise the system does not keep.
 
 ### Neutral
 
@@ -172,7 +198,13 @@ No Secondary or Tertiary ramp exists. `themeTokens.test.ts` asserts there are ex
 
 ### Named Rules
 
-**The One Ink Rule.** There is one accent. It is applied to less than a tenth of any given screen, and it is never duplicated by a second hue. When something needs emphasis and blue is already spent, reach for a heavier rule weight or a darker ink, not a new colour.
+**The One Global Ink Rule.** There is one **global** accent. It is applied to less than a tenth of any given screen, and it is never duplicated by a second global hue. It does not change hue between pages, so a primary button means the same thing everywhere. When something needs emphasis and blue is already spent, reach for a heavier rule weight or a darker ink, not a new colour.
+
+**The Scene Ink Rule.** A business domain may carry one **scene ink**, and it is bound to that domain for good. Three rules govern it:
+
+1. **Small surfaces only.** A scene ink may appear on badges, dots, progress fills, chart series, ticket stamps and icon chips — nothing else. It is never allowed on a global emphasis surface: primary CTA, link, focus ring, section title bar, hairline border, or nav active state. Those stay `--accent`.
+2. **Three members, no more.** Every scene family is exactly `base` / `ink` / `rgb`. `base` is a graphic colour and is never used for body text; text on a base fill uses `--ink` (the counter ink), never `--ink-inverse`, because every base is high-lightness and high-chroma and reverse type disappears on it. `ink` is the text-safe member and must clear 4.5:1 on every paper tone.
+3. **Never leaves its domain.** A scene ink used outside its own domain is a bug, not a style choice. `themeTokens.test.ts` asserts the domain boundary file by file.
 
 **The Inverted Family Rule.** Dark surfaces are the ink colour inverted, never a new palette. The sidebar and the auditorium must stay the same value, because it is one family.
 
@@ -204,6 +236,14 @@ No Secondary or Tertiary ramp exists. `themeTokens.test.ts` asserts there are ex
 
 A single centred column of printed sheets, 1280px maximum, with 32px vertical and 24px horizontal breathing room. The header is a 64px sticky strip bounded by a hairline below it; the page sheet shows through everywhere else. Cards are sheets separated by 12–16px gutters and, in dashboards, laid out as 4 equal columns that fold to 2 below 768px.
 
+**Asymmetry (2026-10-19).** A column of equal sheets is a box-office ledger, not a cinema. Three surfaces deliberately break the grid while keeping the printed language:
+
+- **Home hero** is an unequal two-part ticket: the main stub takes the free width, the data stub is a fixed 260px column. The perforation between them is unchanged — only the proportion moved.
+- **The film grid** is a 12-column grid where the first film takes 6 columns and a wider poster, and the rest take 3. Below 768px it collapses back to an equal `auto-fill` grid, and below 480px to two columns.
+- **The session list** is a ticket, not a table row: a large tabular start time on the left, the hall in the middle, and the price stamped in ink on the right, with the booking button last.
+
+A row of identical cards was the shape the previous design kept repeating; the asymmetry is where the colour has room to land.
+
 The admin shell breaks the model on purpose: it goes full-bleed with a fixed 220px sidebar and a 20/24px content padding, because a data console needs the width more than it needs the margin. The seat page also breaks it: the auditorium panel is a full-width dark ticket face, with the seat grid inside it using `32px + repeat(cols, minmax(28px, 1fr))` columns and a 6px gap so row labels align with seats.
 
 Responsive behaviour is three stepped reductions rather than a fluid rescale:
@@ -223,10 +263,15 @@ This system is **flat by default and tonal everywhere**. Depth is conveyed almos
 - **Modal** (`0 12px 32px rgba(15, 23, 42, 0.14)`): dialogs, message boxes, poppers, and toasts — the only convincing shadow in the system.
 - **Auditorium edge** (`0 1px 0 rgba(15, 23, 42, 0.1)`): the single-pixel separation used inside the dark panel.
 - **Chart tooltip** (`0 2px 8px rgba(15, 23, 42, 0.12)`): chart hover readouts.
+- **Scene glow** (`rgb(var(--scene-x-rgb) / a)`, blur ≤ 8px): a domain-local bloom reserved for scene-ink elements on a dark ground. Never a 40px halo, never a gradient.
 
 ### Named Rules
 
-**The Flat-By-Default Rule.** Surfaces are flat at rest. Nothing lifts, glows, or translates on hover — a primary button answers with a *darker ink*, not a raised one. The only motion permitted on a surface is a colour transition.
+**The Flat-By-Default Rule.** Surfaces are flat at rest — nothing lifts, glows or translates until the user touches it. On interaction, motion is allowed, but only under all three of these limits:
+
+- **Where.** The surface must sit on a dark ground (the `--hall` family), or carry a strong edge (`--rule-strong`), or be a scene-ink element. A card floating on plain paper with a hairline does not move.
+- **How much.** Displacement ≤ 2px, bloom ≤ 8px. Anything larger reads as a different design language.
+- **When.** Motion answers a state; it never loops. A primary button still answers with a *darker ink*, never with a raise. `prefers-reduced-motion: reduce` collapses all of it, globally.
 
 ## Shapes
 
@@ -287,6 +332,8 @@ Seats are square with a deepened bottom radius, set in mono at 11px, and separat
 
 A conflict flash adds a red pulsing ring for 1.8s when a seat the user had selected is taken by someone else. Grayscale separation is asserted in code: the five grounds must keep adjacent luminance gaps of at least 2/255, which is why the locked-seat green is untouchable — moving it collapses the gap to 1.
 
+Drag-selecting a run of seats previews the range with an **outline**, never a fill. The five grounds are untouchable: `themeTokens.test.ts` asserts the exact set of `--seat-*` variables, and a sixth seat colour would compete with the five for the same luminance band. The preview outline is the seat domain's scene ink, drawn outside the seat box, so it adds no ground value and therefore no luminance level of its own.
+
 ### Ticket Stub Devices (signature)
 
 The perforation, the mono ticket number, the ink-bar section title, and the hand-drawn ticket-stub SVG in the header are the system's only decoration, and they all come from the same physical metaphor. They are cheap (pure CSS or one inline SVG), they never carry information that isn't also stated in text, and they are the reason the interface reads as one product rather than as a themed admin template.
@@ -297,7 +344,9 @@ The perforation, the mono ticket number, the ink-bar section title, and the hand
 
 - **Do** route every colour through the `:root` tokens in `src/styles/main.css`. Changing a token changes the whole site, including the Element Plus ramp and the chart series. The favicon is a static data-URI in `index.html` that tokens cannot reach — `themeTokens.test.ts` re-derives it from the current tokens and fails the suite if the two drift apart.
 - **Do** compose alpha as `rgb(var(--x-rgb) / a)`.
-- **Do** keep the single ink at under a tenth of any screen, and answer "I need more emphasis" with a heavier rule or a darker ink.
+- **Do** keep the **global** ink at under a tenth of any screen, and answer "I need more emphasis" with a heavier rule or a darker ink.
+- **Do** reach for a **scene ink** when a role genuinely needs its own hue — a badge that says "now playing", a price stamp, a seat-map glow. One hue per role, one role per hue.
+- **Do** keep a scene ink on small surfaces only, and inside its own domain.
 - **Do** set every figure that can change in mono with tabular figures.
 - **Do** give seat states and any colour-coded status a non-colour channel (edge weight, dash, stripe, bar) alongside the fill.
 - **Do** keep the five seat grounds at adjacent grayscale gaps ≥2/255.
@@ -308,7 +357,10 @@ The perforation, the mono ticket number, the ink-bar section title, and the hand
 ### Don't:
 
 - **Don't** hard-code a colour in a `.vue` file. The only permitted literals are the payment QR code's white and `#111827` and the token declarations themselves.
-- **Don't** add a second brand colour. Exactly seven `--accent*` declarations exist in `:root`; an eighth fails the test suite.
+- **Don't** add a second **global** brand colour. Exactly seven `--accent*` declarations exist in `:root`; an eighth fails the test suite.
+- **Don't** put a scene ink on a global emphasis surface — primary CTA, link, focus ring, section title bar, hairline border, or nav active state. Those stay `--accent`.
+- **Don't** use a scene ink outside its own domain.
+- **Don't** set body text in a scene `base`; use the `ink` member, and use `--ink` (not `--ink-inverse`) for type sitting on a base fill.
 - **Don't** lift, translate, glow, or gradient a primary action on hover. Darken the ink instead.
 - **Don't** use colourful emoji as icons, decoration, or section markers.
 - **Don't** put a solid blue block on the dark sidebar as an active state; use the tint plus the 3px inset bar.
@@ -316,4 +368,5 @@ The perforation, the mono ticket number, the ink-bar section title, and the hand
 - **Don't** round a corner past 6px, or give a sheet a pill silhouette.
 - **Don't** set body copy in the display serif, or a heading in the body sans.
 - **Don't** change any `--seat-*` value without re-running the grayscale-separation assertion.
+- **Don't** change a colour in one place only. `DESIGN.md`'s front-matter and `main.css` hold the same palette, and `designDocSync.test.ts` fails the suite if the two drift apart.
 - **Don't** delete the table's `white-space: nowrap` rule — it is a functional fix that stops snowflake IDs from wrapping and inflating table rows, not a style preference.

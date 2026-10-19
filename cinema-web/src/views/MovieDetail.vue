@@ -9,6 +9,7 @@ import { useMovieCache } from '../stores/movieCache'
 import { toIdString, type Movie, type SessionVO } from '../types'
 import { useUserStore } from '../stores/user'
 import { usePosterFallback } from '../composables/usePosterFallback'
+import { Clock, Document } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -102,7 +103,6 @@ onMounted(async () => {
     <template v-if="movie">
       <!-- Hero Section -->
       <section class="detail-hero">
-        <div class="hero-bg"></div>
         <div class="movie-head">
           <div class="poster-wrapper">
             <div class="poster-glow"></div>
@@ -123,22 +123,21 @@ onMounted(async () => {
             <p class="desc">{{ movie.description || t('movie.noDescription') }}</p>
             <div class="meta-tags">
               <span class="meta-tag">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                  <circle cx="12" cy="12" r="10"/>
-                  <polyline points="12 6 12 12 16 14"/>
-                </svg>
+                <el-icon :size="16"><Clock /></el-icon>
                 {{ t('movie.minutes', { n: movie.duration }) }}
               </span>
               <span v-if="movie.description" class="meta-tag">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
-                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
-                </svg>
+                <el-icon :size="16"><Document /></el-icon>
                 {{ movie.description.slice(0, 18) }}{{ movie.description.length > 18 ? t('movie.descEllipsis') : '' }}
               </span>
               <span v-else class="meta-tag">{{ t('movie.classic') }}</span>
             </div>
           </div>
+        </div>
+        <!-- 场次票号: 右下角一枚大号等宽数字, 票根上最像"编号"的东西 -->
+        <div class="hero-tally">
+          <span class="hero-tally-num">{{ sessions.length }}</span>
+          <span class="hero-tally-label">{{ t('movie.sessionCount') }}</span>
         </div>
       </section>
 
@@ -183,6 +182,8 @@ onMounted(async () => {
 /* --- Hero Section --- */
 .detail-hero {
   position: relative;
+  display: flex;
+  flex-direction: column;
   border-radius: var(--radius-lg);
   overflow: hidden;
   margin-bottom: 40px;
@@ -191,11 +192,16 @@ onMounted(async () => {
   padding: 48px;
 }
 
-/* 原稿是两层 gold/purple radial 光斑, 纸面风删掉 —— 换成一道极淡的印章叠印 */
-.hero-bg {
+/* 顶部一道浏览域印色条: 原来是整块 accent-stamp 铺底, 那是最"一片蓝"的地方。
+   同样占位, 但 4px 印色条 + 右下角一枚大号数字有主次。 */
+.detail-hero::before {
+  content: '';
   position: absolute;
-  inset: 0;
-  background: var(--accent-stamp);
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--scene-browse);
 }
 
 .movie-head {
@@ -203,12 +209,15 @@ onMounted(async () => {
   z-index: 2;
   display: flex;
   gap: 40px;
-  align-items: flex-start;
+  /* 海报与信息垂直居中: 顶对齐会在右侧留一大块空洞 */
+  align-items: center;
 }
 
+/* 海报压左 38%, 信息占右侧 62% —— 原稿是「240px 海报 + 剩余空间」, 比例由内容长度决定, 看起来总是一样 */
 .poster-wrapper {
   position: relative;
-  flex-shrink: 0;
+  flex: 0 0 38%;
+  max-width: 300px;
 }
 
 /* 原稿是金色渐变 + blur(24px) 的辉光底, 纸面风删掉 */
@@ -217,8 +226,9 @@ onMounted(async () => {
 }
 
 .poster {
-  width: 240px;
-  height: 340px;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 3 / 4;
   border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--paper-sunk);
@@ -251,7 +261,6 @@ onMounted(async () => {
 
 .info {
   flex: 1;
-  padding-top: 8px;
 }
 
 .info-badge {
@@ -259,8 +268,9 @@ onMounted(async () => {
   font-family: var(--font-display);
   font-size: 10px;
   letter-spacing: 4px;
-  color: var(--accent);
-  border: 1px solid var(--accent);
+  color: var(--scene-browse-ink);
+  border: 1px solid var(--scene-browse-ink);
+  background: rgb(var(--scene-browse-rgb) / 0.1);
   padding: 4px 12px;
   border-radius: var(--radius-sm);
   margin-bottom: 16px;
@@ -270,6 +280,7 @@ onMounted(async () => {
 .info-badge.coming-soon {
   color: var(--ink-2);
   border-color: var(--rule-strong);
+  background: var(--paper-sunk);
 }
 
 .movie-title {
@@ -309,6 +320,30 @@ onMounted(async () => {
   color: var(--ink-2);
 }
 
+/* 场次票号: 右下角一枚大号等宽数字, 票根上最像"编号"的东西 */
+.hero-tally {
+  align-self: flex-end;
+  margin-top: 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1;
+}
+.hero-tally-num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 56px;
+  font-weight: 600;
+  color: var(--scene-browse-ink);
+  opacity: 0.22;
+}
+.hero-tally-label {
+  margin-top: 8px;
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--ink-3);
+}
+
 /* --- Sessions Section --- */
 .sessions-section {
   animation: fadeInUp 0.6s ease 0.2s both;
@@ -327,8 +362,32 @@ onMounted(async () => {
   margin-bottom: 0;
 }
 
+/* 日期票签: 三张并列的小票, 底边虚线当撕口 */
 .date-picker {
   flex-shrink: 0;
+  display: flex;
+  gap: 8px;
+}
+.date-picker :deep(.el-radio-button) {
+  margin-right: 0;
+}
+.date-picker :deep(.el-radio-button__inner) {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 1px;
+  padding: 8px 16px;
+  border-color: var(--rule);
+  border-bottom-style: dashed;
+  background: var(--paper-raised);
+  color: var(--ink-2);
+  box-shadow: none;
+}
+.date-picker :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  border-color: var(--scene-browse-ink);
+  border-bottom-color: var(--scene-browse-ink);
+  background: rgb(var(--scene-browse-rgb) / 0.1);
+  color: var(--scene-browse-ink);
+  box-shadow: none;
 }
 
 /* --- Session List --- */
@@ -395,15 +454,20 @@ onMounted(async () => {
   font-size: 13px;
 }
 
+/* 票价做成一枚印色印章: 场次卡上唯一该有颜色的小面 */
 .session-price {
   display: flex;
   align-items: baseline;
   gap: 2px;
-  margin-right: 12px;
+  margin-right: 16px;
+  padding: 6px 12px;
+  border: 1px solid var(--scene-browse-ink);
+  border-radius: var(--radius-sm);
+  background: rgb(var(--scene-browse-rgb) / 0.1);
 }
 
 .price-symbol {
-  color: var(--accent);
+  color: var(--scene-browse-ink);
   font-size: 16px;
   font-weight: 600;
 }
@@ -414,7 +478,7 @@ onMounted(async () => {
   font-variant-numeric: tabular-nums;
   font-size: 26px;
   font-weight: 600;
-  color: var(--accent);
+  color: var(--scene-browse-ink);
 }
 
 .buy-btn {
@@ -431,9 +495,20 @@ onMounted(async () => {
     align-items: center;
     text-align: center;
   }
-  .poster {
+  .poster-wrapper {
+    flex: none;
     width: 180px;
-    height: 255px;
+    max-width: 100%;
+  }
+  .poster {
+    width: 100%;
+    height: auto;
+  }
+  .hero-tally {
+    align-self: center;
+  }
+  .hero-tally-num {
+    font-size: 40px;
   }
   .movie-title {
     font-size: 26px;

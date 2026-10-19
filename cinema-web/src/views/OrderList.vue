@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
+import { Clock } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { myOrders, cancel, refund } from '../api/order'
 import type { OrderVO } from '../api/order'
@@ -177,9 +178,7 @@ onMounted(() => {
         <div class="order-footer">
           <div class="footer-left">
             <span class="time-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-              </svg>
+              <el-icon :size="14"><Clock /></el-icon>
             </span>
             <span class="created-at">{{ dayjs(o.createdAt).format('YYYY-MM-DD HH:mm') }}</span>
           </div>

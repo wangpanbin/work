@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { Grid, Warning } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
 import QRCode from 'qrcode'
@@ -213,10 +214,7 @@ const barcodeBars = [2, 1, 3, 1, 2, 1, 1, 3, 2, 1, 2, 3, 1, 2, 1, 3]
       <!-- Seat Info -->
       <div class="seat-section">
         <div class="seat-desc">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
-            <rect x="3" y="3" width="18" height="18" rx="2"/>
-            <path d="M3 9h18"/><path d="M9 21V9"/>
-          </svg>
+            <el-icon :size="20"><Grid /></el-icon>
           {{ order.seatDesc }}
         </div>
       </div>
@@ -236,9 +234,7 @@ const barcodeBars = [2, 1, 3, 1, 2, 1, 1, 3, 2, 1, 2, 3, 1, 2, 1, 3]
         <div v-if="order.status === 0" class="info-row">
           <span class="label">{{ t('payment.countdown') }}</span>
           <span class="value" :class="{ urgent }">
-            <svg v-if="urgent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="margin-right:4px">
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-            </svg>
+            <el-icon v-if="urgent" :size="16" class="urgent-icon"><Warning /></el-icon>
             <Countdown :expire-at="order.expireAt" :urgent-threshold="60" />
           </span>
         </div>

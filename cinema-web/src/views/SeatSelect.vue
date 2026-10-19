@@ -9,10 +9,12 @@ import { lockSeats } from '../api/order'
 import { seatConflictOf } from '../api/errorCodes'
 import { useUserStore } from '../stores/user'
 import { useSeatStore, MAX_WATCH } from '../stores/seat'
+import { InfoFilled, Refresh } from '@element-plus/icons-vue'
 import { parsePreselectFromQuery } from '../stores/seatEventReducer'
 import { computeReleasedWatchHits, formatSeatPositions } from '../stores/seatWatch'
 import { createSeatWs, type SeatWsHandle, type WsStatus } from '../utils/ws'
 import { useSeatSync } from '../composables/useSeatSync'
+import { computeDragRange } from '../utils/seatDragRange'
 import SeatItem from '../components/SeatItem.vue'
 
 const route = useRoute()
@@ -47,6 +49,97 @@ async function refresh(preserveSelection = false): Promise<number> {
     refreshing.value = false
   }
 }
+
+/**
+ * 拖拽连选 —— 纯视图层状态, 不进 Pinia。
+ *
+ * <p>为什么放在组件本地: 选座状态机(stores/seat.ts)有 35+ 条单测锁着契约,
+ * 拖拽只是"按住座位往旁边划"这一层交互, 落座仍然必须走既有的
+ * {@code seatStore.toggle(idx)} —— 上限、冲突、乐观更新全由 store 说了算。
+ *
+ * <p>区间计算是纯函数(utils/seatDragRange.ts), 本仓 vitest 挂不了 SFC,
+ * 逻辑必须下沉才可测。
+ */
+const dragAnchor = ref<number | null>(null)
+const dragPreview = ref<Set<number>>(new Set())
+
+function onSeatPointerDown(index: number) {
+  // 锚点必须当前可选: 锚在已售/他人锁定/已选上的拖拽不成立
+  if (seatStore.statusAt(index) !== 'AVAILABLE') return
+  dragAnchor.value = index
+  dragPreview.value = new Set([index])
+  window.addEventListener('pointerup', onDragEnd)
+  window.addEventListener('pointercancel', onDragCancel)
+}
+
+function onSeatPointerEnter(index: number) {
+  const anchor = dragAnchor.value
+  if (anchor === null) return
+  const cols = seatStore.map?.cols || 1
+  // 还能再选几个 = 上限 - 已选
+  const budget = Math.max(0, seatStore.maxSelect - seatStore.selected.size)
+  const r = computeDragRange(anchor, index, cols, (i) => seatStore.statusAt(i), budget)
+  dragPreview.value = new Set(r.indexes)
+}
+
+/** 松手: 落座。区间只有一个座位时交给既有的 click 逻辑, 免得连点被 toggle 两次。 */
+function onDragEnd() {
+  const preview = dragPreview.value
+  window.removeEventListener('pointerup', onDragEnd)
+  window.removeEventListener('pointercancel', onDragCancel)
+  dragAnchor.value = null
+  dragPreview.value = new Set()
+  if (preview.size <= 1) return
+  for (const idx of preview) {
+    // 落座前再核一次: 拖拽期间 WS 可能已经改了这张座位的状态
+    if (seatStore.statusAt(idx) !== 'AVAILABLE') continue
+    seatStore.toggle(idx)
+  }
+}
+
+/** 取消(系统手势抢走指针): 只清理, 不落座 */
+function onDragCancel() {
+  window.removeEventListener('pointerup', onDragEnd)
+  window.removeEventListener('pointercancel', onDragCancel)
+  dragAnchor.value = null
+  dragPreview.value = new Set()
+}
+
+/**
+ * 库存四段统计: 可选 / 我已锁 / 他人锁定 / 已售。
+ *
+ * <p>位图本来就在客户端(soldBitmap / lockBitmap), 直接数就行, 不需要新接口。
+ * 数量随 WS 事件实时变化 —— 这就是「实时层」在选座页的落点。
+ *
+ * <p>四段之和恒等于总座位数(已售优先于锁定, 与 statusAt 的判定顺序一致)。
+ */
+const seatInventory = computed(() => {
+  const map = seatStore.map
+  if (!map) return { total: 0, available: 0, mine: 0, locked: 0, sold: 0 }
+  const soldBits = seatStore.soldBits
+  const lockBits = seatStore.lockBits
+  const mineSet = new Set(seatStore.myLockedSeats)
+  let sold = 0
+  let locked = 0
+  let mine = 0
+  for (let i = 0; i < map.seatCount; i++) {
+    if (soldBits[i]) {
+      sold++
+      continue
+    }
+    if (lockBits[i]) {
+      if (mineSet.has(i)) mine++
+      else locked++
+    }
+  }
+  return {
+    total: map.seatCount,
+    available: map.seatCount - sold - locked - mine,
+    mine,
+    locked,
+    sold,
+  }
+})
 
 // ============ 权威座位图重拉(断连补偿 + 释放后收敛)============
 //
@@ -88,7 +181,7 @@ function notifyReleasedWatchHits(released: number[]) {
       : t('seat.watchReleased', { list: text }),
   )
   seatStore.clearWatchHits(hits)
-}
+  }
 
 onMounted(async () => {
   if (!userStore.isLogin) {
@@ -128,6 +221,9 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  // 拖拽用的全局监听必须摘掉, 否则组件销毁后还会落座
+  window.removeEventListener('pointerup', onDragEnd)
+  window.removeEventListener('pointercancel', onDragCancel)
   wsHandle?.close()
   seatSync.dispose()
 })
@@ -213,11 +309,26 @@ async function onConfirm() {
           <span class="meta-sep">·</span>
           <span class="meta-item price-tag">￥{{ seatStore.map.price.toFixed(2) }}{{ t('seat.pricePerSeat') }}</span>
         </div>
+        <!-- 库存四段: 可选 / 我已锁 / 他人锁定 / 已售。
+             可选段用选座域身份色 —— 座位图里「可选」本来就没有专属色(它是底色),
+             所以这里用身份色不会和座位图里的任何一态撞。 -->
+        <div class="inventory">
+          <div class="inventory-bar">
+            <span class="seg seg-available" :style="{ flexGrow: seatInventory.available }"></span>
+            <span class="seg seg-mine" :style="{ flexGrow: seatInventory.mine }"></span>
+            <span class="seg seg-locked" :style="{ flexGrow: seatInventory.locked }"></span>
+            <span class="seg seg-sold" :style="{ flexGrow: seatInventory.sold }"></span>
+          </div>
+          <div class="inventory-legend">
+            <span class="inv"><i class="inv-dot available"></i>{{ seatInventory.available }} {{ t('seat.legendAvailable') }}</span>
+            <span class="inv"><i class="inv-dot mine"></i>{{ seatInventory.mine }} {{ t('seat.legendMine') }}</span>
+            <span class="inv"><i class="inv-dot locked"></i>{{ seatInventory.locked }} {{ t('seat.legendLocked') }}</span>
+            <span class="inv"><i class="inv-dot sold"></i>{{ seatInventory.sold }} {{ t('seat.legendSold') }}</span>
+          </div>
+        </div>
       </div>
       <el-button @click="refresh" :loading="refreshing" class="refresh-btn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="margin-right:4px">
-          <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-        </svg>
+        <el-icon class="refresh-icon"><Refresh /></el-icon>
         {{ t('seat.refresh') }}
       </el-button>
     </div>
@@ -261,7 +372,12 @@ async function onConfirm() {
           <template v-for="r in seatStore.map.rows" :key="`r-${r}`">
             <div class="row-label">{{ r }}</div>
             <template v-for="(_, idx) in seatStore.map.cols" :key="`c-${r}-${idx}`">
-              <SeatItem :index="(r - 1) * seatStore.map.cols + idx" />
+              <SeatItem
+                :index="(r - 1) * seatStore.map.cols + idx"
+                :preview="dragPreview.has((r - 1) * seatStore.map.cols + idx)"
+                @pointerdown="onSeatPointerDown"
+                @pointerenter="onSeatPointerEnter"
+              />
             </template>
           </template>
         </div>
@@ -269,10 +385,18 @@ async function onConfirm() {
         <div v-else>
           <!-- P2-#13: 大影厅布局丢了行列标签, 加个 hint 给用户交代 -->
           <div class="seats-hint">
-            💡 {{ t('seat.largeHallHint', { rows: seatStore.map.rows, cols: seatStore.map.cols }) }}
+            <el-icon class="hint-icon"><InfoFilled /></el-icon>
+            {{ t('seat.largeHallHint', { rows: seatStore.map.rows, cols: seatStore.map.cols }) }}
           </div>
           <div class="seats" :style="{ '--cols': seatStore.map.cols }">
-            <SeatItem v-for="i in seatStore.map.seatCount" :key="i - 1" :index="i - 1" />
+            <SeatItem
+              v-for="i in seatStore.map.seatCount"
+              :key="i - 1"
+              :index="i - 1"
+              :preview="dragPreview.has(i - 1)"
+              @pointerdown="onSeatPointerDown"
+              @pointerenter="onSeatPointerEnter"
+            />
           </div>
         </div>
       </div>
@@ -375,6 +499,76 @@ async function onConfirm() {
 .refresh-btn {
   flex-shrink: 0;
 }
+.refresh-icon {
+  margin-right: 4px;
+}
+.hint-icon {
+  margin-right: 4px;
+  vertical-align: -2px;
+}
+
+/* --- 库存四段条: 可选 / 我已锁 / 他人锁定 / 已售 ---
+   宽度按数量成比例(flex-grow), 零数量自然塌成 0 宽。 */
+.inventory {
+  margin-top: 14px;
+  max-width: 460px;
+}
+.inventory-bar {
+  display: flex;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--paper-sunk);
+}
+.inventory-bar .seg {
+  flex-basis: 0;
+  min-width: 0;
+}
+.seg-available {
+  background: var(--scene-seat);
+}
+.seg-mine {
+  background: var(--ok);
+}
+.seg-locked {
+  background: var(--warn);
+}
+.seg-sold {
+  background: var(--danger);
+}
+.inventory-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 8px;
+}
+.inv {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.inv-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.inv-dot.available {
+  background: var(--scene-seat);
+}
+.inv-dot.mine {
+  background: var(--ok);
+}
+.inv-dot.locked {
+  background: var(--warn);
+}
+.inv-dot.sold {
+  background: var(--danger);
+}
 
 /* ============================================
    暗场票面: 放映厅平面图
@@ -386,7 +580,8 @@ async function onConfirm() {
   background: var(--hall);
   border: 1px solid var(--hall-rule);
   border-radius: 6px;
-  box-shadow: var(--shadow-hall);
+  /* 顶部一道银幕反光: 内发光, 不外扩, 暗场因此"有光源" */
+  box-shadow: var(--shadow-hall), inset 0 10px 20px -14px var(--hall-glow);
   padding: 20px 24px 8px;
   color: var(--hall-ink);
 }
@@ -412,6 +607,8 @@ async function onConfirm() {
   display: flex;
   align-items: center;
   justify-content: center;
+  /* 银幕自身的光: 选座域身份色的 8px 辉光(Flat-By-Default 的辉光上限) */
+  box-shadow: 0 0 8px var(--hall-glow);
 }
 
 .screen-inner {
@@ -430,7 +627,8 @@ async function onConfirm() {
   transform: translateX(-50%);
   width: 50%;
   height: 14px;
-  background: linear-gradient(180deg, var(--hall-wash), transparent);
+  /* 银幕光洒到座位区: 用选座域身份色, 不再是中性灰 */
+  background: linear-gradient(180deg, var(--hall-glow), transparent);
   border-radius: 50%;
 }
 
@@ -444,6 +642,8 @@ async function onConfirm() {
 /* --- Seats Container --- */
 .seats-container {
   overflow-x: auto;
+  /* 触摸设备上, 拖拽选座不能带动页面滚动 —— 否则划座位会变成划页面 */
+  touch-action: none;
 }
 
 /* 带行列标签的网格 (cols <= 16) */
@@ -497,6 +697,16 @@ async function onConfirm() {
   background: var(--hall-wash-soft);
   border-radius: var(--radius-sm);
   border: 1px dashed var(--hall-rule);
+}
+
+/* --- 拖拽连选的预览环 ---
+   只画 outline, 不动座位底色与描边色:
+   座位的「5 态去色后可分辨」契约锁的是底色, 加一圈框不改变它。
+   ⚠️ 绝不能新增 --seat-* 变量 —— themeTokens.test.ts 断言那 13 个, 多一个就红。
+      预览环直接引用选座域身份色。 */
+.seat.drag-preview {
+  outline: 2px solid var(--scene-seat);
+  outline-offset: 1px;
 }
 
 /* ============================================

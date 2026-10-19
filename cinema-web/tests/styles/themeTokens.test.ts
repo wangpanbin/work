@@ -504,3 +504,214 @@ describe('主题契约 · 座位关注标识不是纯颜色通道', () => {
     ])
   })
 })
+
+// =====================================================================
+// 场景身份色 (Scene Ink) —— 2026-10-19 UI 视觉重构新增
+// =====================================================================
+/**
+ * 背景: 2026-10-19 的视觉重构把「全站一支皇家蓝」改成
+ * 「全局单强调色 + 每个业务域一支场景身份色」(见 {@code cinema-web/DESIGN.md}
+ * 的 The Scene Ink Rule)。
+ *
+ * <p>本组<b>只新增</b>规则, 不修改也不删除上面任何一条既有断言。
+ * 既有那条「全站只有一个强调色 —— 不许再加第二个印色」锁的是 {@code --accent*}
+ * 家族(全局印色)的<b>唯一性</b>; 本组锁的是<b>域内</b>身份色的<b>边界</b>。
+ * 两者不冲突: 全局印色仍然只有一支, 身份色只在自己的域里做局部表达。
+ */
+
+/** 场景身份色家族清单 —— 每族必须恰好 base / ink / rgb 三个成员 */
+const SCENE_FAMILIES = ['browse', 'seat'] as const
+
+/** 每个身份色允许出现的文件(域隔离) */
+const SCENE_DOMAINS: Record<string, string[]> = {
+  browse: ['views/Home.vue', 'views/MovieDetail.vue'],
+  seat: ['views/SeatSelect.vue', 'components/SeatItem.vue'],
+}
+
+/**
+ * 每个域内实际会出现的语义色(实施时 grep 固化)。
+ * browse 域全文未引用任何 --ok/--warn/--danger, 所以是空数组;
+ * seat 域的 WS 状态条三色齐用。
+ */
+const SCENE_SEMANTIC_PEERS: Record<string, string[]> = {
+  browse: [],
+  seat: ['--ok', '--warn', '--danger'],
+}
+
+/** hex -> HSL(用于断言色相差与饱和度差) */
+function hexToHsl(hex: string): { h: number; s: number; l: number } {
+  const h0 = hex.replace('#', '')
+  const full = h0.length === 3 ? h0.split('').map((c) => c + c).join('') : h0
+  const r = parseInt(full.slice(0, 2), 16) / 255
+  const g = parseInt(full.slice(2, 4), 16) / 255
+  const b = parseInt(full.slice(4, 6), 16) / 255
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const d = max - min
+  const l = (max + min) / 2
+  let h = 0
+  if (d !== 0) {
+    if (max === r) h = 60 * (((g - b) / d) % 6)
+    else if (max === g) h = 60 * ((b - r) / d) + 120
+    else h = 60 * ((r - g) / d) + 240
+  }
+  if (h < 0) h += 360
+  const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1))
+  return { h, s, l }
+}
+
+/** 两支色的色相差(度, 0~180) */
+function hueDistance(a: string, b: string): number {
+  const d = Math.abs(hexToHsl(a).h - hexToHsl(b).h) % 360
+  return d > 180 ? 360 - d : d
+}
+
+/** 两支色的饱和度差 */
+function satDistance(a: string, b: string): number {
+  return Math.abs(hexToHsl(a).s - hexToHsl(b).s)
+}
+
+/** WCAG 对比度(模块级副本; 上面那个 describe 内部有一份同名的, 互不影响) */
+function contrastRatioOf(fg: string, bg: string): number {
+  const a = relativeLuminance(fg)
+  const b = relativeLuminance(bg)
+  const [hi, lo] = a > b ? [a, b] : [b, a]
+  return (hi + 0.05) / (lo + 0.05)
+}
+
+describe('主题契约 · 场景身份色家族', () => {
+  const tokens = parseRootTokens(MAIN_CSS)
+
+  it('只有两族(browse / seat), 每族恰好 base / ink / rgb 三个成员', () => {
+    const sceneDecls = [...tokens.keys()].filter((k) => k.startsWith('--scene-')).sort()
+    expect(sceneDecls).toEqual([
+      '--scene-browse',
+      '--scene-browse-ink',
+      '--scene-browse-rgb',
+      '--scene-seat',
+      '--scene-seat-ink',
+      '--scene-seat-rgb',
+    ])
+  })
+
+  it('每族的 base / ink / rgb 都存在且值合法', () => {
+    for (const family of SCENE_FAMILIES) {
+      expect(resolveToken(`--scene-${family}`, tokens), `${family} base 缺失`).toMatch(/^#[0-9a-fA-F]{6}$/)
+      expect(resolveToken(`--scene-${family}-ink`, tokens), `${family} ink 缺失`).toMatch(/^#[0-9a-fA-F]{6}$/)
+      expect(tokens.get(`--scene-${family}-rgb`), `${family} rgb 缺失`).toMatch(/^\d+\s+\d+\s+\d+$/)
+    }
+  })
+
+  it('ink 在三种纸面 + 管理端纸面上均达 4.5:1 (AA 正文线)', () => {
+    const adminBlock = MAIN_CSS.match(/\.app-main\.is-admin\s*\{([^}]*)\}/)?.[1] ?? ''
+    const adminPaper = adminBlock.match(/--paper:\s*(#[0-9a-fA-F]{6})/)?.[1]
+    expect(adminPaper, '管理端 --paper 取不到').toBeTruthy()
+    const surfaces: [string, string][] = [
+      ['--paper', resolveToken('--paper', tokens)],
+      ['--paper-raised', resolveToken('--paper-raised', tokens)],
+      ['--paper-sunk', resolveToken('--paper-sunk', tokens)],
+      ['admin --paper', adminPaper as string],
+    ]
+    for (const family of SCENE_FAMILIES) {
+      const ink = resolveToken(`--scene-${family}-ink`, tokens)
+      for (const [name, bg] of surfaces) {
+        const r = contrastRatioOf(ink, bg)
+        expect(r, `${family} ink (${ink}) on ${name} (${bg}) 只有 ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5)
+      }
+    }
+  })
+
+  it('base 与全局强调色 --accent 的色相差 ≥ 25° (同屏必须可分辨)', () => {
+    const accent = resolveToken('--accent', tokens)
+    for (const family of SCENE_FAMILIES) {
+      const base = resolveToken(`--scene-${family}`, tokens)
+      const d = hueDistance(base, accent)
+      expect(
+        d,
+        `${family} base (${base}) 与 --accent (${accent}) 色相只差 ${d.toFixed(1)}° —— 同屏会读混`,
+      ).toBeGreaterThanOrEqual(25)
+    }
+  })
+
+  it('同域语义色与身份色 base 靠「明度差 ≥25 或 饱和度差 ≥0.25」区分', () => {
+    for (const family of SCENE_FAMILIES) {
+      const base = resolveToken(`--scene-${family}`, tokens)
+      for (const peer of SCENE_SEMANTIC_PEERS[family]) {
+        const peerHex = resolveToken(peer, tokens)
+        const grayGap = Math.abs(grayscaleLevel(base) - grayscaleLevel(peerHex))
+        const satGap = satDistance(base, peerHex)
+        expect(
+          grayGap >= 25 || satGap >= 0.25,
+          `${family} base (${base}) 与 ${peer} (${peerHex}) 分不开: 灰阶差 ${grayGap}, 饱和度差 ${satGap.toFixed(3)}`,
+        ).toBe(true)
+      }
+    }
+  })
+})
+
+describe('主题契约 · 场景身份色域隔离', () => {
+  it('每支身份色只出现在它自己的域里', () => {
+    const offenders: string[] = []
+    for (const file of listSourceFiles(SRC)) {
+      const rel = file.slice(SRC.length + 1).replace(/\\/g, '/')
+      const text = stripComments(readFileSync(file, 'utf8'))
+      for (const family of SCENE_FAMILIES) {
+        if (!text.includes(`var(--scene-${family}`)) continue
+        const allowed = SCENE_DOMAINS[family]
+        if (!allowed.includes(rel)) {
+          offenders.push(`${rel} 用了 --scene-${family}  (只允许: ${allowed.join(', ')})`)
+        }
+      }
+    }
+    expect(offenders, `场景身份色越域:\n${offenders.join('\n')}`).toEqual([])
+  })
+
+  it('每一族都真的被用上了 —— 不做投机性 token', () => {
+    for (const family of SCENE_FAMILIES) {
+      const used = listSourceFiles(SRC).some((file) =>
+        stripComments(readFileSync(file, 'utf8')).includes(`var(--scene-${family}`),
+      )
+      expect(used, `--scene-${family} 定义了却没被任何 .vue/.ts 用上`).toBe(true)
+    }
+  })
+})
+
+describe('主题契约 · 场景身份色禁入全局强调面', () => {
+  const SOURCES: [string, string][] = [
+    ['styles/main.css', MAIN_CSS],
+    ['App.vue', readSrc('App.vue')],
+  ]
+
+  /**
+   * 全局强调面清单: 这些表面在所有页面都出现, 身份色一进来, 全局印色就不再是全局印色。
+   * 主 CTA / 链接 / 焦点环 / 章节墨条 / 通用按钮 / 导航 chip / 选中态 / 品牌悬停 —— 一律走 --accent。
+   */
+  const FORBIDDEN: { label: string; match: (sel: string) => boolean }[] = [
+    { label: '链接 a', match: (s) => s.trim() === 'a' },
+    { label: ':focus-visible 焦点环', match: (s) => s.trim() === ':focus-visible' },
+    { label: '::selection 选中态', match: (s) => s.trim() === '::selection' },
+    { label: '.section-title::before 章节墨条', match: (s) => s.trim() === '.section-title::before' },
+    { label: '.el-button--primary 主按钮', match: (s) => s.trim().startsWith('.el-button--primary') },
+    { label: '.chip-primary 主 chip', match: (s) => s.includes('.chip-primary') },
+    { label: '.chip-login 登录 chip', match: (s) => s.includes('.chip-login') },
+    { label: '.btn-action 通用按钮', match: (s) => s.includes('.btn-action') },
+    { label: '.brand:hover .brand-text 品牌悬停', match: (s) => s.includes('.brand:hover .brand-text') },
+  ]
+
+  it('全局强调面上一律走 --accent, 不得出现场景身份色', () => {
+    const offenders: string[] = []
+    for (const [file, css] of SOURCES) {
+      const clean = stripComments(css)
+      for (const m of clean.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        const selector = m[1].trim()
+        for (const f of FORBIDDEN) {
+          if (!f.match(selector)) continue
+          if (m[2].includes('var(--scene-')) {
+            offenders.push(`${file}  [${f.label}]  ${selector}  →  ${m[2].trim().slice(0, 70)}`)
+          }
+        }
+      }
+    }
+    expect(offenders, `场景身份色侵入了全局强调面:\n${offenders.join('\n')}`).toEqual([])
+  })
+})

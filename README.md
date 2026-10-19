@@ -253,40 +253,77 @@ F:/test/work/
 │       ├── support/                      DataInitializer(测试账号自动初始化)
 │       └── job/                          定时任务
 │           └── OrderTimeoutCompensateJob  超时关单 + 退款卡死补偿(N1)
-└── cinema-web/                          Vue3 前端
+└── cinema-web/                           Vue3 前端
     ├── package.json
+    ├── DESIGN.md                         视觉宪法(票根语言/色板/命名规则), 与 main.css 由测试锁同步
+    ├── tests/                            vitest 用例(30 个 .test.ts / 407 条)
     └── src/
         ├── api/                          axios 封装 + 各模块 API(admin.ts 含 exportRevenue 独立实例)
-        ├── components/                   SeatItem, Countdown
-        │   └── chat/                     ChatWidget, ChatMessage, ActionCard, actionCardRoute(卡片→选座预选)
-        ├── composables/                  useChatContext.ts(聊天会话上下文注入)
-        ├── constants/                    auth.ts(角色/令牌常量)
+            └── errorCodes.ts             错误码 → 结构化载荷(锁座冲突的座位列表等)
+        ├── components/
+            ├── BrandMark.vue             票根品牌标(header)
+            ├── SeatItem.vue              单个座位(5 态 + 关注角标 + 拖拽预览)
+            ├── Countdown.vue             倒计时
+            └── chat/
+                ├── ChatWidget.vue        对话助手浮窗
+                ├── ChatMessage.vue       消息渲染
+                ├── ChatIcon.vue          聊天图标
+                ├── ActionCard.vue        行动卡片
+                ├── OrderProposalCard.vue 一键下单提案卡
+                ├── PendingOrderCard.vue  待支付单卡
+                ├── cardRegistry.ts       卡片类型注册表
+                ├── actionCardRoute.ts    卡片 → 选座预选路由
+                └── orderProposalCard.ts  确认卡错误码 → 文案映射
+        ├── composables/
+            ├── useChatContext.ts         聊天会话上下文注入
+            ├── useSeatSync.ts            WS 重连补偿 + 释放后收敛
+            ├── usePosterFallback.ts      海报加载失败兜底
+            └── useNow.ts                 当前时间
+        ├── constants/
+            ├── auth.ts                   角色/令牌常量
+            └── routes.ts                 路由常量
         ├── i18n/                         vue-i18n 11 实例
-        │   ├── index.ts                  createI18n(legacy:false) + i18nSetLocale
-        │   ├── detect.ts                 首次进站浏览器语言探测
-        │   ├── persist.ts                用户选择持久化(localStorage)
-        │   ├── fallback.ts               缺 key 回退逻辑
-        │   └── locales/                  zh-CN.ts, en-US.ts
+            ├── index.ts                  createI18n(legacy:false) + i18nSetLocale
+            ├── detect.ts                 首次进站浏览器语言探测
+            ├── persist.ts                用户选择持久化(localStorage)
+            ├── fallback.ts               缺 key 回退逻辑
+            ├── errorText.ts              通用错误文案(按界面语言本地化)
+            └── locales/                  zh-CN.ts, en-US.ts
         ├── router/index.ts               路由 + 全局守卫(登录/管理员)
-        ├── stores/                       Pinia(user/seat/movieCache)
-        ├── styles/main.css               全局样式
+        ├── stores/                       Pinia
+            ├── user.ts                   登录态
+            ├── movieCache.ts             影片/场次缓存
+            ├── i18n.ts                   界面语言
+            ├── seat.ts                   座位图 store(位图/选座/事件序号/座位关注)
+            ├── seatEventReducer.ts       座位事件 reducer 纯函数(位图同步/按座位去旧)
+            └── seatWatch.ts              座位关注纯函数(关注集合/释放命中/位置拼装)
+        ├── styles/main.css               全局样式(设计 token 源: :root 色板)
         ├── types/                        TS 类型定义
-        ├── utils/                        ws 封装, bitmap 解析
+        ├── utils/
+            ├── ws.ts                     WebSocket 封装(重连/心跳)
+            ├── wsMessage.ts              WS 消息解析
+            ├── bitmap.ts                 位图解码
+            ├── markdown.ts               聊天 Markdown 渲染
+            └── seatDragRange.ts          拖拽连选的区间计算(纯函数)
         └── views/
-            ├── Home.vue                  首页(F1 搜索筛选)
+            ├── Home.vue                  首页(F1 搜索筛选 + 特征卡栅格)
             ├── Login.vue                 登录/注册(确认密码)
-            ├── MovieDetail.vue           影片详情 + 场次
-            ├── SeatSelect.vue            选座(WebSocket 实时)
+            ├── MovieDetail.vue           影片详情 + 场次(票根式场次卡)
+            ├── SeatSelect.vue            选座(WebSocket 实时 + 库存条 + 拖拽连选)
             ├── Payment.vue               模拟支付 + 倒计时
             ├── OrderList.vue             我的订单(取消/退票/电子票)
             ├── NotFound.vue              404 兜底
+            ├── order/constants.ts        订单状态 → 文案/标签映射
+            ├── session/constants.ts      场次相关常量
             └── admin/
                 ├── AdminHome.vue         后台骨架 + 嵌套路由
                 ├── Dashboard.vue         经营看板(O3)+ 营收导出对话框
                 ├── LiveDashboard.vue     实时大屏(D1)
                 ├── MovieManage.vue       影片管理
                 ├── HallManage.vue        影厅管理
-                └── SessionManage.vue     场次管理
+                ├── SessionManage.vue     场次管理
+                ├── constants.ts          管理端常量
+                └── trendChart.ts         趋势图数据拼装
 ```
 
 ---

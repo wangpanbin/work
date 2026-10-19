@@ -11,7 +11,17 @@ import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import { useSeatStore, MAX_WATCH } from '../stores/seat'
 
-const props = defineProps<{ index: number }>()
+const props = defineProps<{ index: number; preview?: boolean }>()
+
+/**
+ * 拖拽连选的事件出口。
+ * 现有 onClick 逻辑、role/tabindex/键盘可达性一律不动 ——
+ * 拖拽只是多给父组件两个信号, 单击行为逐字不变。
+ */
+const emit = defineEmits<{
+  (e: 'pointerdown', index: number): void
+  (e: 'pointerenter', index: number): void
+}>()
 
 const { t } = useI18n()
 const seatStore = useSeatStore()
@@ -72,6 +82,14 @@ const unavailable = computed(() => status.value === 'SOLD' || status.value === '
  */
 const focusable = computed(() => !unavailable.value || watchable.value)
 
+function onPointerDown() {
+  emit('pointerdown', props.index)
+}
+
+function onPointerEnter() {
+  emit('pointerenter', props.index)
+}
+
 function onClick() {
   // 提醒模式 + 被占用座位 → 切换关注, 不走选座
   if (watchable.value) {
@@ -98,6 +116,7 @@ function onClick() {
       mine: status === 'LOCKED_MINE',
       flash: isFlashing,
       watched: isWatched,
+      'drag-preview': preview,
     }]"
     :title="a11yLabel"
     :aria-label="a11yLabel"
@@ -106,6 +125,8 @@ function onClick() {
     :tabindex="focusable ? 0 : -1"
     role="button"
     @click="onClick"
+    @pointerdown="onPointerDown"
+    @pointerenter="onPointerEnter"
     @keydown.enter.prevent="onClick"
     @keydown.space.prevent="onClick"
   >

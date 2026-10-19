@@ -109,6 +109,7 @@ export default {
     metaDuration: '时长',
     metaRelease: '上映日期',
     sessionsTitle: '场次列表',
+    sessionCount: '场次',
     noSessions: '暂无场次',
     selectSeats: '选座购票',
     hallLabel: '{hall}厅',

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, watch, type Component } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Compass, Setting, SwitchButton, Ticket, User } from '@element-plus/icons-vue'
 import { useUserStore } from './stores/user'
 import { useI18nStore } from './stores/i18n'
 import { elementPlusLocale } from './utils/elementPlusLocale'
@@ -60,11 +61,11 @@ async function logout() {
 
 // P2-#15: 移动端 dropdown 菜单项(label 在此用 $t 取值,避免硬编码)
 const mobileMenu = computed(() => {
-  const items: { key: string; label: string; icon: string; danger?: boolean; adminOnly?: boolean; needLogin?: boolean; localeSwitch?: boolean }[] = [
-    { key: 'toggleLocale', label: $t('app.mobileMenuLocale'), icon: '🌐' },
-    { key: '/orders', label: $t('app.chipOrders'), icon: '🎫', needLogin: true },
-    { key: '/admin', label: $t('app.chipAdmin'), icon: '⚙', adminOnly: true },
-    { key: 'logout', label: $t('app.chipLogout'), icon: '⏻', danger: true, needLogin: true },
+  const items: { key: string; label: string; icon: Component; danger?: boolean; adminOnly?: boolean; needLogin?: boolean; localeSwitch?: boolean }[] = [
+    { key: 'toggleLocale', label: $t('app.mobileMenuLocale'), icon: Compass },
+    { key: '/orders', label: $t('app.chipOrders'), icon: Ticket, needLogin: true },
+    { key: '/admin', label: $t('app.chipAdmin'), icon: Setting, adminOnly: true },
+    { key: 'logout', label: $t('app.chipLogout'), icon: SwitchButton, danger: true, needLogin: true },
   ]
   return items.filter((i) => {
     if (i.adminOnly && userStore.user?.role !== 1) return false
@@ -103,7 +104,7 @@ function onMobileSelect(key: string | number) {
           :aria-label="$t('app.localeSwitchAria', 'Switch language')"
           @click="i18nStore.toggleLocale()"
         >
-          <span class="chip-icon">🌐</span>
+          <el-icon class="chip-icon"><Compass /></el-icon>
           <span class="chip-text">{{ $t('app.localeSwitchTo') }}</span>
         </el-button>
         <el-button
@@ -112,7 +113,7 @@ function onMobileSelect(key: string | number) {
           size="default"
           @click="router.push('/admin')"
         >
-          <span class="chip-icon">⚙</span>
+          <el-icon class="chip-icon"><Setting /></el-icon>
           <span class="chip-text">{{ $t('app.chipAdmin') }}</span>
         </el-button>
         <el-button
@@ -121,16 +122,16 @@ function onMobileSelect(key: string | number) {
           size="default"
           @click="router.push('/orders')"
         >
-          <span class="chip-icon">🎫</span>
+          <el-icon class="chip-icon"><Ticket /></el-icon>
           <span class="chip-text">{{ $t('app.chipOrders') }}</span>
         </el-button>
         <template v-if="userStore.user">
           <span class="header-chip chip-user nickname chip-icon-text">
-            <span class="chip-icon">👤</span>
+            <el-icon class="chip-icon"><User /></el-icon>
             <span class="chip-text">{{ userStore.user.nickname || userStore.user.username }}</span>
           </span>
           <el-button class="header-chip chip-danger chip-icon-text" size="default" @click="logout">
-            <span class="chip-icon">⏻</span>
+            <el-icon class="chip-icon"><SwitchButton /></el-icon>
             <span class="chip-text">{{ $t('app.chipLogout') }}</span>
           </el-button>
         </template>
@@ -144,7 +145,7 @@ function onMobileSelect(key: string | number) {
         <template v-if="userStore.user">
           <el-dropdown trigger="click" @command="onMobileSelect">
             <el-button class="avatar-btn" circle size="default" :aria-label="$t('app.menuAria', 'User menu')">
-              <span class="chip-icon">👤</span>
+              <el-icon class="chip-icon"><User /></el-icon>
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>
@@ -152,7 +153,7 @@ function onMobileSelect(key: string | number) {
                   <span class="dropdown-nick">{{ userStore.user.nickname || userStore.user.username }}</span>
                 </div>
                 <el-dropdown-item v-for="i in mobileMenu" :key="i.key" :command="i.key" :divided="i.danger">
-                  <span style="margin-right:8px">{{ i.icon }}</span>{{ i.label }}
+                  <el-icon style="margin-right:8px"><component :is="i.icon" /></el-icon>{{ i.label }}
                 </el-dropdown-item>
               </el-dropdown-menu>
             </template>

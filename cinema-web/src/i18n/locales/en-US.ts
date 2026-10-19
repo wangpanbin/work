@@ -107,6 +107,7 @@ const messages: SameShape<typeof zhCN> = {
     metaDuration: 'Duration',
     metaRelease: 'Release',
     sessionsTitle: 'Showtimes',
+    sessionCount: 'Sessions',
     noSessions: 'No showtimes available',
     selectSeats: 'Select seats',
     hallLabel: 'Hall {hall}',

@@ -5,6 +5,7 @@ import { search as searchMovies } from '../api/movie'
 import { useMovieCache } from '../stores/movieCache'
 import { toIdString, type Movie } from '../types'
 import { usePosterFallback } from '../composables/usePosterFallback'
+import { Clock, VideoPlay } from '@element-plus/icons-vue'
 
 const { t } = useI18n()
 const movies = ref<Movie[]>([])
@@ -90,20 +91,20 @@ onMounted(() => {
         <p class="hero-subtitle">{{ t('home.heroSubtitle') }}</p>
       </div>
       <div class="hero-stub">
+        <!-- 副券: 竖排三行, 每行「左标签 + 右大号数字」。
+             票面数据竖着排才像票; 横排三列是账本。 -->
         <div class="hero-stats">
           <div class="stat">
-            <span class="stat-num">{{ movies.length }}</span>
             <span class="stat-label">{{ t('home.statMovies') }}</span>
+            <span class="stat-num">{{ movies.length }}</span>
           </div>
-          <div class="stat-divider"></div>
           <div class="stat">
-            <span class="stat-num">4K</span>
             <span class="stat-label">{{ t('home.statResolution') }}</span>
+            <span class="stat-num">4K</span>
           </div>
-          <div class="stat-divider"></div>
           <div class="stat">
-            <span class="stat-num">3D</span>
             <span class="stat-label">{{ t('home.statImmersive') }}</span>
+            <span class="stat-num">3D</span>
           </div>
         </div>
         <!-- 装饰条码, 纯 CSS, 不是可扫描的条码 -->
@@ -152,6 +153,7 @@ onMounted(() => {
           v-for="(m, idx) in movies"
           :key="m.id"
           class="movie-card"
+          :class="{ 'is-feature': idx === 0 }"
           :style="{ animationDelay: `${idx * 0.08}s` }"
           :to="`/movie/${toIdString(m.id)}`"
         >
@@ -168,9 +170,7 @@ onMounted(() => {
             </div>
             <div class="poster-overlay">
               <div class="play-btn">
-                <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
-                  <path d="M8 5v14l11-7z"/>
-                </svg>
+                <el-icon :size="28"><VideoPlay /></el-icon>
               </div>
               <div class="overlay-info">
                 <span class="view-detail">{{ t('home.viewDetail') }}</span>
@@ -181,10 +181,7 @@ onMounted(() => {
             <h3 class="title">{{ m.title }}</h3>
             <div class="meta-row">
               <span class="meta-item">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                  <circle cx="12" cy="12" r="10"/>
-                  <polyline points="12 6 12 12 16 14"/>
-                </svg>
+                <el-icon :size="14"><Clock /></el-icon>
                 {{ t('home.minutes', { n: m.duration }) }}
               </span>
               <span v-if="m.description" class="meta-item desc-truncate">{{ m.description }}</span>
@@ -227,15 +224,16 @@ onMounted(() => {
   padding: 40px 48px;
 }
 
-/* NOW SHOWING: 印色小标签, 印刷风不做脉冲发光 */
+/* NOW SHOWING: 浏览域身份色小标签, 印刷风不做脉冲发光 */
 .hero-badge {
   display: inline-block;
   align-self: flex-start;
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 3px;
-  color: var(--accent);
-  border: 1px solid var(--accent);
+  color: var(--scene-browse-ink);
+  border: 1px solid var(--scene-browse-ink);
+  background: rgb(var(--scene-browse-rgb) / 0.1);
   padding: 4px 12px;
   border-radius: var(--radius-sm);
   margin-bottom: 16px;
@@ -258,17 +256,19 @@ onMounted(() => {
   max-width: 42em;
 }
 
-/* --- 副券 --- */
+/* --- 副券 ---
+   宽度从 300px 收到 260px: 主券 1fr + 副券 260px, 不再是对半分的对称票。
+   齿孔撕口保持不变 —— 变的是比例, 不是这张票的物理结构。 */
 .hero-stub {
   position: relative;
   flex-shrink: 0;
-  width: 300px;
+  width: 260px;
   border-left: 1px dashed var(--rule);
   padding: 40px 32px;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 20px;
+  gap: 24px;
 }
 /* 齿孔撕口: 沿副券左缘打出半圆缺口, 露出背后纸面 */
 .hero-stub::before {
@@ -283,38 +283,39 @@ onMounted(() => {
     center top / 12px 18px repeat-y;
 }
 
+/* 副券数据竖排三行: 每行「左标签 + 右大号数字」, 行间一道发丝线 */
 .hero-stats {
   display: flex;
-  align-items: center;
-  gap: 16px;
+  flex-direction: column;
 }
 
 .stat {
   display: flex;
-  flex-direction: column;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.stat:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
 }
 
 /* 票面数据 → 等宽 */
 .stat-num {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  font-size: 22px;
+  font-size: 26px;
   font-weight: 600;
-  color: var(--accent);
+  color: var(--scene-browse-ink);
   line-height: 1;
 }
 
 .stat-label {
   font-size: 11px;
   color: var(--ink-3);
-  margin-top: 4px;
   letter-spacing: 1px;
-}
-
-.stat-divider {
-  width: 1px;
-  height: 30px;
-  background: var(--rule);
 }
 
 .hero-barcode {
@@ -356,7 +357,7 @@ onMounted(() => {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--scene-browse);
 }
 
 .deco-line {
@@ -365,35 +366,51 @@ onMounted(() => {
   background: var(--rule);
 }
 
-/* --- Movie Grid --- */
+/* --- Movie Grid ---
+   12 列栅格: 首卡跨 6 列(特征卡), 其余各占 3 列。
+   一排一模一样的卡片是上一版反复重复的形状 —— 不对称才有地方落颜色。 */
 .movie-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(12, 1fr);
   gap: 24px;
 }
 
 .movie-card {
   position: relative;
+  grid-column: span 3;
   border-radius: var(--radius-md);
   overflow: hidden;
   cursor: pointer;
   text-decoration: none;   /* router-link 渲染为 <a>, 去掉默认下划线 */
   transition:
     border-color var(--transition-normal),
-    box-shadow var(--transition-normal);
+    box-shadow var(--transition-normal),
+    transform var(--transition-normal);
   background: var(--paper-raised);
   border: 1px solid var(--rule);
   box-shadow: var(--shadow-paper);
   animation: fadeInUp 0.5s ease both;
 }
 
+/* 特征卡: 首片占双倍宽, 海报换成更宽的银幕比例 */
+.movie-card.is-feature {
+  grid-column: span 6;
+}
+.movie-card.is-feature .poster {
+  height: 340px;
+}
+
 .movie-card:hover {
   border-color: var(--rule-strong);
   box-shadow: var(--shadow-paper-hover);
+  /* 抬起 2px: 此刻这张卡已经有强边界(--rule-strong),
+     满足 Flat-By-Default 的「有强边界才允许动」, 且幅度在 2px 上限内 */
+  transform: translateY(-2px);
 }
 
 .movie-card:hover .card-glow {
   opacity: 1;
+  transform: scaleX(1);
 }
 
 .movie-card:hover .poster img {
@@ -438,8 +455,8 @@ onMounted(() => {
     90deg,
     transparent 0,
     transparent 8px,
-    var(--accent-wash) 8px,
-    var(--accent-wash) 10px
+    rgb(var(--scene-browse-rgb) / 0.1) 8px,
+    rgb(var(--scene-browse-rgb) / 0.1) 10px
   );
 }
 
@@ -472,8 +489,9 @@ onMounted(() => {
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  background: var(--accent);
-  color: var(--ink-inverse);
+  /* 浏览域身份色底 + 墨色字: base 都是高明度高饱和色, 反色字压在上面读不清 */
+  background: var(--scene-browse);
+  color: var(--ink);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -530,16 +548,20 @@ onMounted(() => {
   text-overflow: ellipsis;
 }
 
-/* 卡片顶部一道印色, hover 时显形 —— 替代原来的金色渐变光条 */
+/* 卡片顶部一道浏览域印色, hover 时从左展开 —— 替代原来的金色渐变光条 */
 .card-glow {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   height: 2px;
-  background: var(--accent);
+  background: var(--scene-browse);
   opacity: 0;
-  transition: opacity var(--transition-normal);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition:
+    opacity var(--transition-normal),
+    transform var(--transition-normal);
   z-index: 2;
 }
 
@@ -581,6 +603,19 @@ onMounted(() => {
 }
 
 /* --- Responsive --- */
+/* 769~1023px: 12 列太窄, 收成 6 列(特征卡跨 3) */
+@media (max-width: 1023px) and (min-width: 769px) {
+  .movie-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+  .movie-card {
+    grid-column: span 2;
+  }
+  .movie-card.is-feature {
+    grid-column: span 3;
+  }
+}
+
 @media (max-width: 768px) {
   /* 窄屏: 副券落到主券下方, 撕口转成横向 */
   .hero {
@@ -612,7 +647,7 @@ onMounted(() => {
       left top / 18px 12px repeat-x;
   }
   .hero-stats {
-    gap: 12px;
+    gap: 0;
   }
   .stat-num {
     font-size: 18px;
@@ -624,7 +659,13 @@ onMounted(() => {
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: 16px;
   }
-  .poster {
+  /* 窄屏回到全等网格: 特征卡不再跨列 */
+  .movie-card,
+  .movie-card.is-feature {
+    grid-column: auto;
+  }
+  .poster,
+  .movie-card.is-feature .poster {
     height: 220px;
   }
   .title {
@@ -647,7 +688,8 @@ onMounted(() => {
     grid-template-columns: repeat(2, 1fr);
     gap: 12px;
   }
-  .poster {
+  .poster,
+  .movie-card.is-feature .poster {
     height: 180px;
   }
   .movie-info {
