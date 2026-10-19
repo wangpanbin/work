@@ -21,7 +21,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * AdminDashboardService orchestrator 单测 — 验证 summary() 把 headline + trend 两个 query
- * 的结果正确组装到 DashboardSummaryVO 各字段(原 0 测试覆盖).
+ * 的结果正确组装到 DashboardSummaryVO 各字段(原 0 测试覆盖)。
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)

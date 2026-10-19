@@ -21,7 +21,7 @@ import org.mockito.quality.Strictness;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * T2 cycle 2 — ChatTools 入参白名单校验(spec §5.5).
+ * T2 cycle 2 — ChatTools 入参白名单校验(spec §5.5)。
  *
  * <p>校验失败必抛 BizException,触发 §5.4(a) 路径(spec §5.5 第 3 条)。
  *

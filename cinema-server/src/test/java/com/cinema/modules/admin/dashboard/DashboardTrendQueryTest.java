@@ -30,8 +30,8 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.when;
 
 /**
- * DashboardTrendQuery 单测 — 周趋势 padding + topMovies + topSessions 4-join + 限 10.
- * 锁定: 7 日 padding 顺序 / 占用率 (sold/seatCount) 计算 / 限 10 条数.
+ * DashboardTrendQuery 单测 — 周趋势 padding + topMovies + topSessions 4-join + 限 10。
+ * 锁定: 7 日 padding 顺序 / 占用率 (sold/seatCount) 计算 / 限 10 条数。
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -88,11 +88,11 @@ class DashboardTrendQueryTest {
     }
 
     /**
-     * B-01 回归: MySQL Connector/J 把 DATE(paid_at) 映射成 java.sql.Date(不是 String).
+     * B-01 回归: MySQL Connector/J 把 DATE(paid_at) 映射成 java.sql.Date(不是 String)。
      * 修复前 weeklyTrend() 第 52 行 (String) row.get("date") 直接抛 ClassCastException,
      * 整个 /api/admin/dashboard/summary 返回 50000. 修复后 service 端必须接受
      * java.sql.Date 类型, 把 toString() 当 ISO 日期 key 用(YYYY-MM-DD),
-     * 与 wire format 契约一致.
+     * 与 wire format 契约一致。
      */
     @Test
     @DisplayName("B-01 回归: weeklyTrend 接受 mapper 返 java.sql.Date 类型,不抛 CCE 且正常 padding")

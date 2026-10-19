@@ -33,7 +33,12 @@ request.interceptors.response.use(
           // 带上 redirect, 登录成功后能回到原页面
           router.push({ path: '/login', query: { redirect: router.currentRoute.value.fullPath } })
         }
-        return Promise.reject(new Error(body.msg))
+        // 40101/40102 也要挂上 code —— 否则上层按 code 分支的逻辑
+        // (比如确认卡上的「请先登录后再下单」)永远走不到, 只能退化到 message
+        const err = new Error(body.msg || i18n.global.t('api.needLogin')) as Error & { data?: unknown; code?: number }
+        err.code = body.code
+        err.data = body.data
+        return Promise.reject(err)
       }
       // Phase D-⑱: 把 body.data 挂到 error 上, 让上层拿到业务数据(如锁座 conflict 列表)
       const err = new Error(body.msg || i18n.global.t('api.requestFailed')) as Error & { data?: unknown; code?: number }

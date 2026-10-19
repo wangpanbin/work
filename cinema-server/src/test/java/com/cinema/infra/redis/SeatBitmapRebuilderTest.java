@@ -22,8 +22,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 /**
- * SeatBitmapRebuilder 单测 — 纯函数 seam, 锁/售分区契约.
- * 重点锁定: status 过滤 / paidOrderIds 判定 / dedup / sort.
+ * SeatBitmapRebuilder 单测 — 纯函数 seam, 锁/售分区契约。
+ * 重点锁定: status 过滤 / paidOrderIds 判定 / dedup / sort。
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)

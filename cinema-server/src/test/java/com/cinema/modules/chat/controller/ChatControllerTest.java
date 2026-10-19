@@ -24,7 +24,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * T5 — ChatController 短路 seam + @RateLimit 注解配置断言.
+ * T5 — ChatController 短路 seam + @RateLimit 注解配置断言。
  *
  * <p>覆盖(spec §9.1):
  * <ul>
@@ -32,8 +32,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *   <li>反射断言 chatMessage() 上的 @RateLimit 注解配置正确(SpEL key / permits=10 / window=1min)</li>
  * </ul>
  *
- * <p>实际限流触发由 RateLimitAspectTest 覆盖(测 SpEL 解析 + 抛 BizException 42900).
- * ChatControllerTest 不引入 Spring AOP context(<100ms 单元测试).
+ * <p>实际限流触发由 RateLimitAspectTest 覆盖(测 SpEL 解析 + 抛 BizException 42900)。
+ * ChatControllerTest 不引入 Spring AOP context(<100ms 单元测试)。
  */
 class ChatControllerTest {
 

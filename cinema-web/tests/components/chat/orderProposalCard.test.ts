@@ -2,17 +2,22 @@ import { describe, it, expect } from 'vitest'
 import {
   CARD_TYPE_ORDER_PROPOSAL,
   CARD_TYPE_PENDING_ORDER,
+  CONFIRM_ERROR_KEYS,
   buildConfirmRequest,
   buildPayRoute,
   buildRepickRequest,
+  confirmErrorKey,
   formatCountdown,
   isOrderProposalCard,
   isPendingOrderCard,
+  isProposalExpiredCode,
   payWindowSeconds,
   proposalState,
   remainingSeconds,
 } from '../../../src/components/chat/orderProposalCard'
 import type { ActionCardVO } from '../../../src/types'
+import zhCN from '../../../src/i18n/locales/zh-CN'
+import enUS from '../../../src/i18n/locales/en-US'
 
 /**
  * orderProposalCard 纯函数测试 (ADR-0004)。
@@ -30,6 +35,11 @@ import type { ActionCardVO } from '../../../src/types'
  */
 
 const NOW = 1_800_000_000_000
+
+/** 按 dot-path 取字典里的值(取不到返 undefined) */
+function resolve(obj: Record<string, unknown>, path: string): unknown {
+  return path.split('.').reduce<unknown>((acc, k) => (acc as Record<string, unknown>)?.[k], obj)
+}
 
 function proposalCard(overrides: Partial<ActionCardVO> = {}): ActionCardVO {
   return {
@@ -161,5 +171,40 @@ describe('buildPayRoute', () => {
   it('没有订单号 → null', () => {
     expect(buildPayRoute(undefined)).toBeNull()
     expect(buildPayRoute('')).toBeNull()
+  })
+})
+
+describe('confirmErrorKey / isProposalExpiredCode', () => {
+  it('按错误码给出 i18n key(按 code 分支, 不靠中文字符串匹配)', () => {
+    expect(confirmErrorKey(40002)).toBe('chat.orderProposal.conflictTip')
+    expect(confirmErrorKey(40004)).toBe('chat.orderProposal.disabledTip')
+    expect(confirmErrorKey(40101)).toBe('chat.orderProposal.loginRequired')
+    expect(confirmErrorKey(40301)).toBe('chat.orderProposal.forbiddenTip')
+    expect(confirmErrorKey(40900)).toBe('chat.orderProposal.duplicateTip')
+    expect(confirmErrorKey(42900)).toBe('chat.orderProposal.rateLimited')
+  })
+
+  it('未知码 / 缺码 / NaN → null(上层退回 err.message)', () => {
+    expect(confirmErrorKey(undefined)).toBeNull()
+    expect(confirmErrorKey(50000)).toBeNull()
+    expect(confirmErrorKey(Number.NaN)).toBeNull()
+  })
+
+  it('40003 走状态迁移(切过期态)而不是错误文案 —— 不在文案表里', () => {
+    expect(isProposalExpiredCode(40003)).toBe(true)
+    expect(confirmErrorKey(40003)).toBeNull()
+    expect(isProposalExpiredCode(40002)).toBe(false)
+    expect(isProposalExpiredCode(undefined)).toBe(false)
+  })
+
+  it('错误文案表里的每个 key 在 zh-CN 与 en-US 都真实存在', () => {
+    const missingZh: string[] = []
+    const missingEn: string[] = []
+    for (const key of Object.values(CONFIRM_ERROR_KEYS)) {
+      if (resolve(zhCN as Record<string, unknown>, key) === undefined) missingZh.push(key)
+      if (resolve(enUS as Record<string, unknown>, key) === undefined) missingEn.push(key)
+    }
+    expect(missingZh, `zh-CN ，缺失: ${missingZh.join(', ')}`).toEqual([])
+    expect(missingEn, `en-US ，缺失: ${missingEn.join(', ')}`).toEqual([])
   })
 })

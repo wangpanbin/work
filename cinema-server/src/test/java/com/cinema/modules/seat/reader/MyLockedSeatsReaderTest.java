@@ -22,10 +22,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 /**
- * MyLockedSeatsReader 单测 — 锁 Redis Hash field 解析契约.
+ * MyLockedSeatsReader 单测 — 锁 Redis Hash field 解析契约。
  * <p>B-02 修复后契约:
  * Redis hash field 必须是数字字符串; 若混入非数字(field=运维误写 / schema 变更),
- * 不抛 NumberFormatException, 单条 warn + 跳过, 整条 seatMap 不爆 50000.
+ * 不抛 NumberFormatException, 单条 warn + 跳过, 整条 seatMap 不爆 50000。
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -45,8 +45,8 @@ class MyLockedSeatsReaderTest {
 
     /**
      * B-02 回归: Redis hash 含 "abc" 这种非数字 field 时, 之前的 Integer::parseInt
-     * 直接抛 NumberFormatException → 整个 /api/sessions/{id}/seat-map 返回 50000.
-     * 修复后必须优雅跳过非数字 field, 正常返回剩下的合法 seatIndex.
+     * 直接抛 NumberFormatException → 整个 /api/sessions/{id}/seat-map 返回 50000。
+     * 修复后必须优雅跳过非数字 field, 正常返回剩下的合法 seatIndex。
      */
     @Test
     @DisplayName("B-02 回归: Redis hash 含非数字 field → 跳过非法项,不抛 NFE")

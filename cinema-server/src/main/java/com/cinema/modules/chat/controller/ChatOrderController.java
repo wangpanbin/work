@@ -1,5 +1,6 @@
 package com.cinema.modules.chat.controller;
 
+import com.cinema.common.annotation.IdempotencyKeys;
 import com.cinema.common.annotation.Idempotent;
 import com.cinema.common.annotation.RateLimit;
 import com.cinema.common.context.UserContext;
@@ -75,13 +76,15 @@ public class ChatOrderController {
      * <p>座位由服务端重读位图挑, 客户端无从指定 —— 与助手自动出卡走的是同一套逻辑。
      */
     @PostMapping("/proposals")
-    @RateLimit(key = "(T(com.cinema.common.context.UserContext).userId() ?: 'anon') + ':chat:proposal:' + #dto.sessionId",
+    @RateLimit(key = IdempotencyKeys.RATE_CHAT_PROPOSAL_BY_USER,
             permits = 10, window = 1, unit = TimeUnit.MINUTES,
             message = "生成下单方案过于频繁,请稍后再试")
     public R<OrderProposalVO> createProposal(@RequestBody @Valid OrderProposalDTO dto) {
         if (!orderEnabled) {
-            return R.fail(ResultCode.BUSINESS_ERROR.getCode(), "下单功能当前未启用");
+            return R.fail(ResultCode.ORDER_DISABLED.getCode(), "下单功能当前未启用");
         }
+        // 纵深防御: AuthRequiredInterceptor 已先返 40101, 这里再挡一道 ——
+        // 万一拦截器路径配置被改, 也不至于带着 null userId 去建提案。
         Long userId = UserContext.userId();
         if (userId == null) {
             return R.fail(ResultCode.UNAUTHORIZED);
@@ -96,14 +99,16 @@ public class ChatOrderController {
      * <p>座位、单价、总额全部来自服务端快照; 请求体只有一个 proposalId。
      */
     @PostMapping("/{proposalId}/confirm")
-    @Idempotent(key = "#proposalId", ttl = 8, message = "下单请求处理中,请勿重复点击")
-    @RateLimit(key = "(T(com.cinema.common.context.UserContext).userId() ?: 'anon') + ':chat:confirm:' + #proposalId",
+    @Idempotent(key = IdempotencyKeys.CHAT_ORDER_CONFIRM, ttl = 8, message = "下单请求处理中,请勿重复点击")
+    @RateLimit(key = IdempotencyKeys.RATE_CHAT_CONFIRM_BY_USER,
             permits = 3, window = 1, unit = TimeUnit.MINUTES,
             message = "下单操作过于频繁,请稍后再试")
     public R<OrderProposalVO> confirm(@PathVariable String proposalId) {
         if (!orderEnabled) {
-            return R.fail(ResultCode.BUSINESS_ERROR.getCode(), "下单功能当前未启用");
+            return R.fail(ResultCode.ORDER_DISABLED.getCode(), "下单功能当前未启用");
         }
+        // 纵深防御: AuthRequiredInterceptor 已先返 40101, 这里再挡一道 ——
+        // 万一拦截器路径配置被改, 也不至于带着 null userId 去建提案。
         Long userId = UserContext.userId();
         if (userId == null) {
             return R.fail(ResultCode.UNAUTHORIZED);

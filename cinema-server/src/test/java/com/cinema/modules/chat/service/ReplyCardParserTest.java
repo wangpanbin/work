@@ -11,7 +11,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * T9 cycle 1 — ReplyCardParser 纯函数测试(spec §6.1 + #16 acceptance).
+ * T9 cycle 1 — ReplyCardParser 纯函数测试(spec §6.1 + #16 acceptance)。
  *
  * <p>覆盖 7 个关键边界:
  * <ul>

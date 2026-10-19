@@ -11,10 +11,14 @@ import java.util.List;
 /**
  * T1 cycle 3 — 行动卡片 VO(spec §6.1 schema)。
  *
- * <p>卡片只携带展示与跳转所需的信息(sessionId + seatIndexes + 价格 + 描述),
+ * <p>既有卡型(SEAT_SUGGESTION)只携带展示与跳转所需的信息(sessionId + seatIndexes + 价格 + 描述),
  * <b>不携带任何可直接提交的载荷</b>(ADR-0002 — 不执行写操作)。
  * 前端点击后跳到 {@code /seat/{sessionId}} 并通过 {@code preselect} 预选,
  * 锁座仍由用户在既有流程确认后经 {@code POST /orders/lock} 发生。
+ *
+ * <p><b>ORDER_PROPOSAL 是 ADR-0004 的修订例外</b>:它多带一个 {@code proposalId},
+ * 但那只是「服务端快照的引用」, 不是可提交的座位载荷 —— 确认端点只凭这个 ID
+ * 去 Redis 取服务端自己算好的座位与价格, 客户端依然碰不到座位。
  *
  * cycle 3 阶段占位,T2 接入工具后由 ChatTools 填充。
  */

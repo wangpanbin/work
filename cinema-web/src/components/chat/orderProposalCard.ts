@@ -99,3 +99,43 @@ export function buildPayRoute(orderNo: string | undefined): { name: string; quer
   if (!orderNo) return null
   return { name: 'payment', query: { orderNo } }
 }
+
+/** 座位被抢(与服务端锁座冲突同一个码) */
+export const SEAT_CONFLICT_CODE = 40002
+
+/** 提案已过期 / 已被消费(服务端一次性消费提案) */
+export const PROPOSAL_EXPIRED_CODE = 40003
+
+/** 下单功能被回滚闸门关掉 */
+export const ORDER_DISABLED_CODE = 40004
+
+/**
+ * 确认失败 → i18n key 的映射(按错误码判断, **不**匹配中文字符串)。
+ *
+ * <p>spec §5.3 要求按 `err.code` 分支 —— 既有 `SeatSelect.vue` 那种字符串匹配
+ * 是历史包袱, 新代码不继承。
+ *
+ * <p>40003(提案已过期)刻意不在表里: 它不是一条错误文案, 而是**状态迁移** ——
+ * 卡片要切到过期态并提示重新发起, 那是 stateHint 的活。走 errorText 会和
+ * stateHint 把同一句话说两遍。
+ */
+export const CONFIRM_ERROR_KEYS: Record<number, string> = {
+  [SEAT_CONFLICT_CODE]: 'chat.orderProposal.conflictTip',
+  [ORDER_DISABLED_CODE]: 'chat.orderProposal.disabledTip',
+  40101: 'chat.orderProposal.loginRequired',
+  40301: 'chat.orderProposal.forbiddenTip',
+  40900: 'chat.orderProposal.duplicateTip',
+  42900: 'chat.orderProposal.rateLimited',
+}
+
+/** 取错误码对应的 i18n key; 不认识 / 缺码返 null(上层退回 err.message) */
+export function confirmErrorKey(code: number | undefined): string | null {
+  if (typeof code !== 'number' || !Number.isFinite(code)) return null
+  const key = CONFIRM_ERROR_KEYS[code]
+  return key === undefined ? null : key
+}
+
+/** 该错误码是否表示「提案已过期」—— 调用方据此把卡片切到过期态 */
+export function isProposalExpiredCode(code: number | undefined): boolean {
+  return code === PROPOSAL_EXPIRED_CODE
+}

@@ -26,7 +26,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * SeatEventPublisher 单测 — 事件序号注入.
+ * SeatEventPublisher 单测 — 事件序号注入。
  *
  * <p>本类此前没有测试, 是一致性改动里唯一没有既有断言兜底的位置。
  *

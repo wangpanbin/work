@@ -38,7 +38,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** OrderPayService.refund 单测 — N1 退票流程 3 个分支. */
+/** OrderPayService.refund 单测 — N1 退票流程 3 个分支。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class OrderPayServiceRefundTest {

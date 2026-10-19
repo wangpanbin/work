@@ -33,7 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
-/** OrderQueryService 单测 — 我的订单 1 个用例(6 SQL 批量路径). */
+/** OrderQueryService 单测 — 我的订单 1 个用例(6 SQL 批量路径)。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class OrderQueryServiceTest {

@@ -11,6 +11,10 @@ public enum ResultCode {
     SUCCESS(0, "ok"),
     BAD_REQUEST(40001, "参数错误"),
     BUSINESS_ERROR(40002, "业务处理失败"),
+    /** 对话助手的下单提案已过期 / 已被消费 —— 与「座位被抢」(40002) 区分开。 */
+    PROPOSAL_EXPIRED(40003, "下单方案已过期,请重新发起"),
+    /** 下单功能被回滚闸门关掉(cinema.chat.order-enabled=false)。 */
+    ORDER_DISABLED(40004, "下单功能当前未启用"),
     NOT_FOUND(40400, "资源不存在"),
     IDEMPOTENT_CONFLICT(40900, "请勿重复提交"),
     RATE_LIMIT(42900, "请求过于频繁,请稍后重试"),

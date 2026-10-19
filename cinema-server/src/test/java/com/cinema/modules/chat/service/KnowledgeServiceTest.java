@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 /**
- * spec #20 / TD-1 — KnowledgeService 7 case 单测.
+ * spec #20 / TD-1 — KnowledgeService 7 case 单测。
  *
  * <p>覆盖 contains 匹配 + 多 keyword 命中数排序 + sort_order 加权 +
  * 大小写不敏感 + 空 query / 不命中 / top-3 截断七条关键不变量。
@@ -40,7 +40,7 @@ class KnowledgeServiceTest {
         service = new KnowledgeService(knowledgeMapper);
     }
 
-    /** stub mapper + 触发 @PostConstruct init() 重新加载. */
+    /** stub mapper + 触发 @PostConstruct init() 重新加载。 */
     private void stubKnowledge(Knowledge... entries) {
         when(knowledgeMapper.selectList(null)).thenReturn(Arrays.asList(entries));
         service.init();

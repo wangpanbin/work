@@ -16,8 +16,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 /**
- * DashboardHeadlineQuery 单测 — 4 张卡片 + 1 个 derived(取消/退款共用方法).
- * 锁定: 0 调用今日外的 SQL;status 编码 (1/2/4) 不漂移.
+ * DashboardHeadlineQuery 单测 — 4 张卡片 + 1 个 derived(取消/退款共用方法)。
+ * 锁定: 0 调用今日外的 SQL;status 编码 (1/2/4) 不漂移。
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)

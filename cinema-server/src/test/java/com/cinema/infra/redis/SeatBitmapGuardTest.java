@@ -28,7 +28,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** SeatBitmapGuard 单测 — 4 个分支. */
+/** SeatBitmapGuard 单测 — 4 个分支。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class SeatBitmapGuardTest {
@@ -121,7 +121,7 @@ class SeatBitmapGuardTest {
 
     /**
      * #2 收尾补强: forceRecover 在 DB 无订单时, 应清空位图 + 返 RecoverResult(0, 0),
-     * 不调 Lua. 覆盖原 scout 报告里 L97-L102 的未测试分支.
+     * 不调 Lua. 覆盖原 scout 报告里 L97-L102 的未测试分支。
      */
     @Test
     @DisplayName("forceRecover 无订单: 清空位图 + 返 0/0, 不调 Lua")
@@ -139,7 +139,7 @@ class SeatBitmapGuardTest {
 
     /**
      * #2 收尾补强: ensureBitmaps 在 orders 非空但 items 为空时, 仍走 Lua 传空列表
-     * (保留旧行为, 不跳过). 这是数据完整性问题的兜底路径.
+     * (保留旧行为, 不跳过). 这是数据完整性问题的兜底路径。
      */
     @Test
     @DisplayName("ensureBitmaps: orders 非空但 items 空, 仍调 Lua 传空列表")

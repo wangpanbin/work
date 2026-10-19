@@ -32,7 +32,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * T3 cycle 1 — ChatAssistantService 完整版 seam.
+ * T3 cycle 1 — ChatAssistantService 完整版 seam。
  *
  * <p>覆盖:
  * <ul>

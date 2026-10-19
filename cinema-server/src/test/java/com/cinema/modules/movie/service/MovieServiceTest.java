@@ -18,7 +18,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** MovieService 单测 — F1 搜索(行为级)+ detail. */
+/** MovieService 单测 — F1 搜索(行为级)+ detail。 */
 @ExtendWith(MockitoExtension.class)
 class MovieServiceTest {
 

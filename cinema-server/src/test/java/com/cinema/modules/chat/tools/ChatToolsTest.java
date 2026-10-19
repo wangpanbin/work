@@ -35,7 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 /**
- * T2 cycle 1 — ChatTools 8 个只读工具 happy path(spec §5.1, ADR-0002).
+ * T2 cycle 1 — ChatTools 8 个只读工具 happy path(spec §5.1, ADR-0002)。
  *
  * <p>每个工具一个测试,验证方法签名 + 复用既有 Service。
  * Mockito 风格(沿用仓库既有),不引入 Spring context。

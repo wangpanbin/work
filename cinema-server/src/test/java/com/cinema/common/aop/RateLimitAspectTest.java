@@ -31,10 +31,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * T5 — RateLimitAspect 单元测试(spec §9.1 + §6.3 + §6.2).
+ * T5 — RateLimitAspect 单元测试(spec §9.1 + §6.3 + §6.2)。
  *
  * <p>覆盖 spec §9.1 第 2 条:限流命中返 42900(从切面层验证 — 切面抛 BizException(42900),
- * 由 GlobalExceptionHandler 转 R.fail(42900),前端按 code 处理).
+ * 由 GlobalExceptionHandler 转 R.fail(42900),前端按 code 处理)。
  *
  * <p>SpEL key 测试:
  * <ul>
@@ -179,8 +179,8 @@ class RateLimitAspectTest {
     // ============ helpers ============
 
     /**
-     * Mockito mock MethodSignature:只 stub 必要的(其他返 null/0).
-     * SpEL 只读 sig.getParameterNames() + sig.getMethod()(后者没用到).
+     * Mockito mock MethodSignature:只 stub 必要的(其他返 null/0)。
+     * SpEL 只读 sig.getParameterNames() + sig.getMethod()(后者没用到)。
      *
      * <p><b>spec #17 修订</b>:SpEL key 走 {@code T(UserContext).userId()},所以这里同时设
      * UserContext ThreadLocal,模拟"已登录/匿名"两种场景。{@code null} 表示匿名(不设 ThreadLocal)。
@@ -201,7 +201,7 @@ class RateLimitAspectTest {
         UserContext.clear();
     }
 
-    /** 任意静态方法占位 — SpEL 只看 args 数组,不检查 method 本身. */
+    /** 任意静态方法占位 — SpEL 只看 args 数组,不检查 method 本身。 */
     private static Method stubMethod() {
         try {
             return RateLimitAspectTest.class.getDeclaredMethod("stubHolder");
@@ -212,12 +212,12 @@ class RateLimitAspectTest {
 
     private static void stubHolder() { /* no-op */ }
 
-    /** 反射构造一个真实 RateLimit 注解(spec §6.3:key + permits + window + unit + message). */
+    /** 反射构造一个真实 RateLimit 注解(spec §6.3:key + permits + window + unit + message)。 */
     private static RateLimit makeRateLimit(String key, int permits, int window, TimeUnit unit) {
         return makeRateLimit(key, permits, /* anonymousPermits */ -1, window, unit);
     }
 
-    /** spec #17:支持 anonymousPermits 字段的 makeRateLimit 重载. */
+    /** spec #17:支持 anonymousPermits 字段的 makeRateLimit 重载。 */
     private static RateLimit makeRateLimit(String key, int permits, int anonymousPermits, int window, TimeUnit unit) {
         return new RateLimit() {
             @Override

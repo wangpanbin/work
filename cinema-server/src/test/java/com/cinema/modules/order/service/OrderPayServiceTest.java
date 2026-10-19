@@ -36,7 +36,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** OrderPayService 单测 — 支付 2 个分支. */
+/** OrderPayService 单测 — 支付 2 个分支。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class OrderPayServiceTest {

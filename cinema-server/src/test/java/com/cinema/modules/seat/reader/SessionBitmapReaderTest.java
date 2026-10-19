@@ -22,11 +22,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * SessionBitmapReader 单测 — 锁定"seatCount<=0 时不可越过 Redis setBit(-1)".
+ * SessionBitmapReader 单测 — 锁定"seatCount<=0 时不可越过 Redis setBit(-1)"。
  * <p>B-03 修复后契约:
  * seatCount<=0 直接抛 BizException, 绝不让 setBit 拿 -1 / Integer.MIN_VALUE 这种非法
  * offset 给 Redis(Redis 会报 ERR bit offset is not an integer or out of range,
- * Lettuce 转 RedisCommandExecutionException 把整个 seatMap 拖到 50000).
+ * Lettuce 转 RedisCommandExecutionException 把整个 seatMap 拖到 50000)。
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -45,7 +45,7 @@ class SessionBitmapReaderTest {
     /**
      * B-03 回归: seatCount=0 之前会执行 setBit(-1, false) → Redis 报 ERR
      * bit offset is not an integer or out of range. 修复后必须先抛 BizException,
-     * 绝不让 setBit 拿到 -1 这种非法 offset.
+     * 绝不让 setBit 拿到 -1 这种非法 offset。
      */
     @Test
     @DisplayName("B-03 回归: seatCount=0 → 直接抛 BizException, 不可调 Redis setBit")

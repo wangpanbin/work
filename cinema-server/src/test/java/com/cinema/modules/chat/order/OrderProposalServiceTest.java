@@ -37,7 +37,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * OrderProposalService 单元测试 (ADR-0004).
+ * OrderProposalService 单元测试 (ADR-0004)。
  *
  * <p>锁住四条关键契约:
  * <ol>
@@ -255,6 +255,28 @@ class OrderProposalServiceTest {
     }
 
     @Test
+    @DisplayName("票数以 count 为准: count=3 但模型只给 2 个座位 → 仍给 3 张(提示作废后重找)")
+    void countWins_overHintLength() {
+        when(seatService.seatMap(SESSION_ID, USER_ID)).thenReturn(seatMap(none(), none()));
+
+        OrderProposal p = service.createProposal(USER_ID, SESSION_ID, 3, List.of(52, 53));
+
+        assertThat(p.getSeatIndexes()).hasSize(3);
+        assertThat(p.getTotalAmount()).isEqualByComparingTo(new BigDecimal("135.00"));
+    }
+
+    @Test
+    @DisplayName("票数以 count 为准: count=2 但模型给了 4 个座位 → 只给 2 张(多给的提示作废)")
+    void countWins_overLongerHint() {
+        when(seatService.seatMap(SESSION_ID, USER_ID)).thenReturn(seatMap(none(), none()));
+
+        OrderProposal p = service.createProposal(USER_ID, SESSION_ID, 2, List.of(40, 41, 52, 53));
+
+        assertThat(p.getSeatIndexes()).hasSize(2);
+        assertThat(p.getTotalAmount()).isEqualByComparingTo(new BigDecimal("90.00"));
+    }
+
+    @Test
     @DisplayName("count 为 null 且无座位提示 → 默认 1 张")
     void nullCountAndNoHint_thenOneSeat() {
         when(seatService.seatMap(SESSION_ID, USER_ID)).thenReturn(seatMap(none(), none()));
@@ -322,7 +344,11 @@ class OrderProposalServiceTest {
 
         assertThatThrownBy(() -> service.consumeProposal("P-none", USER_ID))
                 .isInstanceOf(BizException.class)
-                .hasMessageContaining("过期");
+                .hasMessageContaining("过期")
+                // 提案过期用独立码 40003, 不与「座位被抢」(40002) 混用 ——
+                // 否则前端会把过期显示成「座位被抢走了」
+                .satisfies(e -> assertThat(((BizException) e).getCode())
+                        .isEqualTo(ResultCode.PROPOSAL_EXPIRED.getCode()));
     }
 
     @Test

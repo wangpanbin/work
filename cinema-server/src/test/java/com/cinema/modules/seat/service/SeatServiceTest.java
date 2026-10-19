@@ -45,8 +45,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * SeatService orchestrator 单测 — 锁定 seatMap() 4-reader 组合行为.
- * #4 拆分期间回归测试.
+ * SeatService orchestrator 单测 — 锁定 seatMap() 4-reader 组合行为。
+ * #4 拆分期间回归测试。
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)

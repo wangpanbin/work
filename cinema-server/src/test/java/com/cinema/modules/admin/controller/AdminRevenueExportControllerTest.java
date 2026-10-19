@@ -21,7 +21,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * T3 — AdminRevenueExportController 单测.
+ * T3 — AdminRevenueExportController 单测。
  *
  * <p>回归点: {@code Content-Disposition} header 的 {@code filename="..."} 段必须是
  * ISO-8859-1 安全子集 (ASCII ≤ 0x7F), 否则 Tomcat 在 commit response 时会抛
@@ -29,7 +29,7 @@ import static org.mockito.Mockito.when;
  * it is outside the permitted range of 0 to 255}.
  *
  * <p>中文全名走 RFC 5987 {@code filename*=UTF-8''...} 段, 这部分 percent-encoded
- * 后天然全是 ASCII, Tomcat 不会拦截.
+ * 后天然全是 ASCII, Tomcat 不会拦截。
  */
 @ExtendWith(MockitoExtension.class)
 class AdminRevenueExportControllerTest {
@@ -67,14 +67,14 @@ class AdminRevenueExportControllerTest {
         verify(response).setHeader(eq("Content-Disposition"), headerCaptor.capture());
         String headerValue = headerCaptor.getValue();
 
-        // 契约 1: 整段 header 在 ISO-8859-1 (Latin-1) 下能无损 round-trip.
-        // 这是 Tomcat MessageBytes.toBytes() 的实际检查 — 任何 char > 0xFF 都会爆.
+        // 契约 1: 整段 header 在 ISO-8859-1 (Latin-1) 下能无损 round-trip。
+        // 这是 Tomcat MessageBytes.toBytes() 的实际检查 — 任何 char > 0xFF 都会爆。
         byte[] latin1 = headerValue.getBytes(StandardCharsets.ISO_8859_1);
         assertThat(new String(latin1, StandardCharsets.ISO_8859_1))
                 .as("Content-Disposition header 必须在 ISO-8859-1 安全 (≤ 0xFF) 范围, 否则 Tomcat 写 header 时报 IAE")
                 .isEqualTo(headerValue);
 
-        // 契约 2: 解析出 filename="..." ASCII 段, 其值必须不含汉字等非 ASCII 字符.
+        // 契约 2: 解析出 filename="..." ASCII 段, 其值必须不含汉字等非 ASCII 字符。
         String asciiName = extractAsciiFilename(headerValue);
         assertThat(asciiName)
                 .as("filename=\"...\" ASCII fallback 段必须非空且纯 ASCII")
@@ -83,7 +83,7 @@ class AdminRevenueExportControllerTest {
                 .as("filename=\"...\" ASCII fallback 段不能含汉字等非 ASCII 字符")
                 .matches("[\\x20-\\x7E]+"); // 可打印 ASCII
 
-        // 契约 3: 解析 filename*=UTF-8''... 段, 解码后必须等于完整中文全名.
+        // 契约 3: 解析 filename*=UTF-8''... 段, 解码后必须等于完整中文全名。
         String decodedUtf8Name = extractRfc5987Filename(headerValue);
         String expectedFull = "营收报表_2026-09-14_至_2026-09-20.xlsx";
         assertThat(decodedUtf8Name)
@@ -117,13 +117,13 @@ class AdminRevenueExportControllerTest {
                 "preset",
                 response);
 
-        // 验证 setHeader 没抛 IAE (即上面的契约已通过), 且 service 被调用.
+        // 验证 setHeader 没抛 IAE (即上面的契约已通过), 且 service 被调用。
         verify(exportService).renderBytes(any());
     }
 
     // ---- helpers ----
 
-    /** 从 {@code Content-Disposition} header 中解出 {@code filename="..."} ASCII 段. */
+    /** 从 {@code Content-Disposition} header 中解出 {@code filename="..."} ASCII 段。 */
     static String extractAsciiFilename(String header) {
         int start = header.indexOf("filename=\"");
         if (start < 0) return null;
@@ -132,7 +132,7 @@ class AdminRevenueExportControllerTest {
         return end < 0 ? null : header.substring(start, end);
     }
 
-    /** 从 {@code Content-Disposition} header 中解出 {@code filename*=UTF-8''...} 并 percent-decode. */
+    /** 从 {@code Content-Disposition} header 中解出 {@code filename*=UTF-8''...} 并 percent-decode。 */
     static String extractRfc5987Filename(String header) {
         String marker = "filename*=UTF-8''";
         int start = header.indexOf(marker);
@@ -146,7 +146,7 @@ class AdminRevenueExportControllerTest {
         return URLDecoder.decode(encoded, StandardCharsets.UTF_8);
     }
 
-    /** Mockito 静态 import 包装, 方便阅读. */
+    /** Mockito 静态 import 包装, 方便阅读。 */
     private static <T> T eq(T value) {
         return org.mockito.ArgumentMatchers.eq(value);
     }

@@ -15,15 +15,15 @@ import java.util.Arrays;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * T1 cycle 4 + cycle 5 — ChatConfig 装配与 CinemaAssistant 结构.
+ * T1 cycle 4 + cycle 5 — ChatConfig 装配与 CinemaAssistant 结构。
  *
  * <p>cycle 4 seam: 三个 ErrorHandler 必须就位(spec §5.4 — 默认行为有 stack trace
  * 泄漏 / 无效重试 / 幻觉工具名等坑,必须显式覆盖). 由于 ErrorHandler 内部是
  * lambda,本测试通过反射断言 AiServices.builder() 调用链挂上了非空 handler —
- * 直接验证 lambda 行为成本高,T2 接入真实工具后再覆盖端到端场景.
+ * 直接验证 lambda 行为成本高,T2 接入真实工具后再覆盖端到端场景。
  *
  * <p>cycle 5 seam: 反射断言 CinemaAssistant 接口上没有任何 {@code @Tool}
- * 标注的方法(目前为空,T2 ticket #9 接入 ChatTools 后才有 @Tool 方法).
+ * 标注的方法(目前为空,T2 ticket #9 接入 ChatTools 后才有 @Tool 方法)。
  */
 class ChatConfigTest {
 
@@ -55,7 +55,7 @@ class ChatConfigTest {
     }
 
     /**
-     * cycle 5 seam: 反射断言 CinemaAssistant 接口上没有任何 {@code @Tool} 标注的方法.
+     * cycle 5 seam: 反射断言 CinemaAssistant 接口上没有任何 {@code @Tool} 标注的方法。
      *
      * <p>T1 阶段工具集为空 — T2 ticket #9 接入 ChatTools 后,CinemaAssistant
      * 仍不直接持有 @Tool(它在 ChatTools 类上),本断言永久不变。循环阻断
@@ -74,7 +74,7 @@ class ChatConfigTest {
     /**
      * cycle 4 结构性断言:ToolErrorHandlerResult.text 与 ToolExecutionResultMessage.from
      * 这两个 spec §5.4 引用的 API 必须存在于 LangChain4j 1.20.0 类路径上,
-     * 否则 AiServices.builder() 会因方法签名不匹配而编译失败.
+     * 否则 AiServices.builder() 会因方法签名不匹配而编译失败。
      * 本断言防止"删错 import / 升错版本"悄悄回退。
      */
     @Test

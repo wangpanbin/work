@@ -27,11 +27,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 片名两道防护的回归闸门: 长度上限(Bean Validation) + 全表重名拦截(Service 侧查重).
+ * 片名两道防护的回归闸门: 长度上限(Bean Validation) + 全表重名拦截(Service 侧查重)。
  *
  * <p>体检发现(2026-10-11): {@code MovieDTO.title} 只有 {@code @NotBlank}, 没有长度上限;
  * {@code AdminMovieController.create/update} 直接落库, 没有重名拦截. 后者会让管理端
- * 反复提交同名影片, 首页与搜索结果出现无法区分的重复条目.
+ * 反复提交同名影片, 首页与搜索结果出现无法区分的重复条目。
  *
  * <p>本类刻意用<b>两个独立 seam</b>, 不要合并:
  * <ul>
@@ -45,7 +45,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class AdminMovieControllerTitleGuardTest {
 
-    /** 片名长度上限, 与 movie.title 列宽(VARCHAR(128))保持一致. */
+    /** 片名长度上限, 与 movie.title 列宽(VARCHAR(128))保持一致。 */
     private static final int TITLE_MAX = 128;
 
     private static Validator validator;
@@ -158,7 +158,7 @@ class AdminMovieControllerTitleGuardTest {
 
     // ---------- helpers ----------
 
-    /** 构造一个除片名外全部合法的 DTO, 让校验结果只反映片名这一项. */
+    /** 构造一个除片名外全部合法的 DTO, 让校验结果只反映片名这一项。 */
     private static MovieDTO validDto(String title) {
         MovieDTO dto = new MovieDTO();
         dto.setTitle(title);
@@ -177,7 +177,7 @@ class AdminMovieControllerTitleGuardTest {
         return m;
     }
 
-    /** 造 n 个汉字 —— 汉字在 BMP 里占 1 个 char, String.length() 与数据库字符数一致. */
+    /** 造 n 个汉字 —— 汉字在 BMP 里占 1 个 char, String.length() 与数据库字符数一致。 */
     private static String han(int n) {
         return "影".repeat(n);
     }

@@ -48,7 +48,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** OrderLockService 单测 — 锁座下单 3 个分支. */
+/** OrderLockService 单测 — 锁座下单 3 个分支。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class OrderLockServiceTest {

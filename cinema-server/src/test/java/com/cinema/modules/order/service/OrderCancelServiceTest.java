@@ -32,7 +32,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** OrderCancelService 单测 — 主动取消 + 超时关单 3 个分支. */
+/** OrderCancelService 单测 — 主动取消 + 超时关单 3 个分支。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class OrderCancelServiceTest {

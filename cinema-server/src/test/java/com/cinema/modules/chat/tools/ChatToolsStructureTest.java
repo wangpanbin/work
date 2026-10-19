@@ -15,7 +15,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * T2 cycle 3 — ChatTools 反射白名单断言(spec §9.4 第 5 条 + ADR-0002 硬性约束).
+ * T2 cycle 3 — ChatTools 反射白名单断言(spec §9.4 第 5 条 + ADR-0002 硬性约束)。
  *
  * <p>用反射枚举所有 {@code @Tool} 标注方法,断言:
  * <ul>

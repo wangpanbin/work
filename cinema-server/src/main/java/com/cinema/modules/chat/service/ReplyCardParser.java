@@ -1,6 +1,6 @@
 package com.cinema.modules.chat.service;
 
-import com.cinema.modules.chat.order.OrderProposalService;
+import com.cinema.modules.chat.order.OrderProposalLimits;
 import com.cinema.modules.chat.vo.ActionCardVO;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -151,7 +151,7 @@ public final class ReplyCardParser {
         if (ActionCardVO.TYPE_ORDER_PROPOSAL.equals(type)) {
             // 一键下单卡: count 必填且在 [1,4]; seatIndexes 只是提示, 可空
             count = intOrNull(cn, "count");
-            if (sessionId == null || count == null || count < 1 || count > OrderProposalService.MAX_SEATS) {
+            if (sessionId == null || count == null || count < 1 || count > OrderProposalLimits.MAX_SEATS) {
                 return null;
             }
         } else {

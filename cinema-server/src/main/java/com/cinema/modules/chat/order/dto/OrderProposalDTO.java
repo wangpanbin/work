@@ -1,5 +1,6 @@
 package com.cinema.modules.chat.order.dto;
 
+import com.cinema.modules.chat.order.OrderProposalLimits;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
@@ -21,6 +22,6 @@ public class OrderProposalDTO {
 
     @NotNull(message = "购票张数不能为空")
     @Min(value = 1, message = "至少选择1个座位")
-    @Max(value = 4, message = "每次最多选择4个座位")
+    @Max(value = OrderProposalLimits.MAX_SEATS, message = "每次最多选择4个座位")
     private Integer count;
 }

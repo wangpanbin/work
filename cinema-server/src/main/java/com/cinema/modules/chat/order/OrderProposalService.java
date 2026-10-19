@@ -49,9 +49,6 @@ import java.util.stream.Collectors;
 @Service
 public class OrderProposalService {
 
-    /** 单次最多几个座位 —— 与 {@code LockSeatsDTO @Size(max=4)} 和前端 maxSelect=4 一致。 */
-    public static final int MAX_SEATS = 4;
-
     /** 影院业务时区(与 {@code ChatAssistantService} 一致),用于把订单的 LocalDateTime 转 epoch millis。 */
     private static final ZoneId CINEMA_ZONE = ZoneId.of("Asia/Shanghai");
 
@@ -100,9 +97,12 @@ public class OrderProposalService {
             throw new BizException(ResultCode.BAD_REQUEST.getCode(), "场次不合法", null);
         }
 
-        // 张数: 模型给了具体座位就用座位数(更具体), 否则用 count 字段; 一律夹到 [1,4]
+        // 票数: count 是「用户要买几张票」, preferredSeats 只是模型的座位提示。
+        // 两者长度不一致时以 count 为准, 提示直接作废(交给服务端重找)——
+        // 否则用户说 3 张却拿到 2 张, 票数被模型的座位数组悄悄改了。
         List<Integer> hint = normalizeHint(preferredSeats);
-        int seats = Math.max(1, Math.min(MAX_SEATS, hint.isEmpty() ? (count == null ? 1 : count) : hint.size()));
+        int seats = resolveSeatCount(count, hint);
+        List<Integer> usableHint = hint.size() == seats ? hint : List.of();
 
         // 场次可售 + 未开场(复用既有校验,不要另写一套)
         Session session = orderCore.requirePurchasableSession(sessionId);
@@ -119,8 +119,9 @@ public class OrderProposalService {
 
         // 座位决策: 模型的提示全通过才采纳, 否则服务端重找(D8)
         List<Integer> chosen = null;
-        if (!hint.isEmpty() && allAvailable(hint, available) && isSameRowContiguous(hint, cols)) {
-            chosen = new ArrayList<>(hint);
+        if (!usableHint.isEmpty() && allAvailable(usableHint, available)
+                && isSameRowContiguous(usableHint, cols)) {
+            chosen = new ArrayList<>(usableHint);
         }
         if (chosen == null) {
             chosen = pickCenteredRun(available, rows, cols, seatCount, seats);
@@ -171,15 +172,6 @@ public class OrderProposalService {
     // 读 / 消费提案
     // =================================================================
 
-    /** 读提案(不消费)。读不到返 null。 */
-    public OrderProposal getProposal(String proposalId) {
-        if (proposalId == null || proposalId.isBlank()) {
-            return null;
-        }
-        String raw = redisTemplate.opsForValue().get(RedisKeys.chatProposal(proposalId));
-        return raw == null ? null : deserialize(raw);
-    }
-
     /**
      * 一次性消费提案: 读出即删,并校验归属。
      *
@@ -195,18 +187,18 @@ public class OrderProposalService {
      */
     public OrderProposal consumeProposal(String proposalId, Long userId) {
         if (proposalId == null || proposalId.isBlank()) {
-            throw new BizException("下单方案已过期,请重新发起");
+            throw new BizException(ResultCode.PROPOSAL_EXPIRED.getCode(), "下单方案已过期,请重新发起", null);
         }
         if (userId == null) {
             throw new BizException(ResultCode.UNAUTHORIZED.getCode(), "请先登录后再下单", null);
         }
         String raw = redisTemplate.opsForValue().getAndDelete(RedisKeys.chatProposal(proposalId));
         if (raw == null) {
-            throw new BizException("下单方案已过期,请重新发起");
+            throw new BizException(ResultCode.PROPOSAL_EXPIRED.getCode(), "下单方案已过期,请重新发起", null);
         }
         OrderProposal proposal = deserialize(raw);
         if (proposal == null) {
-            throw new BizException("下单方案已损坏,请重新发起");
+            throw new BizException(ResultCode.PROPOSAL_EXPIRED.getCode(), "下单方案已损坏,请重新发起", null);
         }
         if (!userId.equals(proposal.getUserId())) {
             throw new BizException(ResultCode.FORBIDDEN.getCode(), "无权操作该下单方案", null);
@@ -239,6 +231,23 @@ public class OrderProposalService {
         }
     }
 
+    /**
+     * 票数解析 —— count 优先。
+     *
+     * <p>{@code count} 是用户(或模型转述用户)说的「要几张票」, 是票数的唯一权威;
+     * {@code preferredSeats} 只是模型的座位提示, 长度与票数对不上时一律作废。
+     * 只有 count 缺失(理论上不该发生, 解析器已保证 1~4)才退回按提示长度估。
+     */
+    private int resolveSeatCount(Integer count, List<Integer> hint) {
+        if (count != null) {
+            return Math.max(1, Math.min(OrderProposalLimits.MAX_SEATS, count));
+        }
+        if (!hint.isEmpty()) {
+            return Math.max(1, Math.min(OrderProposalLimits.MAX_SEATS, hint.size()));
+        }
+        return 1;
+    }
+
     /** 清理模型给的座位提示: 去 null / 负数 / 重复, 排序。 */
     private List<Integer> normalizeHint(List<Integer> preferredSeats) {
         if (preferredSeats == null || preferredSeats.isEmpty()) {
@@ -249,7 +258,7 @@ public class OrderProposalService {
                 .filter(i -> i >= 0)
                 .distinct()
                 .sorted()
-                .limit(MAX_SEATS)
+                .limit(OrderProposalLimits.MAX_SEATS)
                 .toList();
     }
 

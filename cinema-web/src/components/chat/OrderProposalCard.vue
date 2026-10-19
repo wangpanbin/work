@@ -6,7 +6,9 @@ import { confirmOrderProposal, createOrderProposal } from '../../api/chat'
 import {
   buildConfirmRequest,
   buildRepickRequest,
+  confirmErrorKey,
   formatCountdown,
+  isProposalExpiredCode,
   proposalState,
   remainingSeconds,
 } from './orderProposalCard'
@@ -46,6 +48,23 @@ const submitting = ref(false)
 const repicking = ref(false)
 const errorText = ref('')
 
+/** 已下单 —— 提案被服务端一次性消费掉之后, 原卡必须立刻失效 */
+const done = ref(false)
+
+/**
+ * 卡态提示 —— 过期 / 不可用时直接显示在卡上。
+ *
+ * <p>原先 expireTip 只在 onConfirm 里赋值, 而按钮在 state !== 'active' 时是置灰的,
+ * 那条分支永远走不到 —— 过期卡只剩一个 00:00 倒计时, 用户不知道该干什么。
+ * 现在提示直接由 state 推导, 永远可达。
+ */
+const stateHint = computed(() => {
+  if (done.value) return t('chat.orderProposal.doneTip')
+  if (state.value === 'expired') return t('chat.orderProposal.expireTip')
+  if (state.value === 'missing') return t('chat.orderProposal.missingTip')
+  return ''
+})
+
 function applyProposal(vo: OrderProposalVO) {
   view.value = {
     ...view.value,
@@ -66,7 +85,7 @@ function applyProposal(vo: OrderProposalVO) {
 }
 
 async function onConfirm() {
-  if (submitting.value) return
+  if (submitting.value || done.value) return
   const req = buildConfirmRequest(view.value)
   if (!req) {
     errorText.value = t('chat.orderProposal.missingTip')
@@ -80,17 +99,22 @@ async function onConfirm() {
   errorText.value = ''
   try {
     const vo = await confirmOrderProposal(req.proposalId)
+    // 提案已被服务端 GETDEL 消费掉了 —— 原卡必须立刻失效,
+    // 否则用户还能再点一次「确认下单」, 只会拿到 40900
+    done.value = true
     emit('confirmed', vo)
   } catch (e: unknown) {
     // 拦截器已弹过一次 toast, 这里只用卡内状态条展示, 不重复弹窗
     const err = e as { code?: number; message?: string }
     const code = err?.code
-    if (code === 40002) errorText.value = t('chat.orderProposal.conflictTip')
-    else if (code === 40101) errorText.value = t('chat.orderProposal.loginRequired')
-    else if (code === 40900) errorText.value = t('chat.orderProposal.duplicateTip')
-    else if (code === 42900) errorText.value = t('chat.orderProposal.rateLimited')
-    else if (code === 40301) errorText.value = t('chat.orderProposal.forbiddenTip')
-    else errorText.value = err?.message || t('chat.orderProposal.confirmFailed')
+    if (isProposalExpiredCode(code)) {
+      // 提案已过期 / 已被消费 —— 切到过期态, 提示统一由 stateHint 呈现
+      view.value = { ...view.value, expiresAt: now.value }
+      errorText.value = ''
+    } else {
+      const key = confirmErrorKey(code)
+      errorText.value = key ? t(key) : (err?.message || t('chat.orderProposal.confirmFailed'))
+    }
   } finally {
     submitting.value = false
   }
@@ -140,21 +164,22 @@ async function onRepick() {
     <div class="order-card-warn" v-if="view.pendingCancelOrderNo">
       {{ t('chat.orderProposal.cancelPendingWarn', { order: view.pendingCancelOrderNo }) }}
     </div>
-    <div class="order-card-tip">{{ t('chat.orderProposal.notGuaranteedTip') }}</div>
+    <div class="order-card-tip" v-if="!done">{{ t('chat.orderProposal.notGuaranteedTip') }}</div>
+    <div class="order-card-hint" v-if="stateHint">{{ stateHint }}</div>
     <div class="order-card-error" v-if="errorText">{{ errorText }}</div>
 
     <button
       class="order-card-btn"
       type="button"
-      :disabled="state !== 'active' || submitting"
+      :disabled="done || state !== 'active' || submitting"
       @click.stop="onConfirm"
     >
-      {{ submitting ? t('chat.orderProposal.submitting') : t('chat.orderProposal.confirmBtn') }}
+      {{ done ? t('chat.orderProposal.doneBtn') : (submitting ? t('chat.orderProposal.submitting') : t('chat.orderProposal.confirmBtn')) }}
     </button>
     <button
       class="order-card-btn ghost"
       type="button"
-      :disabled="repicking"
+      :disabled="repicking || done"
       @click.stop="onRepick"
     >
       {{ repicking ? t('chat.orderProposal.repicking') : t('chat.orderProposal.repickBtn') }}
@@ -225,6 +250,11 @@ async function onRepick() {
 .order-card-tip {
   font-size: 11px;
   color: var(--ink-3);
+  margin-bottom: 8px;
+}
+.order-card-hint {
+  font-size: 12px;
+  color: var(--warn);
   margin-bottom: 8px;
 }
 .order-card-error {

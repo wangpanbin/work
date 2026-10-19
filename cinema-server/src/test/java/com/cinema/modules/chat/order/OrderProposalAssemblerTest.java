@@ -24,7 +24,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * OrderProposalAssembler 单元测试 (ADR-0004).
+ * OrderProposalAssembler 单元测试 (ADR-0004)。
  *
  * <p>装配层是整个「一键下单」的安全闸门, 锁住四条:
  * <ol>

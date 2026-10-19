@@ -1,5 +1,6 @@
 package com.cinema.modules.chat.controller;
 
+import com.cinema.common.annotation.IdempotencyKeys;
 import com.cinema.common.annotation.Idempotent;
 import com.cinema.common.annotation.RateLimit;
 import com.cinema.common.context.UserContext;
@@ -38,7 +39,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * ChatOrderController 单元测试 (ADR-0004).
+ * ChatOrderController 单元测试 (ADR-0004)。
  *
  * <p>锁住四条关键契约:
  * <ol>
@@ -113,7 +114,8 @@ class ChatOrderControllerTest {
     void confirmWithExpiredProposal_thenBusinessError() {
         UserContext.set(USER_ID, "u7", 0);
         when(proposalService.consumeProposal("P-gone", USER_ID))
-                .thenThrow(new BizException("下单方案已过期,请重新发起"));
+                .thenThrow(new BizException(ResultCode.PROPOSAL_EXPIRED.getCode(),
+                        "下单方案已过期,请重新发起", null));
 
         assertThatThrownBy(() -> controller(true).confirm("P-gone"))
                 .isInstanceOf(BizException.class)
@@ -128,7 +130,7 @@ class ChatOrderControllerTest {
 
         R<OrderProposalVO> r = controller(false).confirm("P-1");
 
-        assertThat(r.getCode()).isEqualTo(ResultCode.BUSINESS_ERROR.getCode());
+        assertThat(r.getCode()).isEqualTo(ResultCode.ORDER_DISABLED.getCode());
         assertThat(r.getData()).isNull();
         verify(proposalService, never()).consumeProposal(any(), any());
         verify(orderLockService, never()).lockSeats(any(), any());
@@ -179,7 +181,7 @@ class ChatOrderControllerTest {
 
         R<OrderProposalVO> r = controller(false).createProposal(dto);
 
-        assertThat(r.getCode()).isEqualTo(ResultCode.BUSINESS_ERROR.getCode());
+        assertThat(r.getCode()).isEqualTo(ResultCode.ORDER_DISABLED.getCode());
         verify(proposalService, never()).createProposal(any(), any(), any(), any());
     }
 
@@ -194,7 +196,7 @@ class ChatOrderControllerTest {
         Idempotent annotation = m.getAnnotation(Idempotent.class);
 
         assertThat(annotation).as("@Idempotent 必须就位(重复点不能锁两次座)").isNotNull();
-        assertThat(annotation.key()).isEqualTo("#proposalId");
+        assertThat(annotation.key()).isEqualTo(IdempotencyKeys.CHAT_ORDER_CONFIRM);
         assertThat(annotation.ttl()).isEqualTo(8);
     }
 
