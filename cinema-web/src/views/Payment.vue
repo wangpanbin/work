@@ -8,6 +8,8 @@ import QRCode from 'qrcode'
 import { orderDetail, pay, cancel, refund, getTicket } from '../api/order'
 import type { OrderVO, TicketVO } from '../api/order'
 import Countdown from '../components/Countdown.vue'
+import { useNow } from '../composables/useNow'
+import { ROUTE_PATHS, seatPath } from '../constants/routes'
 import { ORDER_STATUS_VIEW, BUTTON_BY_ACTION, type OrderStatusCode } from './order/constants'
 
 const route = useRoute()
@@ -26,7 +28,7 @@ const autoRedirected = ref(false)
 onMounted(async () => {
   if (!orderNo) {
     ElMessage.error(t('payment.orderNoMissing'))
-    router.push('/')
+    router.push(ROUTE_PATHS.home)
     return
   }
   await load()
@@ -36,12 +38,25 @@ async function load() {
   order.value = await orderDetail(orderNo)
 }
 
+// 时钟走 useNow —— 之前这里调的是 dayjs()(非响应式), remaining 只在 order.value
+// 变化时重算, 于是「支付窗口已过」永远不会自己变 true, 超时自动跳转形同虚设。
+const { now } = useNow(1000)
+
 const remaining = computed(() => {
   if (!order.value || order.value.status !== 0) return 0
-  return Math.max(0, dayjs(order.value.expireAt).diff(dayjs(), 'second'))
+  return Math.max(0, dayjs(order.value.expireAt).diff(now.value, 'second'))
 })
 
 const expired = computed(() => remaining.value === 0 && order.value?.status === 0)
+
+/**
+ * 告急(≤60s) —— 模板只读这个**布尔量**, 不直接读 remaining。
+ *
+ * Vue 的 computed 在值没变时不会触发渲染, 所以读布尔量 → 每秒重算但只在
+ * 跨过 60 秒那一刻触发一次重渲; 直接读 remaining(数字)→ 每秒重渲整页。
+ * 倒计时文本仍由 Countdown.vue 渲染(它自带定时器), 父组件不参与。
+ */
+const urgent = computed(() => remaining.value <= 60)
 
 // P0-4: 待支付订单超时后, 不再让用户卡在支付页 — 3s 后自动跳订单列表
 // 用 setTimeout 而非 immediate, 给用户一个看到"已超时"状态的窗口期
@@ -49,7 +64,7 @@ function redirectToOrders() {
   if (autoRedirected.value) return
   autoRedirected.value = true
   ElMessage.warning(t('payment.expiredWarn'))
-  setTimeout(() => router.push('/orders'), 3000)
+  setTimeout(() => router.push(ROUTE_PATHS.orderList), 3000)
 }
 
 watch(expired, (isExpired) => {
@@ -166,7 +181,7 @@ function fmt(t: number) {
 
 function goSeat() {
   if (!order.value) return
-  router.push(`/seat/${order.value.sessionId}`)
+  router.push(seatPath(order.value.sessionId))
 }
 
 /**
@@ -220,8 +235,8 @@ const barcodeBars = [2, 1, 3, 1, 2, 1, 1, 3, 2, 1, 2, 3, 1, 2, 1, 3]
         </div>
         <div v-if="order.status === 0" class="info-row">
           <span class="label">{{ t('payment.countdown') }}</span>
-          <span class="value" :class="{ urgent: remaining <= 60 }">
-            <svg v-if="remaining <= 60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="margin-right:4px">
+          <span class="value" :class="{ urgent }">
+            <svg v-if="urgent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="margin-right:4px">
               <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
             </svg>
             <Countdown :expire-at="order.expireAt" :urgent-threshold="60" />

@@ -75,9 +75,13 @@ class OrderLockServiceTest {
                 .thenAnswer(inv -> ((TransactionCallback<Object>) inv.getArgument(0)).doInTransaction(null));
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOps);
         lenient().when(redisTemplate.opsForHash()).thenReturn(hashOps);
+        // 真实的 query / closer, 让「顶掉旧单」这条链路也被验到
+        PendingOrderQuery pendingOrderQuery = new PendingOrderQuery(orderMapper);
+        PendingOrderCloser pendingOrderCloser = new PendingOrderCloser(orderMapper, seatLuaService,
+                seatEventPublisher, adminEventPublisher, redisTemplate, orderCore);
         service = new OrderLockService(orderMapper, orderItemMapper, sessionMapper,
                 seatLuaService, seatBitmapGuard, delayQueue, seatEventPublisher, adminEventPublisher,
-                redisTemplate, transactionTemplate, orderCore);
+                redisTemplate, transactionTemplate, orderCore, pendingOrderQuery, pendingOrderCloser);
     }
 
     @Test
@@ -91,7 +95,7 @@ class OrderLockServiceTest {
         Session session = newSession(sessionId, LocalDateTime.now().plusHours(3));
         when(orderCore.requirePurchasableSession(sessionId)).thenReturn(session);
         when(redisTemplate.hasKey(anyString())).thenReturn(false);
-        when(seatLuaService.lockSeats(anyString(), anyString(), anyList()))
+        when(seatLuaService.lock(anyLong(), anyList()))
                 .thenReturn(new LuaLockResult(true, List.of()));
         when(orderMapper.insert(any(Order.class))).thenAnswer(inv -> {
             Order o = inv.getArgument(0);
@@ -121,7 +125,7 @@ class OrderLockServiceTest {
         Session session = newSession(sessionId, LocalDateTime.now().plusHours(3));
         when(orderCore.requirePurchasableSession(sessionId)).thenReturn(session);
         when(redisTemplate.hasKey(anyString())).thenReturn(false);
-        when(seatLuaService.lockSeats(anyString(), anyString(), anyList()))
+        when(seatLuaService.lock(anyLong(), anyList()))
                 .thenReturn(new LuaLockResult(false, List.of(10)));
 
         assertThatThrownBy(() -> service.lockSeats(userId, dto))
@@ -148,7 +152,7 @@ class OrderLockServiceTest {
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("已开场");
 
-        verify(seatLuaService, never()).lockSeats(anyString(), anyString(), anyList());
+        verify(seatLuaService, never()).lock(anyLong(), anyList());
     }
 
     /**
@@ -178,7 +182,7 @@ class OrderLockServiceTest {
         when(orderMapper.casCancel("OLD-ORDER")).thenReturn(1);
         when(orderCore.seatIndexesOf(pending)).thenReturn(List.of(5, 6));
         // 新锁链路
-        when(seatLuaService.lockSeats(anyString(), anyString(), anyList()))
+        when(seatLuaService.lock(anyLong(), anyList()))
                 .thenReturn(new LuaLockResult(true, List.of()));
         when(orderMapper.insert(any(Order.class))).thenAnswer(inv -> {
             Order o = inv.getArgument(0);
@@ -192,6 +196,10 @@ class OrderLockServiceTest {
         // closePending 真的跑了
         verify(orderMapper).casCancel("OLD-ORDER");
         verify(redisTemplate).delete(RedisKeys.userPending(userId, sessionId));
+        // REPLACED 关单: 旧单座位被释放(RELEASED 事件照发)
+        verify(seatEventPublisher).publishReleased(eq(sessionId), eq(List.of(5, 6)));
+        // 但不发管理端大屏事件 —— 顶替不是一次取消, 计入流水会重复计数
+        verify(adminEventPublisher, never()).publish(eq("REPLACED"), any());
         // 死分支清理: hasKey 必须从未被调用
         verify(redisTemplate, never()).hasKey(anyString());
     }
@@ -211,7 +219,7 @@ class OrderLockServiceTest {
         when(orderCore.requirePurchasableSession(sessionId))
                 .thenReturn(newSession(sessionId, LocalDateTime.now().plusHours(3)));
         when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
-        when(seatLuaService.lockSeats(anyString(), anyString(), anyList()))
+        when(seatLuaService.lock(anyLong(), anyList()))
                 .thenReturn(new LuaLockResult(true, List.of()));
         when(orderMapper.insert(any(Order.class))).thenAnswer(inv -> {
             Order o = inv.getArgument(0);

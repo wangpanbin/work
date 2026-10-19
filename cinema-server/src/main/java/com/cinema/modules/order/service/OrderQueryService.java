@@ -13,6 +13,7 @@ import com.cinema.modules.order.mapper.OrderItemMapper;
 import com.cinema.modules.order.mapper.OrderMapper;
 import com.cinema.modules.order.service.core.OrderCore;
 import com.cinema.modules.order.vo.OrderVO;
+import com.cinema.modules.seat.SeatLabel;
 import com.cinema.modules.seat.entity.Seat;
 import com.cinema.modules.seat.mapper.SeatMapper;
 import com.cinema.modules.session.entity.Session;
@@ -20,7 +21,6 @@ import com.cinema.modules.session.mapper.SessionMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -127,14 +127,15 @@ public class OrderQueryService {
             vo.setHallName(hall == null ? "" : hall.getName());
             vo.setStartTime(session.getStartTime());
             if (!seatIndexes.isEmpty() && hall != null) {
-                StringBuilder sb = new StringBuilder();
                 List<Integer> sorted = seatIndexes.stream().sorted().toList();
-                for (int i = 0; i < sorted.size(); i++) {
-                    if (i > 0) sb.append("、");
-                    Seat s = seatKey.get(hall.getId() + ":" + sorted.get(i));
-                    if (s != null) sb.append(s.getRowNo()).append("排").append(s.getColNo()).append("座");
+                Map<Integer, Seat> seats = new HashMap<>();
+                for (Integer idx : sorted) {
+                    Seat s = seatKey.get(hall.getId() + ":" + idx);
+                    if (s != null) {
+                        seats.put(idx, s);
+                    }
                 }
-                vo.setSeatDesc(sb.toString());
+                vo.setSeatDesc(SeatLabel.describe(sorted, seats, SeatLabel.Fallback.SKIP_POSITIONAL));
             }
         }
         return vo;
@@ -167,16 +168,20 @@ public class OrderQueryService {
         vo.setSeatDesc(buildSeatDesc(session, seatIndexes));
     }
 
+    /**
+     * 订单详情的座位描述 —— 渲染统一在 {@link SeatLabel}。
+     *
+     * <p>降级用 {@code SKIP_COMPACT}: 缺座位直接跳过, 只连接渲染出来的项。
+     */
     private String buildSeatDesc(Session session, List<Integer> seatIndexes) {
         if (session == null || seatIndexes.isEmpty()) {
             return "";
         }
-        return seatMapper.selectList(new LambdaQueryWrapper<Seat>()
+        Map<Integer, Seat> seats = seatMapper.selectList(new LambdaQueryWrapper<Seat>()
                         .eq(Seat::getHallId, session.getHallId())
                         .in(Seat::getSeatIndex, seatIndexes))
                 .stream()
-                .sorted(Comparator.comparing(Seat::getSeatIndex))
-                .map(s -> s.getRowNo() + "排" + s.getColNo() + "座")
-                .collect(Collectors.joining("、"));
+                .collect(Collectors.toMap(Seat::getSeatIndex, s -> s, (a, b) -> a));
+        return SeatLabel.describe(seatIndexes, seats, SeatLabel.Fallback.SKIP_COMPACT);
     }
 }

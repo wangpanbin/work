@@ -4,7 +4,6 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 
 /** O3 管理端经营看板 — 汇总数据 */
 @Data
@@ -19,7 +18,7 @@ public class DashboardSummaryVO {
     private Integer todayRefunded;
 
     /** 7 日票房趋势: [{date: '2026-08-25', amount: 1234.5}, ...] */
-    private List<Map<String, Object>> weeklyTrend;
+    private List<com.cinema.modules.admin.dashboard.TrendPoint> weeklyTrend;
 
     /** TOP 5 影片(本周) */
     private List<TopMovie> topMovies;

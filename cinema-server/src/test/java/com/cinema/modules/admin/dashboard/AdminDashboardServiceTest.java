@@ -12,9 +12,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
 import java.math.BigDecimal;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
@@ -48,10 +46,7 @@ class AdminDashboardServiceTest {
         when(headlineQuery.todayCancelled()).thenReturn(1);
         when(headlineQuery.todayRefunded()).thenReturn(2);
         // Trend
-        Map<String, Object> trendPoint = new LinkedHashMap<>();
-        trendPoint.put("date", "2026-09-21");
-        trendPoint.put("amount", 100L);
-        when(trendQuery.weeklyTrend()).thenReturn(List.of(trendPoint));
+        when(trendQuery.weeklyTrend()).thenReturn(List.of(new TrendPoint("2026-09-21", 100L)));
         DashboardSummaryVO.TopMovie m = new DashboardSummaryVO.TopMovie();
         m.setTitle("X");
         m.setRevenue(new BigDecimal("100"));

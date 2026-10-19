@@ -1,5 +1,5 @@
 import request from './request'
-import type { ChatRequestDTO, ChatResponseVO, OrderProposalVO } from '../types'
+import type { ChatRequestDTO, ChatResponseVO, Id, OrderProposalVO } from '../types'
 
 /**
  * 对话式订票助手 API (spec §6.1, ticket #12 T6)。
@@ -64,7 +64,7 @@ export function resetChatSession(): void {
  * <p>{@code sessionId} 用 string 传(雪花 ID 是 19 位十进制数, 转成 number
  * 会丢精度); 后端 DTO 是 Long, Jackson 能直接吃字符串。
  */
-export function createOrderProposal(dto: { sessionId: string | number; count: number }): Promise<OrderProposalVO> {
+export function createOrderProposal(dto: { sessionId: Id; count: number }): Promise<OrderProposalVO> {
   return request.post('/chat/orders/proposals', dto) as Promise<OrderProposalVO>
 }
 

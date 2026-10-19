@@ -1,6 +1,5 @@
 package com.cinema.modules.order.service;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.cinema.common.exception.BizException;
 import com.cinema.common.result.ResultCode;
@@ -9,11 +8,13 @@ import com.cinema.infra.redis.LuaLockResult;
 import com.cinema.infra.redis.RedisKeys;
 import com.cinema.infra.redis.SeatBitmapGuard;
 import com.cinema.infra.redis.SeatLuaService;
+import com.cinema.infra.redis.SeatWrite;
 import com.cinema.infra.ws.AdminEventPublisher;
 import com.cinema.infra.ws.SeatEventPublisher;
 import com.cinema.modules.order.dto.LockSeatsDTO;
 import com.cinema.modules.order.entity.Order;
 import com.cinema.modules.order.entity.OrderItem;
+import com.cinema.modules.order.enums.CloseReason;
 import com.cinema.modules.order.enums.OrderStatus;
 import com.cinema.modules.order.mapper.OrderItemMapper;
 import com.cinema.modules.order.mapper.OrderMapper;
@@ -57,6 +58,8 @@ public class OrderLockService {
     private final StringRedisTemplate redisTemplate;
     private final TransactionTemplate transactionTemplate;
     private final OrderCore orderCore;
+    private final PendingOrderQuery pendingOrderQuery;
+    private final PendingOrderCloser pendingOrderCloser;
 
     /** 锁座下单 */
     public LockResultVO lockSeats(Long userId, LockSeatsDTO dto) {
@@ -90,9 +93,7 @@ public class OrderLockService {
         }
 
         // ★ Redis Lua 原子锁座(防超卖核心)
-        String lockKey = RedisKeys.sessionLock(sessionId);
-        String soldKey = RedisKeys.sessionSold(sessionId);
-        LuaLockResult lockResult = seatLuaService.lockSeats(lockKey, soldKey, seats);
+        LuaLockResult lockResult = seatLuaService.lock(sessionId, seats);
         if (!lockResult.ok()) {
             throw new BizException(ResultCode.BUSINESS_ERROR.getCode(), "座位已被占用",
                     Map.of("conflict", lockResult.conflict()));
@@ -103,14 +104,14 @@ public class OrderLockService {
         try {
             order = transactionTemplate.execute(tx -> createPendingOrder(userId, session, seats));
         } catch (DuplicateKeyException e) {
-            seatLuaService.releaseSeats(lockKey, soldKey, seats);
+            seatLuaService.releaseUnpaid(new SeatWrite.Unpaid(sessionId, seats));
             throw new BizException("操作太快啦,您在该场次已有待支付订单");
         } catch (Exception e) {
-            seatLuaService.releaseSeats(lockKey, soldKey, seats);
+            seatLuaService.releaseUnpaid(new SeatWrite.Unpaid(sessionId, seats));
             throw e;
         }
         if (order == null) {
-            seatLuaService.releaseSeats(lockKey, soldKey, seats);
+            seatLuaService.releaseUnpaid(new SeatWrite.Unpaid(sessionId, seats));
             throw new BizException("订单创建失败");
         }
 
@@ -208,24 +209,18 @@ public class OrderLockService {
      * 必须提前告知用户。复用同一个查询, 避免两处口径不一致。
      */
     public Order findUserPendingOrder(Long userId, Long sessionId) {
-        return orderMapper.selectOne(new LambdaQueryWrapper<Order>()
-                .eq(Order::getUserId, userId)
-                .eq(Order::getSessionId, sessionId)
-                .eq(Order::getStatus, OrderStatus.PENDING_PAY.getCode())
-                .last("LIMIT 1"));
+        return pendingOrderQuery.find(userId, sessionId);
     }
 
-    /** 关闭待支付单(锁座前幂等防重时调用) */
+    /**
+     * 关闭待支付单(锁座前幂等防重时调用)。
+     *
+     * <p>关单协议在 {@link PendingOrderCloser}, 这里只声明原因 ——
+     * {@link CloseReason#REPLACED} 表示「旧单被同场次的新锁座顶掉」。
+     * 座位释放事件照发(座位确实回到可选池), 但**不发管理端大屏事件**:
+     * 顶替不是一次取消, 记进大屏流水会重复计数。
+     */
     private void closePending(Order order) {
-        // 简化: 委托 cancel service 风格的关闭, 但这里是锁座流程内部, 不抛错
-        int updated = orderMapper.casCancel(order.getOrderNo());
-        if (updated == 0) return;
-        List<Integer> seats = orderCore.seatIndexesOf(order);
-        seatLuaService.releaseSeats(
-                RedisKeys.sessionLock(order.getSessionId()),
-                RedisKeys.sessionSold(order.getSessionId()), seats);
-        redisTemplate.delete(RedisKeys.userPending(order.getUserId(), order.getSessionId()));
-        orderCore.clearUserLockedHash(order.getUserId(), order.getSessionId());
-        seatEventPublisher.publishReleased(order.getSessionId(), seats);
+        pendingOrderCloser.close(order, CloseReason.REPLACED);
     }
 }

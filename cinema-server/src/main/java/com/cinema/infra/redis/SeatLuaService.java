@@ -65,35 +65,54 @@ public class SeatLuaService {
         }
     }
 
-    /** 原子锁座: 冲突返回 conflict 列表, 成功返回空列表 */
-    public LuaLockResult lockSeats(String lockKey, String soldKey, List<Integer> seats) {
-        String json = redisTemplate.execute(LOCK_SCRIPT, List.of(lockKey, soldKey), args(seats));
+    /**
+     * 原子锁座: 冲突返回 conflict 列表, 成功返回空列表。
+     *
+     * <p>对应 {@code lock_seat.lua} —— 先查 sold+lock 冲突, 再原子置 lock 位。
+     */
+    public LuaLockResult lock(Long sessionId, List<Integer> seats) {
+        String json = redisTemplate.execute(LOCK_SCRIPT, keys(sessionId), args(seats));
         return parse(json);
     }
 
-    /** 支付确认: 返回实际置为 sold 的座位 */
-    public List<Integer> confirmSeats(String lockKey, String soldKey, List<Integer> seats) {
-        String json = redisTemplate.execute(CONFIRM_SCRIPT, List.of(lockKey, soldKey), args(seats));
-        return parseList(json);
-    }
-
-    /** 释放: 返回实际释放的座位(已售座位不会被释放) */
-    public List<Integer> releaseSeats(String lockKey, String soldKey, List<Integer> seats) {
-        String json = redisTemplate.execute(RELEASE_SCRIPT, List.of(lockKey, soldKey), args(seats));
+    /**
+     * 支付确认: 置 sold 并清 lock, 返回实际置为 sold 的座位。
+     *
+     * <p>对应 {@code confirm_seat.lua}。
+     */
+    public List<Integer> confirmPaid(Long sessionId, List<Integer> seats) {
+        String json = redisTemplate.execute(CONFIRM_SCRIPT, keys(sessionId), args(seats));
         return parseList(json);
     }
 
     /**
-     * 退票释放: <b>同时清 sold + lock</b>,让已售座位真正回到可选池。
+     * 释放**未支付**订单的座位: 只清 lock 位, 返回实际释放的座位。
      *
-     * <p>E2E 2026-09-29 P1-1:退票原先走 {@link #releaseSeats},而该脚本只清"未售出的锁定位"
-     * (sold==1 时一个位都不动)→ 退票成功后座位在位图里仍是已售,刷新后依然灰着不可选。
-     * 已支付订单的座位必须用这个方法,待支付单的取消/超时关单才用 {@link #releaseSeats}。
+     * <p>对应 {@code release_seat.lua} —— 已售座位一个位都不动(sold==0 才清)。
+     *
+     * <p>⚠️ 已支付订单的座位**绝不能**走这里: 退票必须用 {@link #refundSold}。
+     * 类型 {@link SeatWrite.Unpaid} 就是为了在编译期挡住这件事。
+     */
+    public List<Integer> releaseUnpaid(SeatWrite.Unpaid target) {
+        String json = redisTemplate.execute(RELEASE_SCRIPT, keys(target.sessionId()),
+                args(target.seats()));
+        return parseList(json);
+    }
+
+    /**
+     * 退票释放**已售**座位: <b>同时清 sold + lock</b>, 让已售座位真正回到可选池。
+     *
+     * <p>对应 {@code refund_seat.lua}。
+     *
+     * <p>E2E 2026-09-29 P1-1: 退票原先走释放路径, 而该脚本只清"未售出的锁定位"
+     * (sold==1 时一个位都不动) → 退票成功后座位在位图里仍是已售, 刷新后依然灰着不可选。
+     * 已支付订单的座位必须用这个方法, 待支付单的取消/超时关单才用 {@link #releaseUnpaid}。
      *
      * @return 实际发生变化的座位(幂等:座位已是可选时返回空列表)
      */
-    public List<Integer> refundSeats(String lockKey, String soldKey, List<Integer> seats) {
-        String json = redisTemplate.execute(REFUND_SCRIPT, List.of(lockKey, soldKey), args(seats));
+    public List<Integer> refundSold(SeatWrite.Paid target) {
+        String json = redisTemplate.execute(REFUND_SCRIPT, keys(target.sessionId()),
+                args(target.seats()));
         return parseList(json);
     }
 
@@ -128,6 +147,15 @@ public class SeatLuaService {
 
     private static Object[] args(List<Integer> seats) {
         return seats.stream().map(String::valueOf).toArray();
+    }
+
+    /**
+     * 位图 key 对 —— 拼 key 这件事沉到接缝之后, 调用方不再自己拼。
+     *
+     * <p>顺序固定为 (lock, sold), 与三个 Lua 脚本的 KEYS[1]/KEYS[2] 一一对应。
+     */
+    private static List<String> keys(Long sessionId) {
+        return List.of(RedisKeys.sessionLock(sessionId), RedisKeys.sessionSold(sessionId));
     }
 
     private LuaLockResult parse(String json) {

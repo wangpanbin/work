@@ -3,6 +3,7 @@ package com.cinema.modules.order.service.core;
 import com.cinema.common.exception.BizException;
 import com.cinema.modules.order.mapper.OrderItemMapper;
 import com.cinema.modules.order.mapper.OrderMapper;
+import com.cinema.modules.seat.SeatRangeGate;
 import com.cinema.modules.seat.cache.SessionInfoCacheVO;
 import com.cinema.modules.seat.reader.SessionInfoLoader;
 import com.cinema.modules.session.mapper.SessionMapper;
@@ -24,7 +25,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 /**
- * P0 修复回归闸门(2026-10-11 稳定性测试): {@code OrderCore#requireSeatsInRange}。
+ * P0 修复回归闸门(2026-10-11 稳定性测试): 座位索引范围闸门
+ * ({@code SeatRangeGate#requireInRange}, 由 {@code OrderCore#requireSeatsInRange} 转发)。
  *
  * <p>这是本轮发现的 P0 缺陷的<b>权威校验点</b>。座位索引的上界取决于场次(1 号厅 96 座 /
  * 2 号厅 140 座), 无法用常量注解表达, 因此必须在服务层按 {@code seatCount} 判断。
@@ -47,8 +49,10 @@ class OrderCoreSeatRangeTest {
 
     @BeforeEach
     void setUp() {
+        // 判定已抬到 SeatRangeGate, OrderCore 只做门面转发
+        SeatRangeGate seatRangeGate = new SeatRangeGate(sessionInfoLoader);
         orderCore = new OrderCore(orderMapper, orderItemMapper, sessionMapper,
-                redisTemplate, sessionInfoLoader);
+                redisTemplate, seatRangeGate);
     }
 
     private void givenSeatCount(int seatCount) {

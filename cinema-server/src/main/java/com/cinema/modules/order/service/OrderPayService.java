@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.cinema.common.exception.BizException;
 import com.cinema.infra.redis.RedisKeys;
 import com.cinema.infra.redis.SeatLuaService;
+import com.cinema.infra.redis.SeatWrite;
 import com.cinema.infra.ws.AdminEventPublisher;
 import com.cinema.infra.ws.SeatEventPublisher;
 import com.cinema.modules.order.entity.Order;
@@ -71,8 +72,7 @@ public class OrderPayService {
 
         // 锁 → 售
         List<Integer> seats = orderCore.seatIndexesOf(order);
-        seatLuaService.confirmSeats(RedisKeys.sessionLock(order.getSessionId()),
-                RedisKeys.sessionSold(order.getSessionId()), seats);
+        seatLuaService.confirmPaid(order.getSessionId(), seats);
         // 清理 user:pending 与 user:locked
         redisTemplate.delete(RedisKeys.userPending(order.getUserId(), order.getSessionId()));
         orderCore.clearUserLockedHash(order.getUserId(), order.getSessionId());
@@ -124,12 +124,11 @@ public class OrderPayService {
             throw new BizException("订单状态已变化,请刷新");
         }
 
-        // 释放座位 (已售 → 可选)。P1-1 修复:必须用 refundSeats 清 sold 位,
-        // releaseSeats 只清未售座位,对已支付单(sold=1)一个位都不动 → 退票后座位永久不可售
+        // 释放座位 (已售 → 可选)。P1-1 修复:必须用 refundSold 清 sold 位,
+        // releaseUnpaid 只清未售座位,对已支付单(sold=1)一个位都不动 → 退票后座位永久不可售
         List<Integer> seats = orderCore.seatIndexesOf(order);
-        List<Integer> releasedSeats = seatLuaService.refundSeats(
-                RedisKeys.sessionLock(order.getSessionId()),
-                RedisKeys.sessionSold(order.getSessionId()), seats);
+        List<Integer> releasedSeats = seatLuaService.refundSold(
+                new SeatWrite.Paid(order.getSessionId(), seats));
         if (releasedSeats.size() != seats.size()) {
             // 位图与订单不一致(位图漂移):退票本身仍应完成,记录告警供管理端「手动恢复位图」兜底
             log.warn("[退票] orderNo={} 位图释放数量不符 期望={} 实际={} (可能存在历史位图漂移)",

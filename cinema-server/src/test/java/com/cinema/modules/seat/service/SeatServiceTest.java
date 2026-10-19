@@ -6,8 +6,6 @@ import com.cinema.modules.hall.entity.Hall;
 import com.cinema.modules.hall.mapper.HallMapper;
 import com.cinema.modules.movie.entity.Movie;
 import com.cinema.modules.movie.mapper.MovieMapper;
-import com.cinema.modules.order.entity.OrderItem;
-import com.cinema.modules.order.mapper.OrderItemMapper;
 import com.cinema.modules.seat.cache.SessionInfoCacheVO;
 import com.cinema.modules.seat.reader.HallLayoutCache;
 import com.cinema.modules.seat.reader.MyLockedSeatsReader;
@@ -36,7 +34,6 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -56,14 +53,13 @@ class SeatServiceTest {
     @Mock private SessionBitmapReader bitmapReader;
     @Mock private HallLayoutCache hallLayoutCache;
     @Mock private MyLockedSeatsReader myLockedSeatsReader;
-    @Mock private OrderItemMapper orderItemMapper;
 
     private SeatService service;
 
     @BeforeEach
     void setUp() {
         service = new SeatService(sessionInfoLoader, bitmapReader, hallLayoutCache,
-                myLockedSeatsReader, orderItemMapper);
+                myLockedSeatsReader);
     }
 
     @Test
@@ -119,22 +115,5 @@ class SeatServiceTest {
 
     private static int eqInt(int v) {
         return org.mockito.ArgumentMatchers.eq(v);
-    }
-
-    @Test
-    @DisplayName("seatIndexesOf: 按 orderId 查 order_items, 返回 sorted 索引列表")
-    void seatIndexesOf_returnsSortedIndexes() {
-        Long orderId = 100L;
-        OrderItem i1 = new OrderItem();
-        i1.setSeatIndex(11);
-        OrderItem i2 = new OrderItem();
-        i2.setSeatIndex(5);
-        OrderItem i3 = new OrderItem();
-        i3.setSeatIndex(8);
-        when(orderItemMapper.selectList(any())).thenReturn(List.of(i1, i2, i3));
-
-        List<Integer> out = service.seatIndexesOf(orderId);
-
-        assertThat(out).containsExactly(5, 8, 11);
     }
 }

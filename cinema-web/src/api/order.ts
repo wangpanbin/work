@@ -1,11 +1,11 @@
 import request from './request'
-import type { PageData } from '../types'
+import type { Id, PageData } from '../types'
 import type { OrderStatusCode } from '../views/order/constants'
 
 export interface OrderVO {
   orderNo: string
-  // 雪花 ID 走 string, 避免 JS Number 精度截断
-  sessionId: string
+  // ID 在 wire 上是多态的(小整数是 number, 雪花是 string) —— 见 types/index.ts 的 Id
+  sessionId: Id
   status: OrderStatusCode
   statusText: string
   movieTitle: string
@@ -27,7 +27,7 @@ export interface LockResult {
   seatIndexes: number[]
 }
 
-export function lockSeats(data: { sessionId: string | number; seatIndexes: number[] }): Promise<LockResult> {
+export function lockSeats(data: { sessionId: Id; seatIndexes: number[] }): Promise<LockResult> {
   return request.post('/orders/lock', data) as Promise<LockResult>
 }
 

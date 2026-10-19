@@ -1,6 +1,7 @@
 package com.cinema.modules.order.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.cinema.common.annotation.IdempotencyKeys;
 import com.cinema.common.annotation.Idempotent;
 import com.cinema.common.annotation.RateLimit;
 import com.cinema.common.context.UserContext;
@@ -39,9 +40,9 @@ public class OrderController {
     @PostMapping("/lock")
     // P0 修复: idempotent key 必须带 userId(否则 user1 和 user2 锁同一座位会撞同一个 key 互锁 3 秒);
     // ttl 从 3s 提到 8s 覆盖前端锁座 + 后端 IO + Lua + 事务的整段耗时, 防止用户浏览器卡一下就被受理成"重复点击"以外的提交
-    @Idempotent(key = "T(com.cinema.common.context.UserContext).userId() + ':' + #dto.sessionId + ':' + (#dto.seatIndexes != null ? #dto.seatIndexes.toString() : 'empty')", ttl = 8,
+    @Idempotent(key = IdempotencyKeys.LOCK_BY_USER_SESSION_SEATS, ttl = 8,
             message = "锁座请求处理中,请勿重复点击")
-    @RateLimit(key = "T(com.cinema.common.context.UserContext).userId() + ':lock:' + #dto.sessionId", permits = 5, window = 1)
+    @RateLimit(key = IdempotencyKeys.RATE_LOCK_BY_USER_SESSION, permits = 5, window = 1)
     public R<LockResultVO> lock(@Valid @RequestBody LockSeatsDTO dto) {
         return R.ok(orderLockService.lockSeats(UserContext.userId(), dto));
     }
@@ -63,8 +64,8 @@ public class OrderController {
 
     /** 模拟支付 */
     @PostMapping("/{orderNo}/pay")
-    @Idempotent(key = "#orderNo", ttl = 5, message = "支付请求处理中,请勿重复点击")
-    @RateLimit(key = "T(com.cinema.common.context.UserContext).userId() + ':pay:' + #orderNo", permits = 3, window = 1, unit = java.util.concurrent.TimeUnit.MINUTES)
+    @Idempotent(key = IdempotencyKeys.PAY_BY_ORDER_NO, ttl = 5, message = "支付请求处理中,请勿重复点击")
+    @RateLimit(key = IdempotencyKeys.RATE_PAY_BY_USER_ORDER, permits = 3, window = 1, unit = java.util.concurrent.TimeUnit.MINUTES)
     public R<Void> pay(@PathVariable String orderNo) {
         orderPayService.pay(orderNo, UserContext.userId());
         return R.ok();
@@ -72,7 +73,7 @@ public class OrderController {
 
     /** 主动取消 */
     @PostMapping("/{orderNo}/cancel")
-    @RateLimit(key = "T(com.cinema.common.context.UserContext).userId() + ':cancel:' + #orderNo", permits = 3, window = 1, unit = java.util.concurrent.TimeUnit.MINUTES)
+    @RateLimit(key = IdempotencyKeys.RATE_CANCEL_BY_USER_ORDER, permits = 3, window = 1, unit = java.util.concurrent.TimeUnit.MINUTES)
     public R<Void> cancel(@PathVariable String orderNo) {
         orderCancelService.cancel(orderNo, UserContext.userId());
         return R.ok();
@@ -80,8 +81,8 @@ public class OrderController {
 
     /** N1 退票: PAID → REFUNDING → REFUNDED, 释放座位 + 写 refund_log */
     @PostMapping("/{orderNo}/refund")
-    @Idempotent(key = "#orderNo + ':refund'", ttl = 5, message = "退票请求处理中,请勿重复点击")
-    @RateLimit(key = "T(com.cinema.common.context.UserContext).userId() + ':refund:' + #orderNo", permits = 1, window = 1, unit = java.util.concurrent.TimeUnit.MINUTES)
+    @Idempotent(key = IdempotencyKeys.REFUND_BY_ORDER_NO, ttl = 5, message = "退票请求处理中,请勿重复点击")
+    @RateLimit(key = IdempotencyKeys.RATE_REFUND_BY_USER_ORDER, permits = 1, window = 1, unit = java.util.concurrent.TimeUnit.MINUTES)
     public R<Void> refund(@PathVariable String orderNo) {
         orderPayService.refund(orderNo, UserContext.userId());
         return R.ok();

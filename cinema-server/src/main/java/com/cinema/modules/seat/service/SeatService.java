@@ -1,9 +1,6 @@
 package com.cinema.modules.seat.service;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.cinema.infra.redis.RedisKeys;
-import com.cinema.modules.order.entity.OrderItem;
-import com.cinema.modules.order.mapper.OrderItemMapper;
 import com.cinema.modules.seat.cache.SessionInfoCacheVO;
 import com.cinema.modules.seat.reader.HallLayoutCache;
 import com.cinema.modules.seat.reader.MyLockedSeatsReader;
@@ -28,7 +25,7 @@ import java.util.List;
  *   <li>{@link MyLockedSeatsReader} — Redis Hash 优先 + DB 回填</li>
  * </ul>
  *
- * <p>本类只持有 4 个 reader + orderItemMapper, 字段从 10 → 5, seatMap() 缩成 5 行组合。
+ * <p>本类只持有 4 个 reader, 字段从 10 → 4, seatMap() 缩成 5 行组合。
  */
 @Service
 @RequiredArgsConstructor
@@ -38,7 +35,6 @@ public class SeatService {
     private final SessionBitmapReader bitmapReader;
     private final HallLayoutCache hallLayoutCache;
     private final MyLockedSeatsReader myLockedSeatsReader;
-    private final OrderItemMapper orderItemMapper;
 
     /**
      * 座位图(Phase A-① 优化后):
@@ -69,12 +65,5 @@ public class SeatService {
                 .soldBitmap(Base64.getEncoder().encodeToString(sold))
                 .myLockedSeats(myLocked)
                 .build();
-    }
-
-    /** 订单的座位索引列表(供 OrderService 调用) */
-    public List<Integer> seatIndexesOf(Long orderId) {
-        return orderItemMapper.selectList(new LambdaQueryWrapper<OrderItem>()
-                        .eq(OrderItem::getOrderId, orderId))
-                .stream().map(OrderItem::getSeatIndex).sorted().toList();
     }
 }

@@ -4,9 +4,14 @@
  * <p>#8 收尾: 消除前端散落 4 处的 token key 字面量 + 1 处的 40101/40102 magic int。
  * 与 backend `ResultCode.java`(40101 UNAUTHORIZED / 40102 TOKEN_EXPIRED) 一一对应。
  *
- * <p>修改 AUTH_CODES 时**必须**同步 backend ResultCode; 反之亦然。
+ * <p>40101 / 40102 的**数值归属**在 `api/errorCodes.ts`(全站业务码的唯一归属),
+ * 这里只做别名 —— 同一个数字不在两处各写一遍。
+ *
+ * <p>修改时**必须**同步 backend ResultCode; 反之亦然。
  * 这是跨前后端的契约, 任何 drift 都会导致 axios 拦截器不再触发 401 清理。
  */
+
+import { TOKEN_EXPIRED_CODE, UNAUTHORIZED_CODE } from '../api/errorCodes'
 
 /** localStorage 中存放 JWT 的 key */
 export const AUTH_TOKEN_KEY = 'cinema_token'
@@ -19,8 +24,8 @@ export const AUTH_USER_KEY = 'cinema_user'
  * UNAUTHORIZED / TOKEN_EXPIRED 触发"清缓存 + 跳 /login"流程。
  */
 export const AUTH_CODES = {
-  UNAUTHORIZED: 40101,
-  TOKEN_EXPIRED: 40102,
+  UNAUTHORIZED: UNAUTHORIZED_CODE,
+  TOKEN_EXPIRED: TOKEN_EXPIRED_CODE,
 } as const
 
 /** 类型化的 auth code, 用于类型收窄的拦截器逻辑 */

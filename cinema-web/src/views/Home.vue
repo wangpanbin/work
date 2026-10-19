@@ -3,7 +3,7 @@ import { onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { search as searchMovies } from '../api/movie'
 import { useMovieCache } from '../stores/movieCache'
-import type { Movie } from '../types'
+import { toIdString, type Movie } from '../types'
 import { usePosterFallback } from '../composables/usePosterFallback'
 
 const { t } = useI18n()
@@ -153,7 +153,7 @@ onMounted(() => {
           :key="m.id"
           class="movie-card"
           :style="{ animationDelay: `${idx * 0.08}s` }"
-          :to="`/movie/${m.id}`"
+          :to="`/movie/${toIdString(m.id)}`"
         >
           <div class="poster">
             <img

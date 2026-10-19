@@ -1,4 +1,13 @@
 import type { ActionCardVO } from '../../types'
+import {
+  FORBIDDEN_CODE,
+  IDEMPOTENT_CONFLICT_CODE,
+  ORDER_DISABLED_CODE,
+  PROPOSAL_EXPIRED_CODE,
+  RATE_LIMIT_CODE,
+  SEAT_CONFLICT_CODE,
+  UNAUTHORIZED_CODE,
+} from '../../api/errorCodes'
 
 /**
  * 对话下单卡片的纯函数模块 (ADR-0004)。
@@ -100,15 +109,6 @@ export function buildPayRoute(orderNo: string | undefined): { name: string; quer
   return { name: 'payment', query: { orderNo } }
 }
 
-/** 座位被抢(与服务端锁座冲突同一个码) */
-export const SEAT_CONFLICT_CODE = 40002
-
-/** 提案已过期 / 已被消费(服务端一次性消费提案) */
-export const PROPOSAL_EXPIRED_CODE = 40003
-
-/** 下单功能被回滚闸门关掉 */
-export const ORDER_DISABLED_CODE = 40004
-
 /**
  * 确认失败 → i18n key 的映射(按错误码判断, **不**匹配中文字符串)。
  *
@@ -118,14 +118,16 @@ export const ORDER_DISABLED_CODE = 40004
  * <p>40003(提案已过期)刻意不在表里: 它不是一条错误文案, 而是**状态迁移** ——
  * 卡片要切到过期态并提示重新发起, 那是 stateHint 的活。走 errorText 会和
  * stateHint 把同一句话说两遍。
+ *
+ * <p>码的数值归属在 `api/errorCodes.ts`(全站业务码的唯一归属), 这里只放文案。
  */
 export const CONFIRM_ERROR_KEYS: Record<number, string> = {
   [SEAT_CONFLICT_CODE]: 'chat.orderProposal.conflictTip',
   [ORDER_DISABLED_CODE]: 'chat.orderProposal.disabledTip',
-  40101: 'chat.orderProposal.loginRequired',
-  40301: 'chat.orderProposal.forbiddenTip',
-  40900: 'chat.orderProposal.duplicateTip',
-  42900: 'chat.orderProposal.rateLimited',
+  [UNAUTHORIZED_CODE]: 'chat.orderProposal.loginRequired',
+  [FORBIDDEN_CODE]: 'chat.orderProposal.forbiddenTip',
+  [IDEMPOTENT_CONFLICT_CODE]: 'chat.orderProposal.duplicateTip',
+  [RATE_LIMIT_CODE]: 'chat.orderProposal.rateLimited',
 }
 
 /** 取错误码对应的 i18n key; 不认识 / 缺码返 null(上层退回 err.message) */

@@ -3,9 +3,9 @@ package com.cinema.modules.admin.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.cinema.common.exception.BizException;
 import com.cinema.common.result.R;
-import com.cinema.infra.redis.RedisKeys;
 import com.cinema.infra.redis.RecoverResult;
 import com.cinema.infra.redis.SeatBitmapGuard;
+import com.cinema.infra.redis.cache.SessionInfoCacheService;
 import com.cinema.modules.movie.entity.Movie;
 import com.cinema.modules.movie.mapper.MovieMapper;
 import com.cinema.modules.session.dto.SessionDTO;
@@ -13,7 +13,6 @@ import com.cinema.modules.session.entity.Session;
 import com.cinema.modules.session.mapper.SessionMapper;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -34,8 +33,8 @@ public class AdminSessionController {
 
     private final SessionMapper sessionMapper;
     private final MovieMapper movieMapper;
-    private final StringRedisTemplate redisTemplate;
     private final SeatBitmapGuard seatBitmapGuard;
+    private final SessionInfoCacheService sessionInfoCacheService;
 
     @GetMapping
     public R<List<Session>> list(@RequestParam(required = false) Long movieId) {
@@ -56,7 +55,7 @@ public class AdminSessionController {
             }
         }
         sessionMapper.insert(s);
-        redisTemplate.delete(RedisKeys.sessionInfo(s.getId()));
+        sessionInfoCacheService.invalidate(s.getId());
         return R.ok(s);
     }
 
@@ -68,7 +67,7 @@ public class AdminSessionController {
         }
         applyDto(s, dto);
         sessionMapper.updateById(s);
-        redisTemplate.delete(RedisKeys.sessionInfo(s.getId()));
+        sessionInfoCacheService.invalidate(s.getId());
         return R.ok(s);
     }
 
@@ -79,9 +78,8 @@ public class AdminSessionController {
             throw new BizException("场次不存在");
         }
         sessionMapper.deleteById(id);
-        redisTemplate.delete(RedisKeys.sessionInfo(s.getId()));
-        redisTemplate.delete(RedisKeys.sessionLock(s.getId()));
-        redisTemplate.delete(RedisKeys.sessionSold(s.getId()));
+        sessionInfoCacheService.invalidate(s.getId());
+        seatBitmapGuard.clear(s.getId());
         return R.ok();
     }
 

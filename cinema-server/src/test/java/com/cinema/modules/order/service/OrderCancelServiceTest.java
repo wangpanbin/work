@@ -1,7 +1,7 @@
 package com.cinema.modules.order.service;
 
-import com.cinema.infra.redis.RedisKeys;
 import com.cinema.infra.redis.SeatLuaService;
+import com.cinema.infra.redis.SeatWrite;
 import com.cinema.infra.ws.AdminEventPublisher;
 import com.cinema.infra.ws.SeatEventPublisher;
 import com.cinema.modules.order.entity.Order;
@@ -24,7 +24,6 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -45,15 +44,18 @@ class OrderCancelServiceTest {
     @Mock private OrderCore orderCore;
 
     private OrderCancelService service;
+    private PendingOrderCloser pendingOrderCloser;
 
     @BeforeEach
     void setUp() {
-        service = new OrderCancelService(orderMapper, seatLuaService, seatEventPublisher,
+        // 用真实的 closer, 这样「关单协议」本身也在这条链路上被验到
+        pendingOrderCloser = new PendingOrderCloser(orderMapper, seatLuaService, seatEventPublisher,
                 adminEventPublisher, redisTemplate, orderCore);
+        service = new OrderCancelService(orderMapper, orderCore, pendingOrderCloser);
     }
 
     @Test
-    @DisplayName("主动取消: 状态 = PENDING_PAY 时, CAS → releaseSeats → 广播 RELEASED")
+    @DisplayName("主动取消: 状态 = PENDING_PAY 时, CAS → releaseUnpaid → 广播 RELEASED")
     void cancel_success() {
         Long userId = 100L;
         String orderNo = "ORD-1";
@@ -61,14 +63,15 @@ class OrderCancelServiceTest {
         when(orderCore.getOwnedOrder(orderNo, userId)).thenReturn(order);
         when(orderCore.seatIndexesOf(order)).thenReturn(List.of(10, 11));
         when(orderMapper.casCancel(orderNo)).thenReturn(1);
-        when(seatLuaService.releaseSeats(anyString(), anyString(), anyList())).thenReturn(List.of(10, 11));
+        when(seatLuaService.releaseUnpaid(any(SeatWrite.Unpaid.class))).thenReturn(List.of(10, 11));
 
         service.cancel(orderNo, userId);
 
         verify(orderMapper).casCancel(orderNo);
-        verify(seatLuaService).releaseSeats(
-                eq(RedisKeys.sessionLock(1L)), eq(RedisKeys.sessionSold(1L)), eq(List.of(10, 11)));
+        verify(seatLuaService).releaseUnpaid(eq(new SeatWrite.Unpaid(1L, List.of(10, 11))));
         verify(seatEventPublisher).publishReleased(eq(1L), eq(List.of(10, 11)));
+        // 关单原因原样透给管理端大屏
+        verify(adminEventPublisher).publish(eq("CANCEL"), any());
     }
 
     @Test
@@ -82,7 +85,7 @@ class OrderCancelServiceTest {
 
         assertThat(result).isFalse();
         verify(orderMapper, never()).casCancel(anyString());
-        verify(seatLuaService, never()).releaseSeats(anyString(), anyString(), anyList());
+        verify(seatLuaService, never()).releaseUnpaid(any(SeatWrite.Unpaid.class));
     }
 
     @Test
@@ -93,12 +96,14 @@ class OrderCancelServiceTest {
         when(orderMapper.casCancel("ORD-1")).thenReturn(1);
         when(orderCore.seatIndexesOf(order.getId())).thenReturn(List.of(10));
         when(orderCore.seatIndexesOf(order)).thenReturn(List.of(10));
-        when(seatLuaService.releaseSeats(anyString(), anyString(), anyList())).thenReturn(List.of(10));
+        when(seatLuaService.releaseUnpaid(any(SeatWrite.Unpaid.class))).thenReturn(List.of(10));
 
         boolean result = service.closeIfUnpaid("ORD-1");
 
         assertThat(result).isTrue();
         verify(seatEventPublisher).publishReleased(eq(1L), eq(List.of(10)));
+        // 超时关单的大屏事件 type = TIMEOUT
+        verify(adminEventPublisher).publish(eq("TIMEOUT"), any());
     }
 
     private Order pendingOrder(String orderNo, Long userId, Long sessionId, List<Integer> seats) {

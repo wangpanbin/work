@@ -3,6 +3,7 @@ import { ElMessage } from 'element-plus'
 import router from '../router'
 import { i18n } from '../i18n'
 import { AUTH_TOKEN_KEY, AUTH_USER_KEY, AUTH_CODES } from '../constants/auth'
+import { ApiError } from './errorCodes'
 
 const request = axios.create({
   baseURL: '/api',
@@ -35,13 +36,13 @@ request.interceptors.response.use(
         }
         // 40101/40102 也要挂上 code —— 否则上层按 code 分支的逻辑
         // (比如确认卡上的「请先登录后再下单」)永远走不到, 只能退化到 message
-        const err = new Error(body.msg || i18n.global.t('api.needLogin')) as Error & { data?: unknown; code?: number }
+        const err = new Error(body.msg || i18n.global.t('api.needLogin')) as ApiError
         err.code = body.code
         err.data = body.data
         return Promise.reject(err)
       }
       // Phase D-⑱: 把 body.data 挂到 error 上, 让上层拿到业务数据(如锁座 conflict 列表)
-      const err = new Error(body.msg || i18n.global.t('api.requestFailed')) as Error & { data?: unknown; code?: number }
+      const err = new Error(body.msg || i18n.global.t('api.requestFailed')) as ApiError
       err.code = body.code
       err.data = body.data
       ElMessage.error(body.msg || i18n.global.t('api.requestFailed'))

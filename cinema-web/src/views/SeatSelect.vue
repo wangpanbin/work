@@ -6,11 +6,13 @@ import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 import { seatMap } from '../api/seat'
 import { lockSeats } from '../api/order'
+import { seatConflictOf } from '../api/errorCodes'
 import { useUserStore } from '../stores/user'
 import { useSeatStore, MAX_WATCH } from '../stores/seat'
 import { parsePreselectFromQuery } from '../stores/seatEventReducer'
 import { computeReleasedWatchHits, formatSeatPositions } from '../stores/seatWatch'
 import { createSeatWs, type SeatWsHandle, type WsStatus } from '../utils/ws'
+import { useSeatSync } from '../composables/useSeatSync'
 import SeatItem from '../components/SeatItem.vue'
 
 const route = useRoute()
@@ -51,37 +53,14 @@ async function refresh(preserveSelection = false): Promise<number> {
 // 实时同步是「乐观视图」, 后端才是唯一权威。两个触发点:
 //   ① 释放事件之后 —— 释放最容易引发「同座位紧跟一次锁座」, 假可选最容易被察觉;
 //   ② 断连重连成功之后 —— 断连期间丢失的事件, 这是唯一的补偿点。
-// 防抖合并突发事件; 失败退避重试, 三次仍失败才提示用户。
-// ⚠️ 防抖与退避时长是可调参数, 刻意不写进单元测试断言(测行为不测时序)。
-const RECONCILE_DEBOUNCE_MS = 500
-const RECONCILE_BACKOFF_MS = [300, 1000, 3000]
-let reconcileTimer: number | null = null
-let reconcileAttempt = 0
-const reconcileFailed = ref(false)
-
-function scheduleReconcile() {
-  if (reconcileTimer != null) window.clearTimeout(reconcileTimer)
-  reconcileTimer = window.setTimeout(runReconcile, RECONCILE_DEBOUNCE_MS)
-}
-
-async function runReconcile() {
-  reconcileTimer = null
-  // 提交锁座过程中跳过: 避免与锁座响应相互覆盖
-  if (submitting.value || refreshing.value) return
-  try {
-    const lost = await refresh(true)
-    reconcileAttempt = 0
-    reconcileFailed.value = false
-    if (lost > 0) ElMessage.warning(t('seat.warnSeatsTaken', { n: lost }))
-  } catch {
-    if (reconcileAttempt < RECONCILE_BACKOFF_MS.length) {
-      window.setTimeout(runReconcile, RECONCILE_BACKOFF_MS[reconcileAttempt++])
-    } else {
-      // 静默失败比"慢 500ms"危险得多: 用户会继续信任一张可能已过期的座位图
-      reconcileFailed.value = true
-    }
-  }
-}
+//
+// 补偿策略(防抖 / 退避 / preserveSelection / 放弃判定)由 useSeatSync 拥有 ——
+// 本视图只负责「什么时候触发」与「怎么提示」, 策略不再散落在两处。
+const seatSync = useSeatSync({
+  refresh,
+  isBusy: () => submitting.value || refreshing.value,
+  onSeatsTaken: (n) => ElMessage.warning(t('seat.warnSeatsTaken', { n })),
+})
 
 // ============ 座位关注: 释放提醒 ============
 /**
@@ -135,7 +114,7 @@ onMounted(async () => {
     }
     if (evt.type === 'RELEASED') {
       notifyReleasedWatchHits(evt.seats)
-      scheduleReconcile()
+      seatSync.reconcile('release')
     }
   })
   // 同步初始状态, 后续 watch 自动更新
@@ -144,13 +123,13 @@ onMounted(async () => {
   // 只认 prev === 'closed': 首次 connecting→open 前面刚 load() 过, 再拉一次纯属浪费。
   watch(wsHandle.status, (s, prev) => {
     wsStatus.value = s
-    if (s === 'open' && prev === 'closed') scheduleReconcile()
+    if (s === 'open' && prev === 'closed') seatSync.reconcile('reconnect')
   })
 })
 
 onBeforeUnmount(() => {
   wsHandle?.close()
-  if (reconcileTimer != null) window.clearTimeout(reconcileTimer)
+  seatSync.dispose()
 })
 
 const remainingSeconds = computed(() => {
@@ -177,32 +156,32 @@ async function onConfirm() {
     seatStore.markMyLocked(seats)
     router.push({ name: 'payment', query: { orderNo: result.orderNo } })
   } catch (e: unknown) {
-    const err = e as { message?: string; data?: { conflict?: number[] } }
-    const msg = err?.message || t('seat.errorLockFailed')
-    if (msg.includes(t('seat.errorLockFailed'))) {
-      // 兜底
-      ElMessage.error(msg)
-    } else if (msg.includes('座位已被占用')) {
-      // Phase D-⑱: 只对后端返回的 conflict 列表做局部置灰, 避免全量 refresh
-      const conflict = err?.data?.conflict
-      if (Array.isArray(conflict) && conflict.length > 0) {
-        seatStore.applyEvent('LOCKED', conflict)
-        // P1-#6: 把被抢的座位转成"X排Y座"格式, 让用户一眼能定位
-        const labels = conflict.map((idx) => {
-          const { row, col } = seatStore.rowCol(idx)
-          return t('seat.rowColFormat', { row, col })
-        })
-        const shown = labels.length > 4
-          ? labels.slice(0, 4).join(t('seat.listSeparator')) + ' ' + t('seat.conflictMore', { n: labels.length })
-          : labels.join(t('seat.listSeparator'))
-        ElMessage.error(t('seat.errorConflict', { list: shown }))
-      } else {
-        // 兜底: 拿不到 conflict 列表时全量 refresh
-        await refresh()
-        ElMessage.error(t('seat.errorConflictRefreshed'))
-      }
+    // 锁座冲突靠「错误码 + 载荷」识别, 不靠中文消息串 ——
+    // 后端改一次文案, 串匹配就静默失效(历史包袱, 归属见 api/errorCodes.ts)。
+    const conflict = seatConflictOf(e)
+    if (conflict === null) {
+      // 不是锁座冲突 → 通用错误提示
+      const err = e as { message?: string }
+      ElMessage.error(err?.message || t('seat.errorLockFailed'))
+    } else if (conflict.length === 0) {
+      // 是锁座冲突但没拿到座位列表 → 兜底: 全量 refresh
+      await refresh()
+      ElMessage.error(t('seat.errorConflictRefreshed'))
     } else {
-      ElMessage.error(msg)
+      // Phase D-⑱: 只对后端返回的 conflict 列表做局部置灰, 避免全量 refresh
+      seatStore.applyEvent('LOCKED', conflict)
+      // P1-#6: 把被抢的座位转成"X排Y座"格式, 让用户一眼能定位
+      // 换算与「最多显示 4 个」的截断规则统一由 formatSeatPositions 拥有
+      const { text, truncated } = formatSeatPositions(
+        conflict,
+        seatStore.map?.cols || 1,
+        (row, col) => t('seat.rowColFormat', { row, col }),
+        t('seat.listSeparator'),
+      )
+      const shown = truncated > 0
+        ? text + ' ' + t('seat.conflictMore', { n: truncated })
+        : text
+      ElMessage.error(t('seat.errorConflict', { list: shown }))
     }
   } finally {
     submitting.value = false
@@ -220,7 +199,7 @@ async function onConfirm() {
         <template v-else-if="wsStatus === 'connecting'">{{ t('seat.wsConnecting') }}</template>
         <template v-else>{{ t('seat.wsClosed') }}</template>
       </span>
-      <span v-if="reconcileFailed" class="ws-sync-failed">{{ t('seat.syncFailed') }}</span>
+      <span v-if="seatSync.failed.value" class="ws-sync-failed">{{ t('seat.syncFailed') }}</span>
     </div>
 
     <!-- Header -->

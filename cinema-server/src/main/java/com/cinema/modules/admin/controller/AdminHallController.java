@@ -3,15 +3,14 @@ package com.cinema.modules.admin.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.cinema.common.exception.BizException;
 import com.cinema.common.result.R;
-import com.cinema.infra.redis.RedisKeys;
 import com.cinema.modules.hall.dto.HallDTO;
 import com.cinema.modules.hall.entity.Hall;
 import com.cinema.modules.hall.mapper.HallMapper;
 import com.cinema.modules.seat.entity.Seat;
+import com.cinema.modules.seat.reader.HallLayoutCache;
 import com.cinema.modules.seat.mapper.SeatMapper;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,7 +32,7 @@ public class AdminHallController {
 
     private final HallMapper hallMapper;
     private final SeatMapper seatMapper;
-    private final StringRedisTemplate redisTemplate;
+    private final HallLayoutCache hallLayoutCache;
     private final TransactionTemplate transactionTemplate;
 
     @GetMapping
@@ -88,7 +87,7 @@ public class AdminHallController {
             seatMapper.delete(new LambdaQueryWrapper<Seat>().eq(Seat::getHallId, id));
             insertSeats(hall, dto.getVipFromRow());
         });
-        redisTemplate.delete(RedisKeys.hallLayout(id));
+        hallLayoutCache.invalidate(id);
         return R.ok(hall);
     }
 
@@ -102,7 +101,7 @@ public class AdminHallController {
             seatMapper.delete(new LambdaQueryWrapper<Seat>().eq(Seat::getHallId, id));
             hallMapper.deleteById(id);
         });
-        redisTemplate.delete(RedisKeys.hallLayout(id));
+        hallLayoutCache.invalidate(id);
         return R.ok();
     }
 

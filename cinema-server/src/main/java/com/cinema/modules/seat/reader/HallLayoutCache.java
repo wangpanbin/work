@@ -42,4 +42,13 @@ public class HallLayoutCache {
         redisTemplate.opsForValue().set(key, objectMapper.writeValueAsString(layout), Duration.ofHours(1));
         return layout;
     }
+
+    /**
+     * 显式失效 —— 管理端改动影厅(改行列数 / 删影厅)时调用。
+     *
+     * <p>缓存归本类所有: 键名与失效策略不再散在 controller 里。
+     */
+    public void invalidate(Long hallId) {
+        redisTemplate.delete(RedisKeys.hallLayout(hallId));
+    }
 }

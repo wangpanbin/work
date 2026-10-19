@@ -1,5 +1,5 @@
 import request from './request'
-import type { Movie, PageData } from '../types'
+import { toIdString, type Id, type Movie, type PageData } from '../types'
 
 export interface MovieSearchParams {
   page?: number
@@ -19,6 +19,6 @@ export function page(params: { page?: number; size?: number; status?: number }):
   return search(params)
 }
 
-export function detail(id: number | string): Promise<Movie> {
-  return request.get(`/movies/${id}`) as Promise<Movie>
+export function detail(id: Id): Promise<Movie> {
+  return request.get(`/movies/${toIdString(id)}`) as Promise<Movie>
 }

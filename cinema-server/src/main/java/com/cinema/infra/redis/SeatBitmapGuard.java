@@ -53,6 +53,18 @@ public class SeatBitmapGuard {
     }
 
     /**
+     * 清空某场次的座位位图(锁定位 + 已售位)。
+     *
+     * <p>位图归本类所有 —— 管理端删除场次时原先在 controller 里直接
+     * {@code redisTemplate.delete(RedisKeys.sessionLock(...))}, 键名与清空策略散在两处,
+     * 现在统一从这里走。
+     */
+    public void clear(Long sessionId) {
+        redisTemplate.delete(RedisKeys.sessionLock(sessionId));
+        redisTemplate.delete(RedisKeys.sessionSold(sessionId));
+    }
+
+    /**
      * 强制恢复(管理端手动触发). 跳过 EXISTS 检查, 直接重建。
      */
     public RecoverResult forceRecover(Long sessionId) {
@@ -62,14 +74,12 @@ public class SeatBitmapGuard {
         SeatBitmapRebuilder.SeatVectors v = rebuilder.collectSeatVectors(sessionId);
         if (!v.hasOrders()) {
             log.info("[bitmap-recover:force] sid={} 无有效订单, 清空位图", sessionId);
-            redisTemplate.delete(lockKey);
-            redisTemplate.delete(soldKey);
+            clear(sessionId);
             return new RecoverResult(0, 0);
         }
 
         // 强制模式: 先清空再恢复
-        redisTemplate.delete(lockKey);
-        redisTemplate.delete(soldKey);
+        clear(sessionId);
         RecoverResult result = seatLuaService.recoverSeats(lockKey, soldKey, v.lock(), v.sold());
         log.info("[bitmap-recover:force] sid={} lock={} sold={}", sessionId, result.lock(), result.sold());
         return result;

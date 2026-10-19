@@ -4,8 +4,31 @@ export interface R<T> {
   data: T
 }
 
+/**
+ * 标识符(ID)。
+ *
+ * <p>**为什么是联合类型而不是 string**: 后端 `JacksonConfig` 只在
+ * `|value| > 2^53-1` 时把 Long 序列化成字符串, 否则仍是数字 ——
+ * 所以同一个 ID 字段在 wire 上是**多态**的: 种子数据(小整数)是 number,
+ * 雪花生成的是 string。两者都是合法 ID。
+ *
+ * <p>**规则: ID 永远当不透明值用, 不做任何数值运算。**
+ * 需要拼进 URL 时统一走 {@link toIdString}, 不要各写一份 `String(id)`。
+ */
+export type Id = string | number
+
+/**
+ * ID → URL 片段的唯一归一入口。
+ *
+ * <p>它不改变请求语义, 只是把「ID 可能是 string 也可能是 number」收进一个函数,
+ * 免得每个调用点各写一份转换。
+ */
+export function toIdString(id: Id): string {
+  return String(id)
+}
+
 export interface UserVO {
-  id: number
+  id: Id
   username: string
   nickname: string
   phone: string
@@ -19,7 +42,7 @@ export interface LoginVO {
 }
 
 export interface Movie {
-  id: number
+  id: Id
   title: string
   poster: string
   duration: number
@@ -37,9 +60,9 @@ export interface PageData<T> {
 }
 
 export interface SessionVO {
-  id: number
-  movieId: number
-  hallId: number
+  id: Id
+  movieId: Id
+  hallId: Id
   hallName: string
   cinemaName: string
   startTime: string

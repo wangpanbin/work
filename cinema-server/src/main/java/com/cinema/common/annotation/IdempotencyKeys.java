@@ -53,6 +53,20 @@ public final class IdempotencyKeys {
     public static final String CHAT_ORDER_CONFIRM = "#proposalId";
 
     /**
+     * 对话消息 rate limit: userId + ':chat'。
+     *
+     * <p><b>括号是必须的, 不是排版洁癖</b>: SpEL 里 {@code ?:} 的优先级<b>低于</b> {@code +},
+     * 所以 {@code userId() ?: 'anon' + ':chat'} 会被解析成
+     * {@code userId() ?: ('anon' + ':chat')} —— 登录用户拿到的桶 key 是 {@code 42}
+     * (没有 {@code :chat} 后缀), 与匿名桶 {@code anon:chat} 不对称。
+     * 补上括号后两端一致: 登录 {@code 42:chat}, 匿名仍然是 {@code anon:chat}。
+     *
+     * <p>匿名桶的 key 与限流语义**逐字不变** —— 本次只补登录桶缺失的后缀。
+     */
+    public static final String RATE_CHAT_MESSAGE_BY_USER =
+            "((T(com.cinema.common.context.UserContext).userId()) ?: 'anon') + ':chat'";
+
+    /**
      * 对话下单提案 rate limit: userId + ':chat:proposal'。
      *
      * <p><b>按用户分桶, 不按场次</b>: 原来把 sessionId 拼进桶键, 于是「10 次/分钟」

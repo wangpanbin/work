@@ -7,6 +7,8 @@ import com.cinema.infra.redis.RedisKeys;
 import com.cinema.modules.order.entity.Order;
 import com.cinema.modules.order.service.OrderLockService;
 import com.cinema.modules.order.service.core.OrderCore;
+import com.cinema.modules.seat.SeatAvailability;
+import com.cinema.modules.seat.SeatLabel;
 import com.cinema.modules.seat.entity.Seat;
 import com.cinema.modules.seat.mapper.SeatMapper;
 import com.cinema.modules.seat.service.SeatService;
@@ -22,7 +24,6 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -113,18 +114,17 @@ public class OrderProposalService {
         if (seatCount <= 0) {
             throw new BizException("场次座位数异常,无法生成下单方案");
         }
-        int cols = vo.getCols() > 0 ? vo.getCols() : 1;
-        int rows = vo.getRows() > 0 ? vo.getRows() : 1;
-        boolean[] available = decodeAvailable(vo, seatCount);
+        // 位图解码 / 选座统一交给 SeatAvailability —— 判定口径与搬迁前逐条一致
+        SeatAvailability availability = SeatAvailability.of(vo);
 
         // 座位决策: 模型的提示全通过才采纳, 否则服务端重找(D8)
         List<Integer> chosen = null;
-        if (!usableHint.isEmpty() && allAvailable(usableHint, available)
-                && isSameRowContiguous(usableHint, cols)) {
+        if (!usableHint.isEmpty() && allAvailable(usableHint, availability)
+                && availability.isSameRowContiguous(usableHint)) {
             chosen = new ArrayList<>(usableHint);
         }
         if (chosen == null) {
-            chosen = pickCenteredRun(available, rows, cols, seatCount, seats);
+            chosen = availability.findRun(seats, SeatAvailability.RunPolicy.CENTERED);
         }
         if (chosen == null || chosen.size() != seats) {
             throw new BizException("该场次没有 " + seats + " 个连座可选");
@@ -263,33 +263,13 @@ public class OrderProposalService {
     }
 
     /**
-     * 解码双位图 → 每座位是否可选。
+     * 提示里的每个座位都必须当前可选。
      *
-     * <p>位图是 Base64(字节内高位在前),第 i 位对应 seat_index=i,
-     * 与 {@code utils/bitmap.ts} 前端解码一致。lock 位(任何人锁的)与 sold 位都算不可选。
+     * <p>越界索引(负数 / {@code >= seatCount})一律判不可选 —— 绝不能让它进到确认流程。
      */
-    private boolean[] decodeAvailable(SeatMapVO vo, int seatCount) {
-        byte[] lock = Base64.getDecoder().decode(vo.getLockBitmap());
-        byte[] sold = Base64.getDecoder().decode(vo.getSoldBitmap());
-        boolean[] available = new boolean[seatCount];
-        for (int i = 0; i < seatCount; i++) {
-            available[i] = !bitSet(lock, i) && !bitSet(sold, i);
-        }
-        return available;
-    }
-
-    private boolean bitSet(byte[] bitmap, int index) {
-        int byteIdx = index >>> 3;
-        if (byteIdx >= bitmap.length) {
-            return false;
-        }
-        int bitInByte = 7 - (index & 7);
-        return ((bitmap[byteIdx] >> bitInByte) & 1) == 1;
-    }
-
-    private boolean allAvailable(List<Integer> seats, boolean[] available) {
+    private boolean allAvailable(List<Integer> seats, SeatAvailability availability) {
         for (Integer idx : seats) {
-            if (idx == null || idx < 0 || idx >= available.length || !available[idx]) {
+            if (idx == null || idx < 0 || !availability.isAvailable(idx)) {
                 return false;
             }
         }
@@ -297,80 +277,20 @@ public class OrderProposalService {
     }
 
     /**
-     * 是否同行连座(索引连续且在同一行)。
+     * 座位描述 —— 走 seat 表拿权威的排/座号, 与订单页同源(渲染统一在 {@link SeatLabel})。
      *
-     * <p>网格映射与前端 {@code stores/seat.ts} 的 {@code rowOfIdx/colOfIdx} 一致:
-     * {@code row = floor(idx / cols), col = idx % cols}。
+     * <p>降级用 {@code INDEX_ONLY}: 提案当场就要把座位摆给用户看,
+     * 缺一个座位也不能让用户以为没选上, 所以退化成「&lt;索引&gt;号座位」而不是跳过。
      */
-    private boolean isSameRowContiguous(List<Integer> seats, int cols) {
-        for (int i = 1; i < seats.size(); i++) {
-            int prev = seats.get(i - 1);
-            int curr = seats.get(i);
-            if (prev / cols != curr / cols || curr != prev + 1) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
-     * 找一组连座,优先「中段」(靠中间的行 + 靠中间的列)。
-     *
-     * <p>与 {@code ChatTools.findContiguousSeats} 的差别: 那个工具取<b>第一行</b>的连座,
-     * 且用 {@code List.contains} 做 O(n) 扫描。这里改成遍历所有行、在同分时取更居中的段。
-     */
-    private List<Integer> pickCenteredRun(boolean[] available, int rows, int cols, int seatCount, int count) {
-        int centerRow = (rows - 1) / 2;
-        int centerCol = (cols - 1) / 2;
-        int bestScore = Integer.MAX_VALUE;
-        List<Integer> best = null;
-
-        for (int r = 0; r < rows; r++) {
-            int base = r * cols;
-            if (base >= seatCount) {
-                break;
-            }
-            int rowCols = Math.min(cols, seatCount - base);
-            int c = 0;
-            while (c < rowCols) {
-                if (!available[base + c]) {
-                    c++;
-                    continue;
-                }
-                int start = c;
-                while (c < rowCols && available[base + c]) {
-                    c++;
-                }
-                int runEnd = c; // exclusive
-                for (int s = start; s + count <= runEnd; s++) {
-                    int mid = s + count / 2;
-                    int score = Math.abs(r - centerRow) * cols + Math.abs(mid - centerCol);
-                    if (score < bestScore) {
-                        bestScore = score;
-                        best = new ArrayList<>(count);
-                        for (int k = 0; k < count; k++) {
-                            best.add(base + s + k);
-                        }
-                    }
-                }
-            }
-        }
-        return best;
-    }
-
-    /** 座位描述 —— 走 seat 表拿权威的排/座号, 与订单页 {@code buildSeatDesc} 同源。 */
     private String buildSeatDesc(Long hallId, List<Integer> seatIndexes) {
         if (hallId == null || seatIndexes.isEmpty()) {
             return "";
         }
-        Map<Integer, String> labels = seatMapper.selectList(new LambdaQueryWrapper<Seat>()
+        Map<Integer, Seat> labels = seatMapper.selectList(new LambdaQueryWrapper<Seat>()
                         .eq(Seat::getHallId, hallId)
                         .in(Seat::getSeatIndex, seatIndexes))
                 .stream()
-                .collect(Collectors.toMap(Seat::getSeatIndex,
-                        s -> s.getRowNo() + "排" + s.getColNo() + "座", (a, b) -> a));
-        return seatIndexes.stream()
-                .map(idx -> labels.getOrDefault(idx, idx + "号座位"))
-                .collect(Collectors.joining("、"));
+                .collect(Collectors.toMap(Seat::getSeatIndex, s -> s, (a, b) -> a));
+        return SeatLabel.describe(seatIndexes, labels, SeatLabel.Fallback.INDEX_ONLY);
     }
 }

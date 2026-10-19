@@ -1,6 +1,8 @@
+import type { Id } from './index'
+
 export interface Hall {
-  id: number
-  cinemaId: number
+  id: Id
+  cinemaId: Id
   name: string
   seatRows: number
   seatCols: number
@@ -8,9 +10,9 @@ export interface Hall {
 }
 
 export interface Session {
-  id: number
-  movieId: number
-  hallId: number
+  id: Id
+  movieId: Id
+  hallId: Id
   startTime: string
   endTime: string
   price: number

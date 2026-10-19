@@ -28,7 +28,19 @@ public final class RedisKeys {
         return "cinema:hall:layout:" + hallId;
     }
 
-    /** 用户在某场次的待支付订单号 (一场一单) */
+    /**
+     * 用户在某场次的待支付订单号 (一场一单)。
+     *
+     * <p><b>只写镜像</b> —— 这个 key 只被写、从不被读。锁座时写一份(TTL = 支付窗口),
+     * 关单 / 支付时删掉。但「用户在这场次有没有待支付单」这个判断,
+     * 一律以 DB 为权威源(见 {@code PendingOrderQuery}), 原因有二:
+     * <ul>
+     *   <li>Redis 与 DB 之间没有事务, 二者可能不一致; 以 DB 为准才不会漏判。</li>
+     *   <li>DB 上有唯一索引 {@code uk_user_pending(user_id, pending_key)} 兜底,
+     *       查出来就一定只有一笔, 不存在「Redis 记了两笔」的情形。</li>
+     * </ul>
+     * 保留这个 key 是为了兼容既有 Redis 数据与排查工具, 不要把它当查询源用。
+     */
     public static String userPending(Long userId, Long sessionId) {
         return "cinema:user:pending:" + userId + ":" + sessionId;
     }

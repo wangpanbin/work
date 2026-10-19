@@ -1,5 +1,6 @@
 package com.cinema.modules.chat.controller;
 
+import com.cinema.common.annotation.IdempotencyKeys;
 import com.cinema.common.annotation.RateLimit;
 import com.cinema.common.result.R;
 import com.cinema.modules.chat.dto.ChatRequestDTO;
@@ -22,12 +23,15 @@ import java.util.concurrent.TimeUnit;
  * <ul>
  *   <li>{@code /api/chat/**} 不在 {@code AuthRequiredInterceptor} 覆盖路径(spec §6.1)
  *       → 无 token 也可调,工具层 null userId 自动降级</li>
- *   <li>{@code @RateLimit} 限制匿名用户共用 10/min 桶(可接受 — spec Q3 决策);
- *       登录用户各自 10/min</li>
+ *   <li>{@code @RateLimit} 限流:<b>匿名共用一个 2/min 桶</b>(anonymousPermits=2),
+ *       <b>登录用户各自 10/min</b>(permits=10)</li>
  * </ul>
  *
- * <p>SpEL key 用 {@code ?:} 短路 userId==null 时返回字面量 {@code 'anon'},
- * 避开 {@code T(...).userId()} 抛 NPE(1.x 对称行为,spec §5.4 (d) 提到)。
+ * <p>SpEL key 走 {@code IdempotencyKeys.RATE_CHAT_MESSAGE_BY_USER} 常量,
+ * 那里用 {@code ?:} 短路 userId==null 时返回字面量 {@code 'anon'},
+ * 避开 {@code T(...).userId()} 抛 NPE(1.x 对称行为,spec §5.4 (d) 提到);
+ * 括号保证 {@code ?:} 不会被解析成 {@code userId() ?: ('anon' + ':chat')},
+ * 登录用户的桶 key 因此带上了 {@code :chat} 后缀, 与匿名桶对称。
  */
 @Slf4j
 @RestController
@@ -39,7 +43,7 @@ public class ChatController {
 
     @PostMapping("/message")
     @RateLimit(
-            key = "T(com.cinema.common.context.UserContext).userId() ?: 'anon' + ':chat'",
+            key = IdempotencyKeys.RATE_CHAT_MESSAGE_BY_USER,
             permits = 10,
             anonymousPermits = 2,
             window = 1,

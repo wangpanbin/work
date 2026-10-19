@@ -1,5 +1,6 @@
 package com.cinema.common.aop;
 
+import com.cinema.common.annotation.IdempotencyKeys;
 import com.cinema.common.annotation.RateLimit;
 import com.cinema.common.context.UserContext;
 import com.cinema.common.exception.BizException;
@@ -61,7 +62,7 @@ class RateLimitAspectTest {
         setupJoinPoint(1L);
 
         RateLimit annotation = makeRateLimit(
-                "T(com.cinema.common.context.UserContext).userId() ?: 'anon' + ':chat'",
+                IdempotencyKeys.RATE_CHAT_MESSAGE_BY_USER,
                 10, 1, TimeUnit.MINUTES);
 
         Object result = aspect.around(pjp, annotation);
@@ -78,7 +79,7 @@ class RateLimitAspectTest {
         setupJoinPoint(1L);
 
         RateLimit annotation = makeRateLimit(
-                "T(com.cinema.common.context.UserContext).userId() ?: 'anon' + ':chat'",
+                IdempotencyKeys.RATE_CHAT_MESSAGE_BY_USER,
                 10, 1, TimeUnit.MINUTES);
 
         assertThatThrownBy(() -> aspect.around(pjp, annotation))
@@ -96,7 +97,7 @@ class RateLimitAspectTest {
         setupJoinPoint(null); // null userId
 
         RateLimit annotation = makeRateLimit(
-                "T(com.cinema.common.context.UserContext).userId() ?: 'anon' + ':chat'",
+                IdempotencyKeys.RATE_CHAT_MESSAGE_BY_USER,
                 10, 1, TimeUnit.MINUTES);
 
         aspect.around(pjp, annotation);
@@ -115,7 +116,7 @@ class RateLimitAspectTest {
         when(pjp.proceed()).thenReturn("ok");
 
         RateLimit annotation = makeRateLimit(
-                "T(com.cinema.common.context.UserContext).userId() ?: 'anon' + ':chat'",
+                IdempotencyKeys.RATE_CHAT_MESSAGE_BY_USER,
                 /* permits */ 10,
                 /* anonymousPermits */ 2,
                 1, TimeUnit.MINUTES);
@@ -126,12 +127,13 @@ class RateLimitAspectTest {
         verify(slidingWindow).tryAcquire(eq("cinema:ratelimit:anon:chat"), eq(2), anyLong());
 
         // 2) 登录路径(同一注解,同一 aspect 实例)
-        // SpEL `T(UserContext).userId() ?: 'anon' + ':chat'` 在 userId 非空时返 userId.toString(),
-        // 由于 SpEL 优先级,登录桶 key 为 "cinema:ratelimit:42"(无 :chat 后缀)— 与匿名桶
-        // "cinema:ratelimit:anon:chat" 不对称,但这是 spec §6.3 既定行为(spec 修复不在本 ticket)
+        // SpEL 已补括号: `((T(UserContext).userId()) ?: 'anon') + ':chat'`
+        // 补之前 ? : 的优先级低于 + , 会被解析成 userId() ?: ('anon' + ':chat'),
+        // 于是登录桶 key 少了 :chat 后缀、与匿名桶不对称(2026-10-19 修复)。
+        // 匿名桶 key 与限流语义逐字不变。
         setupJoinPoint(42L);
         aspect.around(pjp, annotation);
-        verify(slidingWindow).tryAcquire(eq("cinema:ratelimit:42"), eq(10), anyLong());
+        verify(slidingWindow).tryAcquire(eq("cinema:ratelimit:42:chat"), eq(10), anyLong());
     }
 
     @Test
@@ -142,7 +144,7 @@ class RateLimitAspectTest {
         when(pjp.proceed()).thenReturn("ok");
 
         RateLimit annotation = makeRateLimit(
-                "T(com.cinema.common.context.UserContext).userId() ?: 'anon' + ':chat'",
+                IdempotencyKeys.RATE_CHAT_MESSAGE_BY_USER,
                 /* permits */ 10,
                 /* anonymousPermits */ -1,
                 1, TimeUnit.MINUTES);
@@ -152,10 +154,10 @@ class RateLimitAspectTest {
         aspect.around(pjp, annotation);
         verify(slidingWindow).tryAcquire(eq("cinema:ratelimit:anon:chat"), eq(10), anyLong());
 
-        // 登录路径也用 permits=10(spec §6.3 现状 key 为 "cinema:ratelimit:7")
+        // 登录路径也用 permits=10
         setupJoinPoint(7L);
         aspect.around(pjp, annotation);
-        verify(slidingWindow).tryAcquire(eq("cinema:ratelimit:7"), eq(10), anyLong());
+        verify(slidingWindow).tryAcquire(eq("cinema:ratelimit:7:chat"), eq(10), anyLong());
     }
 
     @Test
@@ -166,7 +168,7 @@ class RateLimitAspectTest {
         when(pjp.proceed()).thenReturn("ok");
 
         RateLimit annotation = makeRateLimit(
-                "T(com.cinema.common.context.UserContext).userId() ?: 'anon' + ':chat'",
+                IdempotencyKeys.RATE_CHAT_MESSAGE_BY_USER,
                 /* permits */ 10,
                 /* anonymousPermits */ 0,
                 1, TimeUnit.MINUTES);

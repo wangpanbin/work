@@ -5,7 +5,7 @@ import { renderMarkdown } from '../../utils/markdown'
 import ActionCard from './ActionCard.vue'
 import OrderProposalCard from './OrderProposalCard.vue'
 import PendingOrderCard from './PendingOrderCard.vue'
-import { isOrderProposalCard, isPendingOrderCard } from './orderProposalCard'
+import { cardKey, cardKindOf } from './cardRegistry'
 
 const props = defineProps<{
   /** 说话方。错误提示也是 assistant 说的(见 ChatWidget 的 catch 分支) */
@@ -51,13 +51,13 @@ const renderedReply = computed(() => renderMarkdown(props.response?.reply))
       <!-- P2-2:Markdown 渲染(已转义,见 utils/markdown.ts) -->
       <div class="chat-md" v-else v-html="renderedReply"></div>
       <div v-if="response && response.cards && response.cards.length" class="chat-msg-cards">
-        <template v-for="(card, idx) in response.cards" :key="card.cardId ?? `${card.sessionId}-${idx}`">
+        <template v-for="(card, idx) in response.cards" :key="cardKey(card, idx)">
           <OrderProposalCard
-            v-if="isOrderProposalCard(card)"
+            v-if="cardKindOf(card) === 'orderProposal'"
             :card="card"
             @confirmed="onConfirmed"
           />
-          <PendingOrderCard v-else-if="isPendingOrderCard(card)" :card="card" />
+          <PendingOrderCard v-else-if="cardKindOf(card) === 'pendingOrder'" :card="card" />
           <ActionCard v-else :card="card" />
         </template>
       </div>

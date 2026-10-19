@@ -30,7 +30,6 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -63,7 +62,7 @@ class OrderPayServiceTest {
     }
 
     @Test
-    @DisplayName("支付成功: CAS 成功 → confirmSeats → 清 user:pending → 广播 SOLD")
+    @DisplayName("支付成功: CAS 成功 → confirmPaid → 清 user:pending → 广播 SOLD")
     void pay_success() {
         Long userId = 100L;
         String orderNo = "ORD-1";
@@ -71,20 +70,19 @@ class OrderPayServiceTest {
         when(orderCore.getOwnedOrder(orderNo, userId)).thenReturn(order);
         when(orderCore.seatIndexesOf(order)).thenReturn(List.of(10, 11));
         when(orderMapper.casMarkPaid(orderNo)).thenReturn(1);
-        when(seatLuaService.confirmSeats(anyString(), anyString(), anyList())).thenReturn(List.of(10, 11));
+        when(seatLuaService.confirmPaid(anyLong(), anyList())).thenReturn(List.of(10, 11));
 
         service.pay(orderNo, userId);
 
         verify(mockPaymentService).mockPayChannel(orderNo);
         verify(orderMapper).casMarkPaid(orderNo);
-        verify(seatLuaService).confirmSeats(
-                eq(RedisKeys.sessionLock(1L)), eq(RedisKeys.sessionSold(1L)), eq(List.of(10, 11)));
+        verify(seatLuaService).confirmPaid(eq(1L), eq(List.of(10, 11)));
         verify(redisTemplate).delete(RedisKeys.userPending(userId, 1L));
         verify(seatEventPublisher).publishSold(eq(1L), eq(List.of(10, 11)));
     }
 
     @Test
-    @DisplayName("支付失败: CAS 返回 0, 抛 BizException 不 confirmSeats")
+    @DisplayName("支付失败: CAS 返回 0, 抛 BizException 不 confirmPaid")
     void pay_casFailed() {
         Long userId = 100L;
         String orderNo = "ORD-1";
@@ -96,7 +94,7 @@ class OrderPayServiceTest {
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("状态已变化");
 
-        verify(seatLuaService, never()).confirmSeats(anyString(), anyString(), anyList());
+        verify(seatLuaService, never()).confirmPaid(anyLong(), anyList());
         verify(seatEventPublisher, never()).publishSold(anyLong(), anyList());
     }
 

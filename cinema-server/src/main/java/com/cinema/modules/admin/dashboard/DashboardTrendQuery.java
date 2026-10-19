@@ -16,7 +16,6 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -42,10 +41,15 @@ public class DashboardTrendQuery {
 
     /**
      * 周营收 7 日趋势(missing days 填 0)。
-     * 返回 List&lt;Map&lt;String,Object&gt;&gt; 是 #3 Q6=B 决定: 保持 wire format 不变,
-     * 避免前端 Dashboard.vue 联动改动。
+     *
+     * <p>W8 起返回强类型 {@link TrendPoint} 而不是 {@code List<Map<String,Object>>}:
+     * 字段名由类型保证, 不再靠字符串字面量约定。
+     *
+     * <p><b>wire 格式逐字节不变</b>: record 组件顺序即 JSON 字段顺序, 类型是
+     * {@code String} / {@code Long}, 序列化结果与原先的 LinkedHashMap 完全一致
+     * (仍是 {@code {"date":"2026-10-19","amount":123}}), 前端 Dashboard.vue 零改动。
      */
-    public List<Map<String, Object>> weeklyTrend() {
+    public List<TrendPoint> weeklyTrend() {
         List<Map<String, Object>> raw = orderMapper.weeklyTrend();
         Map<String, Long> byDate = new HashMap<>();
         for (Map<String, Object> row : raw) {
@@ -59,13 +63,10 @@ public class DashboardTrendQuery {
             byDate.put(date, amount == null ? 0L : amount.longValue());
         }
         LocalDate today = LocalDate.now();
-        List<Map<String, Object>> padded = new ArrayList<>(7);
+        List<TrendPoint> padded = new ArrayList<>(7);
         for (int i = 6; i >= 0; i--) {
             String dateStr = today.minusDays(i).toString();
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("date", dateStr);
-            row.put("amount", byDate.getOrDefault(dateStr, 0L));
-            padded.add(row);
+            padded.add(new TrendPoint(dateStr, byDate.getOrDefault(dateStr, 0L)));
         }
         return padded;
     }

@@ -6,7 +6,7 @@ import dayjs from 'dayjs'
 import { detail } from '../api/movie'
 import { listByMovieAndDate } from '../api/session'
 import { useMovieCache } from '../stores/movieCache'
-import type { Movie, SessionVO } from '../types'
+import { toIdString, type Movie, type SessionVO } from '../types'
 import { useUserStore } from '../stores/user'
 import { usePosterFallback } from '../composables/usePosterFallback'
 
@@ -81,10 +81,10 @@ watch(selectedDate, () => {
 function goSeat(s: SessionVO) {
   if (!userStore.isLogin) {
     // P2-1:必须带 redirect,否则登录后落在首页,用户选场次的上下文全丢
-    router.push({ path: '/login', query: { redirect: `/seat/${s.id}` } })
+    router.push({ path: '/login', query: { redirect: `/seat/${toIdString(s.id)}` } })
     return
   }
-  router.push(`/seat/${s.id}`)
+  router.push(`/seat/${toIdString(s.id)}`)
 }
 
 function fmt(t: string) {

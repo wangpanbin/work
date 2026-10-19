@@ -8,7 +8,7 @@
  */
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { Movie, SessionVO, PageData } from '../types'
+import type { Movie, SessionVO } from '../types'
 
 const TTL_MS = 5 * 60 * 1000
 
@@ -19,7 +19,6 @@ export const useMovieCache = defineStore('movieCache', () => {
   // movieId / key 一律用 string, 与 URL 路径保持一致; 后端雪花 ID (>2^53) 转 number 会丢精度
   const movieDetails = ref<Map<string, Entry<Movie>>>(new Map())
   const sessionLists = ref<Map<string, Entry<SessionVO[]>>>(new Map())
-  const moviePages = ref<Map<string, Entry<PageData<Movie>>>>(new Map())
 
   const now = () => Date.now()
   const alive = <T,>(e: Entry<T> | null | undefined) => !!e && e.expireAt > now()
@@ -53,26 +52,9 @@ export const useMovieCache = defineStore('movieCache', () => {
     return alive(e) ? e!.value : null
   }
 
-  function setMoviePage(key: string, page: PageData<Movie>) {
-    moviePages.value.set(key, { value: page, expireAt: now() + TTL_MS })
-  }
-  function getMoviePage(key: string): PageData<Movie> | null {
-    const e = moviePages.value.get(key)
-    return alive(e) ? e!.value : null
-  }
-
-  function invalidate() {
-    movies.value = null
-    movieDetails.value.clear()
-    sessionLists.value.clear()
-    moviePages.value.clear()
-  }
-
   return {
     setMovies, getMovies,
     setMovieDetail, getMovieDetail,
     setSessionList, getSessionList,
-    setMoviePage, getMoviePage,
-    invalidate,
   }
 })

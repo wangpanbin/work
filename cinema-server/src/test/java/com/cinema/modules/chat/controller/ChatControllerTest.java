@@ -1,5 +1,6 @@
 package com.cinema.modules.chat.controller;
 
+import com.cinema.common.annotation.IdempotencyKeys;
 import com.cinema.common.annotation.RateLimit;
 import com.cinema.common.context.UserContext;
 import com.cinema.modules.chat.dto.ChatRequestDTO;
@@ -62,15 +63,16 @@ class ChatControllerTest {
     }
 
     @Test
-    @DisplayName("chatMessage 方法上有 @RateLimit 注解,SpEL key 与 10/min 桶配置正确")
+    @DisplayName("chatMessage 方法上有 @RateLimit 注解,SpEL key 取自常量 + 10/min 登录桶 / 2/min 匿名桶")
     void chatMessage_hasRateLimitAnnotation() throws NoSuchMethodException {
         Method m = ChatController.class.getMethod("chatMessage", ChatRequestDTO.class);
         RateLimit annotation = m.getAnnotation(RateLimit.class);
 
         assertThat(annotation).as("@RateLimit 必须就位(spec §6.3 限流要求)").isNotNull();
-        assertThat(annotation.key())
-                .isEqualTo("T(com.cinema.common.context.UserContext).userId() ?: 'anon' + ':chat'");
+        // key 走常量: 括号补齐后登录桶才带 ':chat' 后缀, 与匿名桶对称
+        assertThat(annotation.key()).isEqualTo(IdempotencyKeys.RATE_CHAT_MESSAGE_BY_USER);
         assertThat(annotation.permits()).isEqualTo(10);
+        assertThat(annotation.anonymousPermits()).isEqualTo(2);
         assertThat(annotation.window()).isEqualTo(1);
         assertThat(annotation.unit()).isEqualTo(TimeUnit.MINUTES);
     }

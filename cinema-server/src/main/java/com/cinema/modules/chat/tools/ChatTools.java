@@ -9,6 +9,7 @@ import com.cinema.modules.movie.entity.Movie;
 import com.cinema.modules.movie.service.MovieService;
 import com.cinema.modules.order.service.OrderQueryService;
 import com.cinema.modules.order.vo.OrderVO;
+import com.cinema.modules.seat.SeatAvailability;
 import com.cinema.modules.seat.service.SeatService;
 import com.cinema.modules.seat.vo.SeatMapVO;
 import com.cinema.modules.session.service.SessionService;
@@ -20,8 +21,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -110,45 +109,8 @@ public class ChatTools {
         log.debug("[chat-tools] getSeatSummary sessionId={}, userId={}", sessionId, userId);
         SeatMapVO vo = seatService.seatMap(sessionId, userId);
 
-        // 解码 lock/sold 位图,计算可选 / 已锁 / 已售
-        byte[] lock = Base64.getDecoder().decode(vo.getLockBitmap());
-        byte[] sold = Base64.getDecoder().decode(vo.getSoldBitmap());
-        int seatCount = vo.getSeatCount();
-
-        int lockedOther = 0, soldCount = 0, available = 0;
-        int availableContiguousAt = -1; // 第一个连座起点
-        int availableContiguousLen = 0;
-        int currentRunLen = 0, currentRunStart = -1;
-
-        for (int i = 0; i < seatCount; i++) {
-            int byteIdx = i >>> 3;
-            int bitInByte = 7 - (i & 7);
-            boolean isLock = byteIdx < lock.length && ((lock[byteIdx] >> bitInByte) & 1) == 1;
-            boolean isSold = byteIdx < sold.length && ((sold[byteIdx] >> bitInByte) & 1) == 1;
-            if (isSold) {
-                soldCount++;
-                if (currentRunLen > availableContiguousLen) {
-                    availableContiguousAt = currentRunStart;
-                    availableContiguousLen = currentRunLen;
-                }
-                currentRunLen = 0; currentRunStart = -1;
-            } else if (isLock) {
-                lockedOther++;
-                if (currentRunLen > availableContiguousLen) {
-                    availableContiguousAt = currentRunStart;
-                    availableContiguousLen = currentRunLen;
-                }
-                currentRunLen = 0; currentRunStart = -1;
-            } else {
-                available++;
-                if (currentRunStart == -1) currentRunStart = i;
-                currentRunLen++;
-            }
-        }
-        if (currentRunLen > availableContiguousLen) {
-            availableContiguousAt = currentRunStart;
-            availableContiguousLen = currentRunLen;
-        }
+        // 位图解码与计数统一交给 SeatAvailability —— 判定口径与搬迁前逐条一致
+        SeatAvailability availability = SeatAvailability.of(vo);
 
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("sessionId", vo.getSessionId());
@@ -156,13 +118,14 @@ public class ChatTools {
         summary.put("hallName", vo.getHallName());
         summary.put("startTime", vo.getStartTime());
         summary.put("price", vo.getPrice());
-        summary.put("seatCount", seatCount);
-        summary.put("available", available);
-        summary.put("lockedOther", lockedOther);
-        summary.put("sold", soldCount);
-        if (availableContiguousAt >= 0) {
-            summary.put("longestContiguousStart", availableContiguousAt);
-            summary.put("longestContiguousLength", availableContiguousLen);
+        summary.put("seatCount", vo.getSeatCount());
+        summary.put("available", availability.availableCount());
+        summary.put("lockedOther", availability.lockedCount());
+        summary.put("sold", availability.soldCount());
+        SeatAvailability.Run longest = availability.longestAvailableRun();
+        if (longest.found()) {
+            summary.put("longestContiguousStart", longest.start());
+            summary.put("longestContiguousLength", longest.length());
         }
         return summary;
     }
@@ -181,39 +144,8 @@ public class ChatTools {
         log.debug("[chat-tools] findContiguousSeats sessionId={}, userId={}, count={}, preferRow={}",
                 sessionId, userId, count, preferRow);
         SeatMapVO vo = seatService.seatMap(sessionId, userId);
-        byte[] lock = Base64.getDecoder().decode(vo.getLockBitmap());
-        byte[] sold = Base64.getDecoder().decode(vo.getSoldBitmap());
-        int seatCount = vo.getSeatCount();
-        int cols = vo.getCols(); // 用于按行划分(行 = i / cols)
-
-        // 收集所有可选座位索引
-        List<Integer> availableIdx = new ArrayList<>();
-        for (int i = 0; i < seatCount; i++) {
-            int byteIdx = i >>> 3;
-            int bitInByte = 7 - (i & 7);
-            boolean isLock = byteIdx < lock.length && ((lock[byteIdx] >> bitInByte) & 1) == 1;
-            boolean isSold = byteIdx < sold.length && ((sold[byteIdx] >> bitInByte) & 1) == 1;
-            if (!isLock && !isSold) availableIdx.add(i);
-        }
-
-        // 找同行的 count 连座
-        for (Integer idx : availableIdx) {
-            int row = idx / cols;
-            int col = idx % cols;
-            List<Integer> candidate = new ArrayList<>();
-            candidate.add(idx);
-            for (int nextCol = col + 1; nextCol < cols && candidate.size() < count; nextCol++) {
-                int nextIdx = row * cols + nextCol;
-                if (availableIdx.contains(nextIdx)) candidate.add(nextIdx);
-                else break;
-            }
-            if (candidate.size() == count) {
-                // 优先 preferRow 命中
-                if (preferRow == null || preferRow == row) return candidate;
-            }
-        }
-        // 没找到连座
-        return List.of();
+        // 连座查找统一交给 SeatAvailability(FIRST_ROW = 扫到第一个够长的连座就返回)
+        return SeatAvailability.of(vo).findRun(count, SeatAvailability.RunPolicy.FIRST_ROW, preferRow);
     }
 
     // ============ 我的订单类(2 个,服务端 userId,null 短路)============

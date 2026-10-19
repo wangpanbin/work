@@ -59,19 +59,19 @@ class DashboardTrendQueryTest {
         Map<String, Object> r3 = rowOf(LocalDate.now(), 300L);
         when(orderMapper.weeklyTrend()).thenReturn(List.of(r1, r2, r3));
 
-        List<Map<String, Object>> out = query.weeklyTrend();
+        List<TrendPoint> out = query.weeklyTrend();
 
         assertThat(out).hasSize(7);
-        assertThat(out.get(0).get("date")).isEqualTo(LocalDate.now().minusDays(6).toString());
-        assertThat(out.get(6).get("date")).isEqualTo(LocalDate.now().toString());
+        assertThat(out.get(0).date()).isEqualTo(LocalDate.now().minusDays(6).toString());
+        assertThat(out.get(6).date()).isEqualTo(LocalDate.now().toString());
         // 中间 3 天有数据
         long totalAmount = out.stream()
-                .mapToLong(m -> ((Number) m.get("amount")).longValue())
+                .mapToLong(TrendPoint::amount)
                 .sum();
         assertThat(totalAmount).isEqualTo(600L);
         // 缺数据的几天是 0
         long zeroCount = out.stream()
-                .filter(m -> ((Number) m.get("amount")).longValue() == 0L)
+                .filter(p -> p.amount() == 0L)
                 .count();
         assertThat(zeroCount).isEqualTo(4);
     }
@@ -81,10 +81,10 @@ class DashboardTrendQueryTest {
     void weeklyTrend_emptyMapper_returns7Zeros() {
         when(orderMapper.weeklyTrend()).thenReturn(List.of());
 
-        List<Map<String, Object>> out = query.weeklyTrend();
+        List<TrendPoint> out = query.weeklyTrend();
 
         assertThat(out).hasSize(7);
-        out.forEach(m -> assertThat(((Number) m.get("amount")).longValue()).isEqualTo(0L));
+        out.forEach(p -> assertThat(p.amount()).isEqualTo(0L));
     }
 
     /**
@@ -102,16 +102,16 @@ class DashboardTrendQueryTest {
         Map<String, Object> r2 = rowOfSqlDate(LocalDate.now(), 175L);
         when(orderMapper.weeklyTrend()).thenReturn(List.of(r1, r2));
 
-        List<Map<String, Object>> out = query.weeklyTrend();
+        List<TrendPoint> out = query.weeklyTrend();
 
         assertThat(out).hasSize(7);
         // java.sql.Date.toString() == "YYYY-MM-DD", padding key 直接匹配
-        assertThat(out.get(6).get("date")).isEqualTo(LocalDate.now().toString());
-        assertThat(((Number) out.get(6).get("amount")).longValue()).isEqualTo(175L);
-        assertThat(((Number) out.get(5).get("amount")).longValue()).isEqualTo(250L);
+        assertThat(out.get(6).date()).isEqualTo(LocalDate.now().toString());
+        assertThat(out.get(6).amount()).isEqualTo(175L);
+        assertThat(out.get(5).amount()).isEqualTo(250L);
         // 其余 5 天是 0
         long zeroCount = out.stream()
-                .filter(m -> ((Number) m.get("amount")).longValue() == 0L)
+                .filter(p -> p.amount() == 0L)
                 .count();
         assertThat(zeroCount).isEqualTo(5);
     }
