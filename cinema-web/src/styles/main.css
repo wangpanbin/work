@@ -56,6 +56,14 @@
   --scene-seat: #0891b2; /* 青 · 银幕光 · 选座域(SeatSelect / SeatItem) */
   --scene-seat-ink: #155e75; /* 文字安全: 纸面 6.41:1 / 凹陷面 5.89:1 */
   --scene-seat-rgb: 8 145 178;
+
+  --scene-order: #7c3aed; /* 紫罗兰 · 订单域(OrderList) */
+  --scene-order-ink: #5b21b6; /* 文字安全: 纸面 8.84:1 / 凹陷面 7.29:1 */
+  --scene-order-rgb: 124 58 237;
+
+  --scene-payment: #b21f96; /* 深品红 · 支付域(Payment) */
+  --scene-payment-ink: #701a75; /* 文字安全: 纸面 8.84:1 / 凹陷面 8.13:1 */
+  --scene-payment-rgb: 178 31 150;
 }
 
 /* --- 设计 Token: 功能色 (克制, 只用于状态) --- */

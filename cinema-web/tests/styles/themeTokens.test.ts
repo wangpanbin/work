@@ -520,22 +520,53 @@ describe('主题契约 · 座位关注标识不是纯颜色通道', () => {
  */
 
 /** 场景身份色家族清单 —— 每族必须恰好 base / ink / rgb 三个成员 */
-const SCENE_FAMILIES = ['browse', 'seat'] as const
+const SCENE_FAMILIES = ['browse', 'seat', 'order', 'payment'] as const
 
 /** 每个身份色允许出现的文件(域隔离) */
 const SCENE_DOMAINS: Record<string, string[]> = {
   browse: ['views/Home.vue', 'views/MovieDetail.vue'],
   seat: ['views/SeatSelect.vue', 'components/SeatItem.vue'],
+  order: ['views/OrderList.vue'],
+  payment: ['views/Payment.vue'],
 }
 
 /**
- * 每个域内实际会出现的语义色(实施时 grep 固化)。
- * browse 域全文未引用任何 --ok/--warn/--danger, 所以是空数组;
- * seat 域的 WS 状态条三色齐用。
+ * 域内**间接**用到的语义色 —— el-tag 的 type="success|warning|danger" 会走 EP 的
+ * --el-color-success / --warning / --danger, 而 main.css 把它们分别指向
+ * --ok / --warn / --danger(见 main.css 的 Element Plus 变量覆盖块)。
+ *
+ * <p>这层<b>无法</b>从域内文件自动推导: 状态 → tagType 是动态映射, 映射表在
+ * views/order/constants.ts, 不在域文件里。所以显式登记 ——
+ * 登记缺失的后果与漏判同向(闸门以为这个域没有语义色), 所以宁可多登记。
  */
-const SCENE_SEMANTIC_PEERS: Record<string, string[]> = {
+const DOMAIN_TAG_PEERS: Record<string, string[]> = {
   browse: [],
-  seat: ['--ok', '--warn', '--danger'],
+  seat: [],
+  order: ['--ok', '--warn'],
+  payment: ['--ok', '--warn'],
+}
+
+/**
+ * 域内**直接**引用的语义色 —— 从代码里扫出来, 不写死。
+ * 扫域内文件里出现的 var(--ok) / var(--warn) / var(--danger) 及它们的派生写法
+ * (--ok-rgb / --danger-hover 之类, 统一归并到基色)。
+ */
+function scanDirectSemanticPeers(files: string[]): Set<string> {
+  const found = new Set<string>()
+  for (const rel of files) {
+    const text = stripComments(readSrc(rel))
+    for (const m of text.matchAll(/var\(\s*(--(?:ok|warn|danger))(?:-[a-z]+)?\s*\)/g)) {
+      found.add(m[1])
+    }
+  }
+  return found
+}
+
+/** 某个域实际会出现的语义色集合 = 直接引用 ∪ el-tag 间接引用 */
+function effectiveSemanticPeers(family: string): string[] {
+  const set = scanDirectSemanticPeers(SCENE_DOMAINS[family] ?? [])
+  for (const p of DOMAIN_TAG_PEERS[family] ?? []) set.add(p)
+  return [...set].sort()
 }
 
 /** hex -> HSL(用于断言色相差与饱和度差) */
@@ -582,12 +613,18 @@ function contrastRatioOf(fg: string, bg: string): number {
 describe('主题契约 · 场景身份色家族', () => {
   const tokens = parseRootTokens(MAIN_CSS)
 
-  it('只有两族(browse / seat), 每族恰好 base / ink / rgb 三个成员', () => {
+  it('只有四族(browse / seat / order / payment), 每族恰好 base / ink / rgb 三个成员', () => {
     const sceneDecls = [...tokens.keys()].filter((k) => k.startsWith('--scene-')).sort()
     expect(sceneDecls).toEqual([
       '--scene-browse',
       '--scene-browse-ink',
       '--scene-browse-rgb',
+      '--scene-order',
+      '--scene-order-ink',
+      '--scene-order-rgb',
+      '--scene-payment',
+      '--scene-payment-ink',
+      '--scene-payment-rgb',
       '--scene-seat',
       '--scene-seat-ink',
       '--scene-seat-rgb',
@@ -633,19 +670,55 @@ describe('主题契约 · 场景身份色家族', () => {
     }
   })
 
-  it('同域语义色与身份色 base 靠「明度差 ≥25 或 饱和度差 ≥0.25」区分', () => {
+})
+
+describe('主题契约 · 场景身份色与语义色的可分辨性', () => {
+  const tokens = parseRootTokens(MAIN_CSS)
+
+  it('同域语义色与身份色 base 可分辨: 色相差 ≥25 或 灰阶差 ≥25 或 饱和度差 ≥0.25', () => {
+    // 三个通道任一成立即可 —— 色相是最强的可分辨信号, 而低饱和深色的语义色
+    // (墨绿 / 暗金 / 暗红) 与任何饱和中调色的灰阶差和饱和度差都 <25/<0.25,
+    // 只认后两个通道的话, 品红/紫这类色永远过不了(实测: 灰阶差 5~20, 饱和度差 0.00~0.11)。
     for (const family of SCENE_FAMILIES) {
       const base = resolveToken(`--scene-${family}`, tokens)
-      for (const peer of SCENE_SEMANTIC_PEERS[family]) {
+      for (const peer of effectiveSemanticPeers(family)) {
         const peerHex = resolveToken(peer, tokens)
+        const hueGap = hueDistance(base, peerHex)
         const grayGap = Math.abs(grayscaleLevel(base) - grayscaleLevel(peerHex))
         const satGap = satDistance(base, peerHex)
         expect(
-          grayGap >= 25 || satGap >= 0.25,
-          `${family} base (${base}) 与 ${peer} (${peerHex}) 分不开: 灰阶差 ${grayGap}, 饱和度差 ${satGap.toFixed(3)}`,
+          hueGap >= 25 || grayGap >= 25 || satGap >= 0.25,
+          `${family} base (${base}) 与 ${peer} (${peerHex}) 分不开: `
+            + `色相差 ${hueGap.toFixed(1)}°, 灰阶差 ${grayGap}, 饱和度差 ${satGap.toFixed(3)}`,
         ).toBe(true)
       }
     }
+  })
+
+  it('base 底上的文字可读: --ink 与 --ink-inverse 至少一个达 4.5:1', () => {
+    // base 都是高饱和色, 反色字未必读得清 —— 所以规定「用对比度更高的那支墨色」,
+    // 而不是固定用某一支。浅 base 走 --ink, 深 base 走 --ink-inverse。
+    for (const family of SCENE_FAMILIES) {
+      const base = resolveToken(`--scene-${family}`, tokens)
+      const onInk = contrastRatioOf(resolveToken('--ink', tokens), base)
+      const onInverse = contrastRatioOf(resolveToken('--ink-inverse', tokens), base)
+      expect(
+        Math.max(onInk, onInverse),
+        `${family} base (${base}) 上两种墨色都读不清: `
+          + `--ink ${onInk.toFixed(2)}:1 / --ink-inverse ${onInverse.toFixed(2)}:1`,
+      ).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  it('域内语义色集合确实扫到了东西(防扫描逻辑失效导致假绿)', () => {
+    // seat 域的 WS 状态条直接引用了 ok / warn / danger 三色
+    expect(effectiveSemanticPeers('seat')).toEqual(['--danger', '--ok', '--warn'])
+    // order 域: 状态脉冲点直接引用 --danger, 状态标签经 el-tag 间接用到 ok / warn
+    expect(effectiveSemanticPeers('order')).toEqual(['--danger', '--ok', '--warn'])
+    // payment 域: 错误提示与成功态直接引用 ok / danger, 状态标签经 el-tag 间接用到 warn
+    expect(effectiveSemanticPeers('payment')).toEqual(['--danger', '--ok', '--warn'])
+    // browse 域既不直接引用也不经 el-tag 间接引用
+    expect(effectiveSemanticPeers('browse')).toEqual([])
   })
 })
 

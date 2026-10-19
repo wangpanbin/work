@@ -24,6 +24,12 @@ colors:
   scene-seat: "#0891b2"
   scene-seat-ink: "#155e75"
   scene-seat-rgb: "8 145 178"
+  scene-order: "#7c3aed"
+  scene-order-ink: "#5b21b6"
+  scene-order-rgb: "124 58 237"
+  scene-payment: "#b21f96"
+  scene-payment-ink: "#701a75"
+  scene-payment-rgb: "178 31 150"
   ok: "#2a6b52"
   warn: "#86691c"
   danger: "#a8271b"
@@ -174,10 +180,14 @@ A global ink cannot carry every role. Before this change, the same #2563eb was s
 | --- | --- | --- | --- | --- |
 | Browse | `Home`, `MovieDetail` | `#f97316` marquee orange | `#9a3412` | `249 115 22` |
 | Seat | `SeatSelect`, `SeatItem` | `#0891b2` projector cyan | `#155e75` | `8 145 178` |
+| Order | `OrderList` | `#7c3aed` violet | `#5b21b6` | `124 58 237` |
+| Payment | `Payment` | `#b21f96` deep magenta | `#701a75` | `178 31 150` |
 
 Each family has exactly three members: **base** (graphic, fill, chart series), **ink** (text-safe, ≥4.5:1 on every paper tone) and **rgb** (for `rgb(var(--scene-x-rgb) / a)` washes). `themeTokens.test.ts` asserts the family count, the member set, the ink contrast, the ≥25° hue distance from the global ink, and the separation from any semantic colour that co-occurs in the same domain.
 
-Two more domains (`order`, `payment`) are reserved for the next round; they are deliberately **not** defined yet, because a token nobody uses is a promise the system does not keep.
+**Why order is violet and not green.** The order domain's own semantic colours already include `--ok` (the PAID status tag) and `--warn` (PENDING_PAY / REFUNDING), plus a `--danger` pulse dot. A green identity ink would sit one hue away from the "已支付" green tag on the same card, and green in this product already *means* paid. Violet clears `--ok` by 105°, `--warn` by 142° and `--danger` by 103°.
+
+**Why payment is a deep magenta and not a pink.** The first pink candidate was measured and rejected: it fails the same-domain separation against `--danger` (grey gap 20, saturation gap 0.009) *and* neither ink colour clears 4.5:1 on it. The deep magenta clears `--danger` by 54° and carries white type at 5.66:1, which is also what the dark ticket face needs.
 
 ### Neutral
 
@@ -200,11 +210,12 @@ Two more domains (`order`, `payment`) are reserved for the next round; they are 
 
 **The One Global Ink Rule.** There is one **global** accent. It is applied to less than a tenth of any given screen, and it is never duplicated by a second global hue. It does not change hue between pages, so a primary button means the same thing everywhere. When something needs emphasis and blue is already spent, reach for a heavier rule weight or a darker ink, not a new colour.
 
-**The Scene Ink Rule.** A business domain may carry one **scene ink**, and it is bound to that domain for good. Three rules govern it:
+**The Scene Ink Rule.** A business domain may carry one **scene ink**, and it is bound to that domain for good. Four rules govern it:
 
 1. **Small surfaces only.** A scene ink may appear on badges, dots, progress fills, chart series, ticket stamps and icon chips — nothing else. It is never allowed on a global emphasis surface: primary CTA, link, focus ring, section title bar, hairline border, or nav active state. Those stay `--accent`.
-2. **Three members, no more.** Every scene family is exactly `base` / `ink` / `rgb`. `base` is a graphic colour and is never used for body text; text on a base fill uses `--ink` (the counter ink), never `--ink-inverse`, because every base is high-lightness and high-chroma and reverse type disappears on it. `ink` is the text-safe member and must clear 4.5:1 on every paper tone.
-3. **Never leaves its domain.** A scene ink used outside its own domain is a bug, not a style choice. `themeTokens.test.ts` asserts the domain boundary file by file.
+2. **Three members, no more.** Every scene family is exactly `base` / `ink` / `rgb`. `base` is a graphic colour and is never used for body text. `ink` is the text-safe member and must clear 4.5:1 on every paper tone.
+3. **Type on a base fill picks the ink that reads.** Not a fixed member: the text on a `base` fill uses whichever of `--ink` / `--ink-inverse` clears 4.5:1 against that base. Light bases (browse orange, seat cyan) take `--ink`; dark bases (order violet, payment magenta) take `--ink-inverse`. The first version of this rule hard-coded `--ink` and was simply wrong for the two dark families.
+4. **Never leaves its domain, and never reads as a semantic colour.** A scene ink used outside its own domain is a bug, not a style choice; `themeTokens.test.ts` asserts the domain boundary file by file. Inside its domain it must stay clear of every semantic colour that appears on the same screen — **hue distance ≥25° OR grey-level gap ≥25 OR saturation gap ≥0.25**. The hue channel is not optional: the semantic colours are low-chroma and dark, so *any* saturated mid-tone magenta or violet shares their lightness band and their saturation band, and grey/saturation alone cannot separate them (measured: magenta vs `--danger` gives grey gap 5–20 and saturation gap 0.00–0.11). Which semantic colours a domain inherits is **derived from the code** — every `var(--ok)` / `var(--warn)` / `var(--danger)` in the domain's files, plus the ones implied by `el-tag type="success|warning|danger"` — so a domain that grows a new semantic colour cannot slip past the gate.
 
 **The Inverted Family Rule.** Dark surfaces are the ink colour inverted, never a new palette. The sidebar and the auditorium must stay the same value, because it is one family.
 
@@ -243,6 +254,13 @@ A single centred column of printed sheets, 1280px maximum, with 32px vertical an
 - **The session list** is a ticket, not a table row: a large tabular start time on the left, the hall in the middle, and the price stamped in ink on the right, with the booking button last.
 
 A row of identical cards was the shape the previous design kept repeating; the asymmetry is where the colour has room to land.
+
+**Round two (2026-10-20), the same moves applied to the remaining pages:**
+
+- **Order card** — the order number leaves the footer and moves to the top-right of the main coupon, where it joins the status tag as a metadata cluster. The number is the one thing on a ticket that reads as a serial, so it is set as an **order-ink stamp**. The footer keeps time, amount and actions.
+- **Payment** — the only page where a ticket has already been issued, so the whole card becomes a **dark ticket face** in the auditorium family (`--hall`), with a payment-ink bar along its bottom edge. The perforation stays on the top edge; the identity bar is the border, not a pseudo-element, so the tear device is untouched.
+- **Login** — the stub's three rows (showtime, hall, seat) stop being a two-column table and become three stacked rows of label-plus-large-tabular-value, the same reading order as the home page's stub. An ink bar runs along the stub's top edge, and focused inputs grow a small ink tick on their left edge.
+- **Not found** — 404 is a ticket too: the number becomes the ticket's serial, set as an ink stamp beside the brand mark, on a torn coupon with the perforation along its top edge.
 
 The admin shell breaks the model on purpose: it goes full-bleed with a fixed 220px sidebar and a 20/24px content padding, because a data console needs the width more than it needs the margin. The seat page also breaks it: the auditorium panel is a full-width dark ticket face, with the seat grid inside it using `32px + repeat(cols, minmax(28px, 1fr))` columns and a 6px gap so row labels align with seats.
 

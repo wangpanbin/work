@@ -279,6 +279,8 @@ const barcodeBars = [3, 1, 2, 1, 3, 2, 1, 1, 3, 1, 2, 3, 1, 2]
   background: var(--paper-raised);
   border: 1px solid var(--rule);
   border-right: none;
+  /* 存根联上缘一道印色条 —— 与首页 Hero、详情页 hero 同一套语言 */
+  border-top: 4px solid var(--accent);
   border-radius: var(--radius-lg) 0 0 var(--radius-lg);
   padding: 28px 24px 20px;
   display: flex;
@@ -318,18 +320,23 @@ const barcodeBars = [3, 1, 2, 1, 3, 2, 1, 1, 3, 1, 2, 3, 1, 2]
   flex-shrink: 0;
 }
 
-/* 场次 / 影厅 / 座位: 左右两栏, 像票面表格 —— 标签在左, 等宽值在右。
-   用 grid 而不是堆叠, 既更像真实票面, 也避免每格占两行把票面拉得过高。 */
+/* 场次 / 影厅 / 座位: 竖排三行, 每行「左标签 + 右大号等宽值」。
+   与首页副券同一套排法 —— 票面数据竖着排才像票, 横排成表是账本。 */
 .stub-fields {
   display: flex;
   flex-direction: column;
-  gap: 12px;
 }
 .stub-field {
-  display: grid;
-  grid-template-columns: 3.5em 1fr;
+  display: flex;
   align-items: baseline;
-  gap: 10px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.stub-field:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
 }
 .stub-label {
   font-size: 10px;
@@ -340,7 +347,7 @@ const barcodeBars = [3, 1, 2, 1, 3, 2, 1, 1, 3, 1, 2, 3, 1, 2]
 .stub-value {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  font-size: 15px;
+  font-size: 18px;
   color: var(--ink);
   font-weight: 600;
   white-space: nowrap;
@@ -367,6 +374,10 @@ const barcodeBars = [3, 1, 2, 1, 3, 2, 1, 1, 3, 1, 2, 3, 1, 2]
   align-items: baseline;
   justify-content: space-between;
   gap: 10px;
+  padding: 4px 10px;
+  border: 1px solid rgb(var(--accent-rgb) / 0.35);
+  border-radius: var(--radius-sm);
+  background: rgb(var(--accent-rgb) / 0.08);
 }
 .stub-no-label {
   font-size: 10px;
@@ -377,7 +388,7 @@ const barcodeBars = [3, 1, 2, 1, 3, 2, 1, 1, 3, 1, 2, 3, 1, 2]
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-size: 15px;
-  color: var(--ink);
+  color: var(--accent);
   font-weight: 600;
 }
 
@@ -441,6 +452,28 @@ const barcodeBars = [3, 1, 2, 1, 3, 2, 1, 1, 3, 1, 2, 3, 1, 2]
 }
 .login-tabs :deep(.el-tabs__active-bar) {
   display: none;
+}
+
+/* 反馈层: 聚焦的输入框在左侧亮出一道印色条 —— 告诉用户"光标在这" */
+.counterfoil-card :deep(.el-form-item) {
+  position: relative;
+  padding-left: 12px;
+  transition: border-color var(--transition-fast);
+}
+.counterfoil-card :deep(.el-form-item::before) {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 0;
+  border-radius: 1px;
+  background: var(--accent);
+  transition: height var(--transition-fast);
+}
+.counterfoil-card :deep(.el-form-item:focus-within::before) {
+  height: 22px;
 }
 
 .submit-btn {

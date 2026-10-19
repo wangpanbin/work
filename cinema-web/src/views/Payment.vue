@@ -783,4 +783,95 @@ const barcodeBars = [2, 1, 3, 1, 2, 1, 1, 3, 2, 1, 2, 3, 1, 2, 1, 3]
     font-size: 28px;
   }
 }
+
+/* ============================================
+   暗场票面 (2026-10-20 视觉重构 · 第 2 轮)
+   支付页是全站唯一「票已出」的一页 —— 把它做成暗场票面, 与选座页的
+   放映厅同族(--hall), 纸面的部分退到次要位置。
+   写成一块集中的覆盖而不是逐条改, 是为了让"这张票在暗场里"这件事
+   在一处读得完; 上面的规则仍保留纸面写法, 便于对照。
+   ⚠️ 身份色只做局部元素(印色条 / 座位块 / 票号印章), 不碰文字与按钮。
+   ============================================ */
+.payment-card {
+  background: var(--hall);
+  border-color: var(--hall-rule);
+  /* 票根下缘一道支付域印色条: ::before 已被上缘齿孔占用 */
+  border-bottom: 4px solid var(--scene-payment);
+  box-shadow: var(--shadow-hall);
+  color: var(--hall-ink);
+}
+.payment-card .title {
+  color: var(--hall-ink);
+}
+.payment-card .meta,
+.payment-card .label,
+.payment-card .total-label,
+.payment-card .stub-no-label {
+  color: var(--hall-ink-2);
+}
+.payment-card .value {
+  color: var(--hall-ink);
+}
+.payment-card .divider {
+  background: var(--hall-rule);
+}
+/* 座位块: 支付域身份色的淡底 + 左缘印色条 */
+.payment-card .seat-desc {
+  background: rgb(var(--scene-payment-rgb) / 0.14);
+  border-color: rgb(var(--scene-payment-rgb) / 0.4);
+  border-left-color: var(--scene-payment);
+  color: var(--hall-ink);
+}
+/* 倒计时 / 退款中 / 已退款 三条横幅 */
+.payment-card .status-banner.status-refunding {
+  background: rgb(var(--accent-rgb) / 0.18);
+  border-color: var(--hall-rule);
+  color: var(--hall-ink);
+}
+.payment-card .status-banner.status-refunded {
+  background: var(--hall-raised);
+  border-color: var(--hall-rule);
+  color: var(--hall-ink-2);
+}
+.payment-card .success-content {
+  color: var(--hall-ink);
+}
+.payment-card .banner-icon {
+  background: var(--hall-raised);
+  border-color: var(--hall-rule);
+  color: var(--hall-ink);
+}
+.payment-card .spinner {
+  border-color: var(--hall-rule);
+  border-top-color: var(--hall-ink);
+}
+/* 金额: 暗场里不用浅色字, 用暗场墨 —— 印色交给票据边的印色条与座位块 */
+.payment-card .amount,
+.payment-card .currency {
+  color: var(--hall-ink);
+}
+/* 票号印章: 支付域身份色 */
+.payment-card .stub-no {
+  border: 1px solid rgb(var(--scene-payment-rgb) / 0.4);
+  background: rgb(var(--scene-payment-rgb) / 0.12);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+}
+.payment-card .stub-no-value {
+  color: var(--hall-ink);
+}
+.payment-card .barcode i {
+  background: var(--hall-ink-2);
+}
+/* plain 按钮在暗场上: 语义色落在边框与淡底, 文字走暗场墨 —— 否则暗红/暗金压在深底上读不清 */
+.payment-card .el-button--danger.is-plain {
+  color: var(--hall-ink);
+  border-color: rgb(var(--danger-rgb) / 0.55);
+  background: rgb(var(--danger-rgb) / 0.14);
+}
+.payment-card .el-button--warning.is-plain {
+  color: var(--hall-ink);
+  border-color: rgb(var(--warn-rgb) / 0.55);
+  background: rgb(var(--warn-rgb) / 0.14);
+}
 </style>

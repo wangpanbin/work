@@ -168,10 +168,18 @@ onMounted(() => {
               <span>{{ o.seatDesc }}</span>
             </div>
           </div>
-          <div class="order-status">
-            <el-tag :type="viewOf(o.status).tagType" effect="dark" round>
-              {{ o.statusText || t(viewOf(o.status).labelKey) }}
-            </el-tag>
+          <div class="order-right">
+            <!-- 票号印章: 订单域身份色。编号是票根上最像"编号"的东西,
+                 提到主券右上角与状态标签组成元信息簇, 页脚因此只剩 时间 / 金额 / 操作。 -->
+            <div class="stub-no">
+              <span class="stub-no-label">{{ t('payment.orderNo') }}</span>
+              <span class="stub-no-value">{{ o.orderNo }}</span>
+            </div>
+            <div class="order-status">
+              <el-tag :type="viewOf(o.status).tagType" effect="dark" round>
+                {{ o.statusText || t(viewOf(o.status).labelKey) }}
+              </el-tag>
+            </div>
           </div>
         </div>
 
@@ -181,11 +189,6 @@ onMounted(() => {
               <el-icon :size="14"><Clock /></el-icon>
             </span>
             <span class="created-at">{{ dayjs(o.createdAt).format('YYYY-MM-DD HH:mm') }}</span>
-          </div>
-          <!-- 票号条: 票根主题的签名装置, 等宽排印 -->
-          <div class="stub-no">
-            <span class="stub-no-label">{{ t('payment.orderNo') }}</span>
-            <span class="stub-no-value">{{ o.orderNo }}</span>
           </div>
           <div class="footer-middle">
             <span class="amount-label">{{ o.status === 4 ? t('order.amountRefunded') : t('order.amountTotal') }}</span>
@@ -359,8 +362,28 @@ onMounted(() => {
   color: var(--rule-strong);
 }
 
+.order-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
 .order-status {
   flex-shrink: 0;
+}
+
+/* 窄屏: 票号印章 + 状态标签换到第二行, 否则那串 19 位订单号会把
+   影片信息挤成一列窄字(2026-10-20 浏览器实测发现的破版)。 */
+@media (max-width: 768px) {
+  .order-main {
+    flex-wrap: wrap;
+    row-gap: 12px;
+  }
+  .order-right {
+    width: 100%;
+    justify-content: space-between;
+  }
 }
 
 /* --- Footer --- */
@@ -382,15 +405,15 @@ onMounted(() => {
   font-variant-numeric: tabular-nums;
 }
 
-/* 票号条: 与落款同排, 等宽排印 —— 票根上"票号"永远在角落 */
+/* 票号印章: 订单域身份色。票号是票根上唯一像"编号"的东西, 做成印章而不是普通文字 */
 .stub-no {
   display: flex;
   align-items: baseline;
   gap: 6px;
-  padding: 2px 8px;
-  border: 1px solid var(--rule);
+  padding: 3px 10px;
+  border: 1px solid rgb(var(--scene-order-rgb) / 0.4);
   border-radius: var(--radius-sm);
-  background: var(--paper-raised);
+  background: rgb(var(--scene-order-rgb) / 0.1);
 }
 .stub-no-label {
   font-size: 10px;
@@ -400,7 +423,7 @@ onMounted(() => {
 .stub-no-value {
   font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--ink-2);
+  color: var(--scene-order-ink);
 }
 
 .time-icon {
@@ -420,13 +443,13 @@ onMounted(() => {
   font-size: 13px;
 }
 
-/* 金额 = 票面数据 → 等宽 */
+/* 金额 = 票面数据 → 等宽; 用订单域身份色, 与全局印色区分 */
 .amount-value {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-size: 22px;
   font-weight: 600;
-  color: var(--accent);
+  color: var(--scene-order-ink);
 }
 
 .amount-value .currency {
