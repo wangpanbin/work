@@ -394,4 +394,50 @@ class ChatAssistantServiceTest {
         // memoryStore.evict 应该被调过(2 次,一个桶一次)
         org.mockito.Mockito.verify(store, org.mockito.Mockito.atLeast(2)).evict(anyString());
     }
+
+    // ============ chatSessionId 缺省兜底(spec §6.1) ============
+
+    /**
+     * 2026-10-19 联调发现的真 bug 回归:裸请求不带 chatSessionId 时,
+     * 原实现把 null 直接传进 ConcurrentHashMap.computeIfAbsent → NPE → 50000「系统繁忙」。
+     * spec §6.1 约定:后端拿到 null 视为新会话,生成 fallback id 并在响应里回传。
+     */
+    @Test
+    @DisplayName("chatSessionId 为 null 时生成 fallback id,不 NPE 且回传")
+    void nullChatSessionId_generatesFallbackAndReturnsIt() {
+        Optional<ChatResponseVO> vo = service.chat(null, "今晚有什么电影?");
+
+        org.mockito.Mockito.verify(assistant).chat(anyString(), anyString(), eq("今晚有什么电影?"));
+        assertThat(vo).isPresent();
+        String returned = vo.get().getChatSessionId();
+        assertThat(returned).isNotBlank();
+        assertThat(vo.get().getReply()).isEqualTo("ok");
+    }
+
+    @Test
+    @DisplayName("chatSessionId 为 blank 时同样生成 fallback id")
+    void blankChatSessionId_generatesFallback() {
+        Optional<ChatResponseVO> vo = service.chat("   ", "hi");
+
+        assertThat(vo).isPresent();
+        assertThat(vo.get().getChatSessionId()).isNotBlank();
+    }
+
+    @Test
+    @DisplayName("两次缺省 id 各自生成不同的 fallback(每次都是新会话,不串 memory)")
+    void nullChatSessionId_eachCallGetsDistinctId() {
+        String first = service.chat(null, "hi").orElseThrow().getChatSessionId();
+        String second = service.chat(null, "hi again").orElseThrow().getChatSessionId();
+
+        assertThat(first).isNotEqualTo(second);
+    }
+
+    @Test
+    @DisplayName("显式传入的 chatSessionId 原样回传(客户端下次可复用)")
+    void providedChatSessionId_echoedInResponse() {
+        Optional<ChatResponseVO> vo = service.chat("sid-1", "hi");
+
+        assertThat(vo).isPresent();
+        assertThat(vo.get().getChatSessionId()).isEqualTo("sid-1");
+    }
 }

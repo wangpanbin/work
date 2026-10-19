@@ -21,8 +21,8 @@ import java.lang.reflect.Method;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 限流切面 — 解析 @RateLimit 的 SpEL key, 调 RedisSlidingWindow 判定.
- * <p>E4 实现: 拒绝时抛 BizException(code=42900), 由 GlobalExceptionHandler 统一处理.
+ * 限流切面 — 解析 @RateLimit 的 SpEL key, 调 RedisSlidingWindow 判定。
+ * <p>E4 实现: 拒绝时抛 BizException(code=42900), 由 GlobalExceptionHandler 统一处理。
  */
 @Slf4j
 @Aspect

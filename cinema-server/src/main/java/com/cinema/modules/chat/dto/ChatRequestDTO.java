@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 /**
- * T1 cycle 3 — 对话请求 DTO(完整 schema,spec §6.1).
+ * T1 cycle 3 — 对话请求 DTO(完整 schema,spec §6.1)。
  *
  * <ul>
  *   <li>{@code chatSessionId} — 前端首次进浮窗用 {@code crypto.randomUUID()} 生成,
@@ -13,7 +13,7 @@ import lombok.Data;
  *   <li>{@code context} — 场次上下文,让"这个还有座吗"等指代可解析(spec §6.1)</li>
  * </ul>
  *
- * 注意: {@code chatSessionId} 是聊天会话 id,<b>不是</b>场次 id.
+ * 注意: {@code chatSessionId} 是聊天会话 id,<b>不是</b>场次 id。
  */
 @Data
 public class ChatRequestDTO {

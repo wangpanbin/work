@@ -21,7 +21,7 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * 电子票服务 — N2 支付成功后生成 + 扫码验证.
+ * 电子票服务 — N2 支付成功后生成 + 扫码验证。
  * <p>支付成功 → generate(orderNo) 写 ticket 表 + Redis 缓存 base64 payload
  * <p>验票端点 → verify(payload, sig) 校验签名 + 一次性(已验则失败)
  */

@@ -5,6 +5,7 @@
 - 架构与实现细节见 [docs/实现方案.md](docs/实现方案.md)
 - P0 增量设计 spec: [docs/superpowers/specs/2026-08-31-p0-increment-design.md](docs/superpowers/specs/2026-08-31-p0-increment-design.md)
 - **对话式订票助手**(已落地):设计 spec [docs/superpowers/specs/2026-09-21-chat-assistant-design.md](docs/superpowers/specs/2026-09-21-chat-assistant-design.md) · 决策记录 [docs/adr/](docs/adr/) · code review [docs/agents/chat-assistant-code-review.md](docs/agents/chat-assistant-code-review.md)
+- **一键下单**(v0.2.0,已落地):设计 spec [docs/superpowers/specs/2026-10-19-chat-one-click-order-design.md](docs/superpowers/specs/2026-10-19-chat-one-click-order-design.md) · 决策记录 [ADR-0004](docs/adr/0004-chat-order-proposal.md) · 发布说明 [docs/发布说明-v0.2.0.md](docs/发布说明-v0.2.0.md)
 - 领域词汇表: [CONTEXT.md](CONTEXT.md)
 - 原始方案见 [plan.md](plan.md)
 
@@ -19,11 +20,12 @@
 | **延迟关单** | Redis ZSet 延迟队列(主链路 5s 扫描) + 定时补偿任务(1min 兜底),双保险 |
 | **冷启动守护** | 服务重启/Redis flush 后锁座前自动从 DB 重建 Bitmap,杜绝"看似可选实则已售" |
 | **交易闭环** | 锁座 → 支付 → 退票(状态机 PAID→REFUNDING→REFUNDED) + 电子票(HMAC 签名,24h 过期,一次性验票) |
-| **工程严谨** | 139 个 JUnit5 + Mockito 单元测试覆盖核心链路;`@RateLimit`/`@Idempotent` AOP 注解;OrderService 拆 4 service + 1 core(单文件 ≤ 300 行) |
+| **工程严谨** | 217 个 JUnit5 + Mockito 单元测试覆盖核心链路;`@RateLimit`/`@Idempotent` AOP 注解;OrderService 拆 4 service + 1 core(单文件 ≤ 300 行) |
 | **数据可视化** | 管理端经营看板(4 卡片 + 3 图 + 1 表);实时数据大屏(WebSocket 推送锁座事件) |
 | **前端体验** | 全局路由守卫(未登录/非管理员自动拦截) · 影片搜索/筛选 · 注册确认密码 · 移动端适配 · 座位图重构 |
 | **国际化** | vue-i18n 11 双语(zh-CN / en-US);浏览器语言自动探测 + 本地持久化 + `fallbackLocale: zh-CN` 防裸 key;29 个专项用例,其中 `key-coverage` 兜底「两边都漏」的盲点 |
-| **对话助手** | LangChain4j + DeepSeek 全局浮窗;8 个只读工具(`searchMovies` / `getSeatSummary` / `findContiguousSeats` / `searchFaq` 等);返回行动卡片(SEAT_SUGGESTION)跳选座页预选;**只读不写**(ADR-0002),零副作用;**限流分桶**匿名 2/min / 登录 10/min(spec #17);LOGIN_REQUIRED 引导匿名用户登录;FAQ 知识库兜底通用问答(spec #20) |
+| **对话助手** | LangChain4j + DeepSeek 全局浮窗;8 个只读工具(`searchMovies` / `getSeatSummary` / `findContiguousSeats` / `searchFaq` 等);返回行动卡片(SEAT_SUGGESTION)跳选座页预选;**限流分桶**匿名 2/min / 登录 10/min(spec #17);LOGIN_REQUIRED 引导匿名用户登录;FAQ 知识库兜底通用问答(spec #20) |
+| **一键下单** | 助手输出 `ORDER_PROPOSAL` **确认卡**(座位/金额由服务端核验),用户点一次「确认下单」即锁座建单,聊天内出「待支付卡」跳支付页;**付款仍在用户手里**、**不代付**、**不自动换座重试**;幂等键 = `proposalId`(座位列表从不进幂等键),提案是 Redis 快照(TTL 90s,一次性、**不占位**);既有抢票链路零改动(ADR-0004) |
 
 ---
 
@@ -62,10 +64,11 @@
 | 接口限流(`@RateLimit`) | ✅ P0 E4 | Redis 滑动窗口 Lua,锁座/支付/退票/聊天分级限流 |
 | 幂等键(`@Idempotent`) | ✅ P0 E5 | SETNX,锁座/支付前置挡重试 |
 | OrderService 拆分 | ✅ P0 E1 | 4 service + 1 core,单文件 ≤ 300 行 |
-| 关键路径单测 | ✅ P0 E2 | **139 个 JUnit5 + Mockito 用例**(26 个测试类,2026-09-29 实测) |
+| 关键路径单测 | ✅ P0 E2 | **217 个 JUnit5 + Mockito 用例**(36 个测试类,2026-10-19 实测) |
 | 营收明细导出 Excel | ✅ | `GET /api/admin/revenue/export`,独立 axios 实例走 blob,看板导出对话框 |
 | 错误码体系 | ✅ | 0/4xxxx/5xxxx + data 携带附加信息 |
 | **对话式订票助手** | ✅ 2026-09-21 | LangChain4j + DeepSeek;8 只读工具(含 FAQ searchFaq);行动卡片 SEAT_SUGGESTION;@RateLimit 分桶(匿名 2/min,登录 10/min);LOGIN_REQUIRED 引导登录;FAQ 知识库 18 条种子数据;key-missing 走 50000 短路 |
+| **一键下单** | ✅ 2026-10-19 | v0.2.0:助手出 `ORDER_PROPOSAL` 确认卡,服务端重读位图核验座位与价格 → Redis 提案快照(TTL 90s,一次性,不占位)→ 用户点一次「确认下单」→ 复用 `OrderLockService.lockSeats` 锁座 → 聊天内「待支付卡」跳支付页;幂等键 = `proposalId`;`/api/chat/orders/**` 强制登录 + 限流;存量待支付单在卡上显式提示;`cinema.chat.order-enabled=false` 可不发版回滚(ADR-0004) |
 
 ---
 
@@ -175,6 +178,8 @@ pnpm test
 | GET | `/api/orders/{orderNo}` | 订单详情 | 需登录 |
 | GET | `/api/tickets/verify` | 验票(公开,P0 N2) | 公开 |
 | POST | `/api/chat/message` | 对话式订票助手(2026-09-21):`{chatSessionId, message, context}` → `{reply, cards[], followUps[]}` | 公开(env `DEEPSEEK_API_KEY` 未设则 50000 短路;`@RateLimit` 分桶:匿名 2/min,登录 10/min) |
+| POST | `/api/chat/orders/proposals` | 一键下单:重新找一组座位(2026-10-19): `{sessionId, count}` → 提案快照(座位/价格由服务端核验) | 需登录 + `@RateLimit` 10/min |
+| POST | `/api/chat/orders/{proposalId}/confirm` | 一键下单:确认锁座(2026-10-19):无请求体,座位只从服务端快照取 → `{orderNo, orderExpireAt, ...}` | 需登录 + `@Idempotent`(proposalId,8s) + `@RateLimit` 3/min |
 
 ### 管理端
 
@@ -237,7 +242,7 @@ F:/test/work/
 │       │   ├── seat/         座位图
 │       │   ├── order/        订单(E1 拆分: Lock/Pay/Cancel/Query + Core) + 电子票 Ticket
 │       │   ├── payment/      模拟支付/退款(MockPayment / MockRefund)
-│       │   ├── chat/         对话助手(T9 落地:ChatConfig + CinemaAssistant + ChatTools 8 个 + ChatController + ReplyCardParser)
+│       │   ├── chat/         对话助手(ChatConfig + CinemaAssistant + ChatTools 8 个 + ChatController + ReplyCardParser + order/ 下单提案 v0.2.0:OrderProposalService + OrderProposalAssembler + ChatOrderController)
 │       │   └── admin/        管理端(CRUD + Dashboard O3)
 │       ├── infra/                        基础设施
 │       │   ├── delay/        DelayQueue(Redis ZSet 实现)
@@ -306,13 +311,49 @@ F:/test/work/
 - [x] UX-1  前端体验升级(全局路由守卫 / 注册确认密码 / 移动端适配 / 座位图重构 / 11 处 UI 修复 + 404 兜底页)
 - [x] CHAT-1 对话式订票助手全链路(T1-T9,2026-09-21):LangChain4j + DeepSeek + 8 只读工具(含 FAQ searchFaq) + 行动卡片 SEAT_SUGGESTION + 多跳记忆 + @RateLimit 分桶(匿名 2/min,登录 10/min) + env-driven key 注入 + LOGIN_REQUIRED 引导登录 + FAQ 知识库兜底
 - [x] CHAT-2 锁座调用路径零触动 + ADR-0002 反射白名单(`ChatToolsStructureTest` 兜底)
+- [x] CHAT-3 一键下单(v0.2.0,2026-10-19):`ORDER_PROPOSAL` 确认卡 + 服务端提案快照(Redis TTL 90s,一次性,不占位) + `/api/chat/orders/{proposalId}/confirm`(幂等键 = proposalId) + 复用 `OrderLockService.lockSeats`(既有抢票链路零改动) + 存量待支付单显式提示 + 「待支付卡」跳支付页 + `cinema.chat.order-enabled` 回滚闸门(ADR-0004 局部修订 ADR-0002)
 - [x] I18N-1 ~ I18N-8 中英文双语(2026-09-22):vue-i18n 11 基础设施(zh-CN + en-US 字典 + 浏览器探测 + 持久化 + fallback)→ 顶栏切换按钮 + App → Home/Login → MovieDetail → SeatSelect → Payment/OrderList → Admin 6 视图 → Chat/NotFound → 运行时缺 key 修复 + `key-coverage` 单测兜底 |
+
+---
+
+## 已实现 — 一键下单(v0.2.0,2026-10-19)
+
+> **一句话**:助手现在能真的帮你把票订下来 —— 对话里说「帮我订明天晚上那场《X》的 2 张连座」,
+> 它给出带座位号和金额的**确认卡**,你点一次「确认下单」就锁座建单,聊天里接着出现「待支付卡」,
+> 点「去支付」到支付页扫码完成。**付款这一步始终是你自己完成的。**
+
+- **设计文档**:[docs/superpowers/specs/2026-10-19-chat-one-click-order-design.md](docs/superpowers/specs/2026-10-19-chat-one-click-order-design.md)
+- **决策记录**:[docs/adr/0004-chat-order-proposal.md](docs/adr/0004-chat-order-proposal.md)(局部修订 ADR-0002)
+- **发布说明**:[docs/发布说明-v0.2.0.md](docs/发布说明-v0.2.0.md)
+
+**三条不变量**(改这块之前先确认没破):
+
+1. **助手仍不注册任何写工具** —— `ChatTools` 仍是 8 个只读 `@Tool`,`ChatToolsStructureTest` 的 4 条断言一字未改。写路径全在 LLM 之外的**后处理装配层**。
+2. **付款仍在用户手里** —— 助手只锁座建单到「待支付」,支付在 `/payment` 页由用户自己完成。
+3. **不做机器自动换座重试** —— 座位被抢时只告知 + 给「重新找一组」按钮,把重试的决定权交回用户。
+
+**安全设计**:
+
+| 机制 | 做法 |
+| --- | --- |
+| 座位来源 | 只来自服务端快照(Redis `cinema:chat:proposal:{id}`),前端与模型都不回传座位 |
+| 价格来源 | 一律取 `session.getPrice()`,模型的报价被丢弃 |
+| 座位复核 | 服务端重读实时位图,校验「在范围内 / 当前可选 / 同行连座」,不满足就重找(优先中段) |
+| 幂等 | 幂等键 = `proposalId`,座位列表从不进幂等键 —— 模型幻觉/重试产生不了第二把钥匙 |
+| 提案生命周期 | TTL 90s、一次性(原子 GETDEL 读出即删)、绑定 userId(防冒用)、**不占位** |
+| 副作用可见 | 同场次存量待支付单在确认卡上显式列出(锁座会取消它) |
+| 门禁 | `/api/chat/orders/**` 强制登录 + `@Idempotent` + `@RateLimit`;既有 `POST /orders/lock` 一行未改 |
+| 回滚 | `cinema.chat.order-enabled=false` → 不发版即可让整条写路径失效 |
+
+**老卡型保留**:「去选座确认」跳转卡仍在,助手按措辞选卡型(说"订/买/下单"→确认卡;说"推荐/看看/有座吗"→跳转卡)。人工挑座永远有路可走。
 
 ---
 
 ## 已实现 — 对话式订票助手(2026-09-21 落地)
 
 > **状态**:T1-T9 全链路完成(issue #8-#16 全 close,共 9 个 TDD micro-commit + 1 fixup);**锁座调用路径零触动**(`git diff cinema-server/src/main/java/com/cinema/modules/order/` 0 行);**redis 副作用 0**(`chat:*` / `user:locked:*` / `seat:bitmap:*` / `seat:locked:*` 聊天前后全 0)。
+>
+> **v0.2.0 更新(2026-10-19)**:上面这段描述的是 v0.1.0 的落地状态。助手现在**可以一键下单**(ADR-0004 局部修订 ADR-0002)—— `ORDER_PROPOSAL` 确认卡经用户点一次「确认下单」后可触发一次锁座。「redis 副作用 0」的前提随之变成「**不点确认则副作用 0**」;锁座调用路径依然零触动(新端点复用 `OrderLockService.lockSeats`,`POST /orders/lock` 一行未改)。
 
 给系统加一个对话入口,让用户能用自然语言查影片/场次/余座/订单,并拿到**可执行的座位建议**。
 
@@ -363,7 +404,7 @@ export DEEPSEEK_API_KEY=sk-xxx         # bash (source)
 
 **为什么不引入 RAG**:本项目 4 个领域对象(movie/session/seat/order)总数小、单工具查询 < 50ms,RAG 收益不抵复杂度;详见 ADR-0003。
 
-为什么"不让助手直接锁座"不是保守而是必要 — 三条代码级证据(`OrderLockService` 的 `closeIfUnpaid` 会静默释放用户已锁座位;锁座的 `@Idempotent` 键含精确座位组合;`lock_seat.lua` 冲突语义为整单失败)详见 spec §2.3。
+v0.1.0 曾经「不让助手直接锁座」(三条代码级证据见 spec §2.3)。**v0.2.0 起这条边界被局部修订**(ADR-0004):助手可以在一键下单流程里锁座,但**执行权在用户的一次点击、座位与价格在服务端快照、付款仍在用户手里**;ADR-0002 反对的三条证据逐条回应见 [docs/adr/0004-chat-order-proposal.md](docs/adr/0004-chat-order-proposal.md)。
 
 **同时新增的领域文档:** `CONTEXT.md` 补充了 7 个选座领域术语(座位索引 / 选座 / 锁座 / 锁座冲突 / 待支付订单 / 场次上下文 / 行动卡片);`docs/adr/` 为本次首次建立。
 
@@ -463,8 +504,8 @@ export DEEPSEEK_API_KEY=sk-xxx         # bash (source)
 
 ## 测试文件
 
-- `cinema-server/src/test/java/...` — **139 个 JUnit5 + Mockito 单元测试**(26 个测试类,E2 + 营收导出 + 对话助手全链路,2026-09-29 实测)
-- `cinema-web/tests/` — **137 个 Vitest 单元测试**(14 个 `.test.ts` 文件,2026-09-29 实测)
+- `cinema-server/src/test/java/...` — **217 个 JUnit5 + Mockito 单元测试**(36 个测试类,2026-10-19 实测)
+- `cinema-web/tests/` — **313 个 Vitest 单元测试**(22 个 `.test.ts` 文件,2026-10-19 实测)
 - `test/load_test.py` — 三场景 Python 压测驱动
 - `test/concurrency_strict.py` — 防超卖专项
 - `test/concurrency_test.py` — 并发基础压测
@@ -476,7 +517,9 @@ export DEEPSEEK_API_KEY=sk-xxx         # bash (source)
 - `docs/压测报告-v2.md` — P0 后回归压测报告
 - `docs/superpowers/specs/2026-08-31-p0-increment-design.md` — P0 增量设计 spec
 - `docs/superpowers/specs/2026-09-21-chat-assistant-design.md` — 对话式订票助手设计 spec(**已实现**)
-- `docs/adr/` — 架构决策记录(ADR-0001/0002/0003)
+- `docs/superpowers/specs/2026-10-19-chat-one-click-order-design.md` — 一键下单设计 spec(**已实现**,v0.2.0)
+- `docs/发布说明-v0.2.0.md` — v0.2.0 发布说明
+- `docs/adr/` — 架构决策记录(ADR-0001/0002/0003/**0004 一键下单**)
 - `docs/agents/chat-assistant-code-review.md` — 对话助手双轴 code review
 
 > `test/` 目录与根目录测试脚本均属本地测试产物,已由 `.gitignore` 排除,不进入版本库。

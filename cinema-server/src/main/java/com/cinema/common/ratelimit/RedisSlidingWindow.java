@@ -13,8 +13,8 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Redis 滑动窗口限流 — 单方法原子 (ZREMRANGEBYSCORE + ZCARD + ZADD + PEXPIRE).
- * <p>E4 实现: 与 Spring Boot 自动配置共存, 启动期预热脚本.
+ * Redis 滑动窗口限流 — 单方法原子 (ZREMRANGEBYSCORE + ZCARD + ZADD + PEXPIRE)。
+ * <p>E4 实现: 与 Spring Boot 自动配置共存, 启动期预热脚本。
  */
 @Component
 @RequiredArgsConstructor

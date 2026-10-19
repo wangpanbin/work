@@ -40,7 +40,7 @@ public final class RedisKeys {
     public static final String SEAT_EVENT_CHANNEL = "seat:event";
 
     /**
-     * 座位变更事件的序号计数器(全局单调自增, <b>不设 TTL</b>).
+     * 座位变更事件的序号计数器(全局单调自增, <b>不设 TTL</b>)。
      *
      * <p><b>为什么是全局而不是按场次</b>: 按场次计的计数器需要生命周期管理(场次结束后清理)。
      * 而一旦计数器过期归零, 客户端仍持有的「该座位已应用序号」仍是旧的大数, 此后所有新事件都会被
@@ -54,10 +54,24 @@ public final class RedisKeys {
 
     /**
      * 用户在某场次锁定的座位集合 Hash(Phase A-① 新增)
-     * field = seatIndex, value = orderNo; 锁座时 HMSET, 释放/支付时 HDEL.
-     * 命中即跳过 OrderService.lockSeats 中的 "查 user 待支付单" DB 调用.
+     * field = seatIndex, value = orderNo; 锁座时 HMSET, 释放/支付时 HDEL。
+     * 命中即跳过 OrderService.lockSeats 中的 "查 user 待支付单" DB 调用。
      */
     public static String userLocked(Long userId, Long sessionId) {
         return "cinema:user:locked:" + userId + ":" + sessionId;
+    }
+
+    /**
+     * 对话助手的下单提案快照(ADR-0004)。
+     *
+     * <p><b>提案不占位</b>:这里存的只是一份「已算好的报价与座位方案」,
+     * TTL(默认 90s)内座位<b>不保证可用</b>。真正占位只发生在
+     * {@code OrderLockService#lockSeats} 那一刻。
+     *
+     * <p>确认时用 {@code proposalId} 作幂等键 —— 模型的座位列表从不进入幂等键,
+     * 所以模型幻觉/重试产生不了第二把钥匙(ADR-0002 证据 2 的正面回应)。
+     */
+    public static String chatProposal(String proposalId) {
+        return "cinema:chat:proposal:" + proposalId;
     }
 }

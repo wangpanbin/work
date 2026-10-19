@@ -1,23 +1,23 @@
 package com.cinema.common.annotation;
 
 /**
- * @Idempotent / @RateLimit 的 SpEL key 常量集中.
+ * @Idempotent / @RateLimit 的 SpEL key 常量集中。
  *
  * <p>#7 收尾: 原本 4 个 controller 端点各写一遍 SpEL 串, 加新端点跨同模板;
  * 这里集中 5 个高频模式(锁定/支付/取消/退票 + 锁定的 rate limit),
- * 单一来源避免拼写漂移.
+ * 单一来源避免拼写漂移。
  *
  * <p>注意: Java annotation 的 String 值必须 compile-time constant, 所以这里只是
- * String literal holder, 不能用 String.format() 之类运行时拼接.
+ * String literal holder, 不能用 String.format() 之类运行时拼接。
  * 真正的"运行时 helper"(如 IdempotencyKey.byUserAndOrderNo(op, orderNo))
- * 仍是 Phase 2 的工作 — 本类先立 seam.
+ * 仍是 Phase 2 的工作 — 本类先立 seam。
  */
 public final class IdempotencyKeys {
 
     private IdempotencyKeys() {}
 
-    /** 锁座幂等: userId + sessionId + seatIndexes(去重序列化).
-     *  P0 修复: 必须带 userId(否则 user1/user2 锁同一座位会撞同一个 key 互锁). */
+    /** 锁座幂等: userId + sessionId + seatIndexes(去重序列化)。
+     *  P0 修复: 必须带 userId(否则 user1/user2 锁同一座位会撞同一个 key 互锁)。 */
     public static final String LOCK_BY_USER_SESSION_SEATS =
             "T(com.cinema.common.context.UserContext).userId() + ':' + #dto.sessionId + ':' + "
                     + "(#dto.seatIndexes != null ? #dto.seatIndexes.toString() : 'empty')";

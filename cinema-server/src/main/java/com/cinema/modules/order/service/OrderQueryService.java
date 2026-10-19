@@ -28,9 +28,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * 订单查询 — OrderService 拆分的 4 个 service 之一.
- * <p>E1 拆分: 负责我的订单 + 订单详情 + VO 组装, 与锁座/支付/取消解耦.
- * <p>Phase F-① 优化: 6 SQL 批量查(与页大小无关), 已落地.
+ * 订单查询 — OrderService 拆分的 4 个 service 之一。
+ * <p>E1 拆分: 负责我的订单 + 订单详情 + VO 组装, 与锁座/支付/取消解耦。
+ * <p>Phase F-① 优化: 6 SQL 批量查(与页大小无关), 已落地。
  */
 @Service
 @RequiredArgsConstructor

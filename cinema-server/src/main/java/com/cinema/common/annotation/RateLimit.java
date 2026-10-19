@@ -7,9 +7,9 @@ import java.lang.annotation.Target;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 限流注解 — Redis 滑动窗口实现, 由 RateLimitAspect 拦截.
- * <p>E4 用法: 锁座/支付/退票接口加注解保护.
- * <p>key 为 SpEL 表达式, 拼接后作为 Redis 桶 key.
+ * 限流注解 — Redis 滑动窗口实现, 由 RateLimitAspect 拦截。
+ * <p>E4 用法: 锁座/支付/退票接口加注解保护。
+ * <p>key 为 SpEL 表达式, 拼接后作为 Redis 桶 key。
  *
  * <pre>
  *   {@code
@@ -29,7 +29,7 @@ public @interface RateLimit {
     int permits() default 1;
 
     /**
-     * 匿名用户专用 permits(spec #17 限流分桶).
+     * 匿名用户专用 permits(spec #17 限流分桶)。
      * <p>仅在 SpEL key 解析后包含 {@code :anon:} 标记(即 {@code UserContext.userId()==null}
      * 短路 {@code 'anon'} 字面量的产物)时生效。
      * <ul>

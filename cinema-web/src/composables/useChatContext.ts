@@ -4,7 +4,7 @@ import type { ChatContextDTO } from '../types'
 import { useSeatStore } from '../stores/seat'
 
 /**
- * 纯函数:判断浮窗是否应在当前路由隐藏(spec §7.1).
+ * 纯函数:判断浮窗是否应在当前路由隐藏(spec §7.1)。
  * 默认收起路由:`/payment`(倒计时不能被挡)、`/admin/**`(表格操作区)。
  *
  * <p>独立 export 是为了测试不依赖 vue-router / pinia — 测试可直接调用。
@@ -14,7 +14,7 @@ export function isChatHiddenRoute(path: string): boolean {
 }
 
 /**
- * 纯函数:从 route + seatStore 组装 ChatContextDTO(spec §6.1).
+ * 纯函数:从 route + seatStore 组装 ChatContextDTO(spec §6.1)。
  *
  * <p>独立 export 是为了测试 — useChatContext composable 内部调用它,
  * 测试可直接调用,避免 vue-router / pinia mock 成本。
@@ -33,7 +33,7 @@ export function buildChatContext(
 }
 
 /**
- * 组装聊天场次上下文 (spec §6.1 context + §7.1 路由感知).
+ * 组装聊天场次上下文 (spec §6.1 context + §7.1 路由感知)。
  *
  * <p>字段来源:
  * <ul>

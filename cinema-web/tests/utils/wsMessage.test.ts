@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { parseWsMessage } from '../../src/utils/wsMessage'
 /**
  * parseWsMessage 单测 — ws.ts 的 JSON parse + 形态校验抽出后,
- * 无需 mock WebSocket 就能锁定协议容错.
+ * 无需 mock WebSocket 就能锁定协议容错。
  */
 describe('parseWsMessage — 协议解析与校验', () => {
   it('正常 LOCKED 事件: 透传 sessionId + seats + type', () => {

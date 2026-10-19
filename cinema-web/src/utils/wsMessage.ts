@@ -1,7 +1,7 @@
 import type { SeatEvent } from './ws'
 
 /**
- * ws.ts 的 WS 帧协议层抽出: 把 raw text → SeatEvent | null.
+ * ws.ts 的 WS 帧协议层抽出: 把 raw text → SeatEvent | null。
  *
  * <p>#6 收尾: WebSocket 测试的最大障碍是 side effects(open/close/heartbeat);
  * 抽出协议解析后, 单元测试可以零 mock 锁定:

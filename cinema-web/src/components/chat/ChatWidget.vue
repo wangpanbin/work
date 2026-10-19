@@ -7,9 +7,10 @@ import { sendMessage } from '../../api/chat'
 import { useChatContext } from '../../composables/useChatContext'
 import { useUserStore } from '../../stores/user'
 import { detectLoginRequired } from '../../utils/loginRequiredDetector'
-import type { ChatResponseVO } from '../../types'
+import type { ChatResponseVO, OrderProposalVO } from '../../types'
 import ChatMessage from './ChatMessage.vue'
 import ChatIcon from './ChatIcon.vue'
+import { CARD_TYPE_PENDING_ORDER } from './orderProposalCard'
 
 const userStore = useUserStore()
 const router = useRouter()
@@ -77,6 +78,40 @@ async function send() {
   }
 }
 
+/**
+ * 一键下单确认成功 —— 在聊天里追加一张「待支付卡」(ADR-0004)。
+ *
+ * <p>不自动跳转支付页: 用户可能还想接着聊, 强制跳走会打断对话上下文。
+ * 卡上给出「去支付」按钮, 点了才走 (`/payment` 路由下浮窗本来就会自动收起)。
+ */
+function onOrderConfirmed(vo: OrderProposalVO) {
+  const ts = new Date().toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit' })
+  messages.value.push({
+    role: 'assistant',
+    message: '',
+    response: {
+      reply: t('chat.pendingOrder.reply'),
+      followUps: [],
+      cards: [
+        {
+          type: CARD_TYPE_PENDING_ORDER,
+          cardId: `pending-${vo.orderNo}`,
+          sessionId: vo.sessionId,
+          movieTitle: vo.movieTitle,
+          hallName: vo.hallName,
+          startTime: vo.startTime,
+          seatIndexes: vo.seatIndexes,
+          seatDesc: vo.seatDesc,
+          totalAmount: vo.totalAmount,
+          orderNo: vo.orderNo,
+          orderExpireAt: vo.orderExpireAt,
+        },
+      ],
+    },
+    timestamp: ts,
+  })
+}
+
 function onKeydownEnter(e: KeyboardEvent) {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
@@ -125,6 +160,7 @@ defineExpose({ toggle })
           :message="m.message"
           :response="m.response"
           :timestamp="m.timestamp"
+          @confirmed="onOrderConfirmed"
         />
       </div>
 

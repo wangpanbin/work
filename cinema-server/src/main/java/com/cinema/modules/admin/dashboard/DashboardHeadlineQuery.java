@@ -6,11 +6,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
- * Dashboard 4 张卡片查询(今日营收 / 订单数 / 已付 / 待付座位 / 已取消 / 已退款).
+ * Dashboard 4 张卡片查询(今日营收 / 订单数 / 已付 / 待付座位 / 已取消 / 已退款)。
  *
  * <p>#3 收尾: 抽离 AdminDashboardService.summary() 内部的 6 个 fetcher,
  * 让 AdminDashboardService 退化为纯 orchestrator. 本类只关心"今日"的 4 张卡片,
- * 不涉及周维度/Top 维度(后者由 {@link DashboardTrendQuery} 负责).
+ * 不涉及周维度/Top 维度(后者由 {@link DashboardTrendQuery} 负责)。
  */
 @Component
 @RequiredArgsConstructor

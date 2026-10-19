@@ -12,7 +12,7 @@ const router = useRouter()
 const { t } = useI18n()
 
 /**
- * 跳到选座流程并预选座位(spec §7.2 + ADR-0002).
+ * 跳到选座流程并预选座位(spec §7.2 + ADR-0002)。
  */
 function onClick() {
   router.push(buildSeatRoute(props.card))

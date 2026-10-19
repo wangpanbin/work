@@ -1,11 +1,11 @@
 /**
- * seat store applyEvent 的纯函数 seam.
+ * seat store applyEvent 的纯函数 seam。
  *
  * <p>#6 收尾: 把位图同步 + selected/conflictFlash 状态机的逻辑抽出,
- * 让 unit test 无需 mock Vue refs / Pinia 就能锁定 reducer 语义.
+ * 让 unit test 无需 mock Vue refs / Pinia 就能锁定 reducer 语义。
  *
  * <p>1.8s 超时清理的 setTimeout 留在 store wrapper 里(纯函数无法表达时间),
- * 这里只返回 hasConflict 让 wrapper 决定是否需要排程超时.
+ * 这里只返回 hasConflict 让 wrapper 决定是否需要排程超时。
  */
 
 /**
@@ -138,7 +138,7 @@ export function filterBySeq(
 // ============ T7: preselect 处理(对话式订票助手行动卡片)============
 
 /**
- * 把 route.query.preselect(逗号分隔字符串)解析为座位索引数组.
+ * 把 route.query.preselect(逗号分隔字符串)解析为座位索引数组。
  *
  * <p>来源:ActionCard.vue 的 onClick 跳 /seat/:sessionId?preselect=52,53,54
  * (spec §7.2 + actionCardRoute.ts buildSeatRoute).
@@ -164,7 +164,7 @@ export function parsePreselectFromQuery(queryValue: unknown): number[] {
 }
 
 /**
- * 计算 preselect 应用结果(纯函数 seam).
+ * 计算 preselect 应用结果(纯函数 seam)。
  *
  * <p>spec §7.2 行为:
  * <ul>

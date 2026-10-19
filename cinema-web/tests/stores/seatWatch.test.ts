@@ -8,7 +8,7 @@ import {
 } from '../../src/stores/seatWatch'
 
 /**
- * seatWatch 纯函数接缝单测.
+ * seatWatch 纯函数接缝单测。
  *
  * 只断言外部可观察行为(返回的集合与分支), 不触碰 store / 组件 —— 本仓 vitest 跑在
  * environment: 'node', 挂不了 SFC, 逻辑必须下沉到纯函数才可测。

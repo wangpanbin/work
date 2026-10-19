@@ -47,8 +47,8 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 404: 路径无对应 controller (Spring 6 默认走静态资源处理器抛 NoResourceFoundException).
-     * 之前被 handleOther 当 50000 系统异常吞掉, 会掩盖前端路径错配 / 客户端误调.
+     * 404: 路径无对应 controller (Spring 6 默认走静态资源处理器抛 NoResourceFoundException)。
+     * 之前被 handleOther 当 50000 系统异常吞掉, 会掩盖前端路径错配 / 客户端误调。
      */
     @ExceptionHandler(NoResourceFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)

@@ -18,10 +18,10 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 
 /**
- * 场次元数据读侧: 缓存 hit 直接返; miss 时 join session/movie/hall/cinema 4 表回填.
+ * 场次元数据读侧: 缓存 hit 直接返; miss 时 join session/movie/hall/cinema 4 表回填。
  *
  * <p>#4 收尾: 抽自 SeatService.loadSessionInfo. Cache 协议由 SessionInfoCacheService 维护,
- * 本类只关心"读 + miss 时回源 DB".
+ * 本类只关心"读 + miss 时回源 DB"。
  */
 @Component
 @RequiredArgsConstructor

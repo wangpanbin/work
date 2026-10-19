@@ -8,13 +8,13 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * 营收明细行 (T1): 一个已支付订单.
+ * 营收明细行 (T1): 一个已支付订单。
  *
  * <p>{@code @ExcelProperty} 即中文表头，EasyExcel 自动按字段顺序写入。
  * 日期/金额走 EasyExcel 内置 converter。
  *
  * <p>包归属说明：本 VO 同时承载 {@code OrderMapper.selectRevenueRows} 的返回类型与 Excel 写出模型,
- * 放在 order.vo 避免 mapper 反向依赖 admin.dto.
+ * 放在 order.vo 避免 mapper 反向依赖 admin.dto。
  */
 @Data
 public class RevenueRowVO {

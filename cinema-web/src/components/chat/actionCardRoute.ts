@@ -1,7 +1,7 @@
 import type { ActionCardVO } from '../../types'
 
 /**
- * 纯函数:构造 ActionCard 跳转路由(spec §7.2 + ADR-0002).
+ * 纯函数:构造 ActionCard 跳转路由(spec §7.2 + ADR-0002)。
  *
  * <p>关键不变量(可被 ActionCard.test.ts 验证):
  * <ul>

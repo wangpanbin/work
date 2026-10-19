@@ -1,7 +1,10 @@
 package com.cinema.modules.chat.service;
 
+import com.cinema.common.context.UserContext;
 import com.cinema.modules.chat.agent.CinemaAssistant;
 import com.cinema.modules.chat.memory.ChatMemoryStore;
+import com.cinema.modules.chat.order.OrderProposalAssembler;
+import com.cinema.modules.chat.vo.ActionCardVO;
 import com.cinema.modules.chat.vo.ChatResponseVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -15,11 +18,12 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * T3 cycle 1 — 对话 orchestrator 完整版(spec §4.1 + §4.3 + §4.4 + Q1/Q6).
+ * T3 cycle 1 — 对话 orchestrator 完整版(spec §4.1 + §4.3 + §4.4 + Q1/Q6)。
  *
  * <p>新增相对 cycle 3:
  * <ul>
@@ -49,26 +53,41 @@ public class ChatAssistantService {
     private final ObjectProvider<CinemaAssistant> assistantProvider;
     private final ChatMemoryStore memoryStore;
     private final Clock clock;
+    /**
+     * 提案装配器(ADR-0004)。可为 null —— 单测用三参数构造器不注入它,
+     * 此时所有卡片原样透传(装配是可选增强, 不是 chat() 的必要条件)。
+     */
+    private final OrderProposalAssembler assembler;
     private final ConcurrentHashMap<String, ReentrantLock> serializationLocks = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Long> lastAccessAt = new ConcurrentHashMap<>();
 
     @Autowired
     public ChatAssistantService(ObjectProvider<CinemaAssistant> assistantProvider,
-                                ChatMemoryStore memoryStore) {
-        this(assistantProvider, memoryStore, Clock.systemUTC());
+                                ChatMemoryStore memoryStore,
+                                ObjectProvider<OrderProposalAssembler> assemblerProvider) {
+        this(assistantProvider, memoryStore, Clock.systemUTC(), assemblerProvider.getIfAvailable());
     }
 
-    /** 测试用三参数构造器,允许注入 fixed Clock + mock memoryStore. */
+    /** 测试用三参数构造器,允许注入 fixed Clock + mock memoryStore。 */
     public ChatAssistantService(ObjectProvider<CinemaAssistant> assistantProvider,
                                 ChatMemoryStore memoryStore,
                                 Clock clock) {
+        this(assistantProvider, memoryStore, clock, null);
+    }
+
+    /** 四参数构造器: 额外注入提案装配器(生产路径)。 */
+    public ChatAssistantService(ObjectProvider<CinemaAssistant> assistantProvider,
+                                ChatMemoryStore memoryStore,
+                                Clock clock,
+                                OrderProposalAssembler assembler) {
         this.assistantProvider = assistantProvider;
         this.memoryStore = memoryStore;
         this.clock = clock;
+        this.assembler = assembler;
     }
 
     /**
-     * 调 Assistant 并转为 ChatResponseVO(spec §4.3).
+     * 调 Assistant 并转为 ChatResponseVO(spec §4.3)。
      *
      * @return {@code Optional.empty()} 表示 Bean 未注册(对应 50000 短路路径),
      *         {@code Optional.of(vo)} 表示正常回复
@@ -79,6 +98,16 @@ public class ChatAssistantService {
             log.info("[chat] CinemaAssistant Bean 未注册, 走 50000 路径");
             return Optional.empty();
         }
+
+        // spec §6.1: 后端拿到 null/blank 的 chatSessionId 视为新会话,生成 fallback id
+        // 并在响应里回传(前端 chat.ts 注释同样约定「无 UUID 时由后端 fallback 生成」)。
+        // 兜底不是可选项 —— ConcurrentHashMap 不接受 null key,不兜底会直接 NPE → 50000
+        // (2026-10-19 联调实测:裸 curl 不带 chatSessionId 必挂「系统繁忙」)。
+        if (chatSessionId == null || chatSessionId.isBlank()) {
+            chatSessionId = UUID.randomUUID().toString();
+            log.info("[chat] chatSessionId 缺省, 已生成 fallback id={}", chatSessionId);
+        }
+        final String sessionId = chatSessionId;
 
         // 1. 拿串行化锁(同 chatSessionId 串行,不同并行 — LangChain4j 官方警告)
         ReentrantLock lock = serializationLocks.computeIfAbsent(chatSessionId, k -> new ReentrantLock());
@@ -95,12 +124,26 @@ public class ChatAssistantService {
             String reply = assistant.chat(chatSessionId, currentDateContext(), message);
             lastAccessAt.put(chatSessionId, clock.millis());
             // T9: 解析 LLM 在 reply 末尾 fence 的 ```json-cards ... ``` 块,
-            // 提取 cards + followUps + 剥离 fence 后的 reply(spec §6.1 + #16 acceptance).
-            // 解析失败静默回退到 cards=List.of(),不抛(spec §5.4 容错路径).
+            // 提取 cards + followUps + 剥离 fence 后的 reply(spec §6.1 + #16 acceptance)。
+            // 解析失败静默回退到 cards=List.of(),不抛(spec §5.4 容错路径)。
             ReplyCardParser.ParseResult parsed = ReplyCardParser.parse(reply);
+            // ADR-0004: 装配 ORDER_PROPOSAL 卡 —— 服务端重读位图核验座位、算价,
+            // 换成带 proposalId 的可执行卡。装配失败只丢那一张卡, 不会让整轮对话失败。
+            List<ActionCardVO> cards = parsed.cards();
+            String extraNote = null;
+            if (assembler != null) {
+                OrderProposalAssembler.AssembleResult assembled = assembler.assemble(UserContext.userId(), cards);
+                cards = assembled.cards();
+                extraNote = assembled.note();
+            }
+            String finalReply = parsed.strippedReply() == null ? "" : parsed.strippedReply();
+            if (extraNote != null && !extraNote.isBlank()) {
+                finalReply = finalReply.isBlank() ? extraNote : finalReply + "\n\n" + extraNote;
+            }
             return Optional.of(ChatResponseVO.builder()
-                    .reply(parsed.strippedReply())
-                    .cards(parsed.cards())
+                    .chatSessionId(sessionId)
+                    .reply(finalReply)
+                    .cards(cards)
                     .followUps(parsed.followUps())
                     .build());
         } finally {

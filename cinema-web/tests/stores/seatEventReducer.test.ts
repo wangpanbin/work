@@ -7,10 +7,10 @@ import {
 } from '../../src/stores/seatEventReducer'
 
 /**
- * computeApplyEvent 单测 — seat.ts applyEvent 的纯函数 seam.
- * 抽离后: 位图变更 + selected/conflictFlash 同步逻辑无需 mock Vue/Pinia 即可测.
+ * computeApplyEvent 单测 — seat.ts applyEvent 的纯函数 seam。
+ * 抽离后: 位图变更 + selected/conflictFlash 同步逻辑无需 mock Vue/Pinia 即可测。
  *
- * 注意: computeApplyEvent 不触发 1.8s 超时清理(那是 side effect, 留在 store wrapper 里).
+ * 注意: computeApplyEvent 不触发 1.8s 超时清理(那是 side effect, 留在 store wrapper 里)。
  */
 describe('computeApplyEvent — 位图同步', () => {
   it('LOCKED: 把 seats 位置的 lock bit 置 1', () => {

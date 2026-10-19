@@ -50,8 +50,8 @@ public class Order {
     /**
      * 座位索引列表(非持久化, Phase B-⑦ 优化)
      * <p>在 createPendingOrder / closeIfUnpaid 处一次性查 order_item 并回填,
-     * closeOrder 优先用此字段, 免去再次 selectList 的 DB IO.
-     * <p>{@code exist = false} 告诉 MyBatis-Plus 不参与 updateById 写入.
+     * closeOrder 优先用此字段, 免去再次 selectList 的 DB IO。
+     * <p>{@code exist = false} 告诉 MyBatis-Plus 不参与 updateById 写入。
      */
     @TableField(exist = false)
     private List<Integer> seatIndexCache;

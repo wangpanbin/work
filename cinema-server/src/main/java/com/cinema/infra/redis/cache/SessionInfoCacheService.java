@@ -24,15 +24,15 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class SessionInfoCacheService {
 
-    /** 缓存 TTL 兜底, 30 分钟. 即便 admin 改动未清空也最多 30min 陈旧. */
+    /** 缓存 TTL 兜底, 30 分钟. 即便 admin 改动未清空也最多 30min 陈旧。 */
     private static final Duration TTL = Duration.ofMinutes(30);
 
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
 
     /**
-     * 读缓存, 命中返回 Optional.of(vo), 未命中或反序列化失败返回 empty.
-     * 反序列化失败按未命中处理, 走 DB 回源后覆盖.
+     * 读缓存, 命中返回 Optional.of(vo), 未命中或反序列化失败返回 empty。
+     * 反序列化失败按未命中处理, 走 DB 回源后覆盖。
      */
     public Optional<SessionInfoCacheVO> get(Long sessionId) {
         String key = RedisKeys.sessionInfo(sessionId);
@@ -56,7 +56,7 @@ public class SessionInfoCacheService {
     }
 
     /**
-     * 写缓存, 单字段 JSON 序列化. 出错仅日志, 不阻塞主流程(主流程有自己的 DB 兜底).
+     * 写缓存, 单字段 JSON 序列化. 出错仅日志, 不阻塞主流程(主流程有自己的 DB 兜底)。
      */
     public void put(SessionInfoCacheVO vo) {
         if (vo == null || vo.getSessionId() == null) {
@@ -75,8 +75,8 @@ public class SessionInfoCacheService {
     }
 
     /**
-     * 显式失效. AdminSessionController 已经在 create/update/delete 中调用.
-     * 这里再暴露一个公开方法便于测试和其他场景(如 hall 变更连带清空).
+     * 显式失效. AdminSessionController 已经在 create/update/delete 中调用。
+     * 这里再暴露一个公开方法便于测试和其他场景(如 hall 变更连带清空)。
      */
     public void invalidate(Long sessionId) {
         try {

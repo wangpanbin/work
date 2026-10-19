@@ -9,11 +9,11 @@ import org.springframework.stereotype.Component;
 import java.nio.charset.StandardCharsets;
 
 /**
- * 场次位图读侧: 读取 lock/sold bitmap + 自动 padding 到 seatCount 长度.
+ * 场次位图读侧: 读取 lock/sold bitmap + 自动 padding 到 seatCount 长度。
  *
  * <p>#4 收尾: 抽自 SeatService.getBitmap. 关键 invariant —
  * 场次首次访问时 SETBIT(seatCount-1, false) 把位图长度分配到位,
- * 保证后续 GET 长度稳定(不足部分按 0 补齐).
+ * 保证后续 GET 长度稳定(不足部分按 0 补齐)。
  *
  * <p>B-03 修复: seatCount<=0 必须早抛 BizException, 绝不让 setBit 拿到 -1 /
  * Integer.MIN_VALUE 这种非法 offset(Redis 会报 ERR bit offset is not an integer
@@ -31,7 +31,7 @@ public class SessionBitmapReader {
 
     /**
      * 读取并 pad bitmap. 若 Redis 内 bytes 长度不足 seatCount 对应字节数,
-     * 自动 SETBIT 最高位 = false 完成长度分配 + 返回 zero-padded 副本.
+     * 自动 SETBIT 最高位 = false 完成长度分配 + 返回 zero-padded 副本。
      *
      * @param key       Redis bitmap key (e.g. sessionLock/sold)
      * @param seatCount 位图应承载的座位数, 必须 > 0

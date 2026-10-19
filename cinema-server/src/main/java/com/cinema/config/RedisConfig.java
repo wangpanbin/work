@@ -19,8 +19,8 @@ import java.time.Duration;
 public class RedisConfig {
 
     /**
-     * Lettuce 客户端配置: 显式设 commandTimeout.
-     * Lettuce 基于 Netty, 单连接异步, 配合连接池与超时避免极端长尾.
+     * Lettuce 客户端配置: 显式设 commandTimeout。
+     * Lettuce 基于 Netty, 单连接异步, 配合连接池与超时避免极端长尾。
      */
     @Bean
     public LettuceClientConfigurationBuilderCustomizer lettuceCustomizer() {

@@ -16,7 +16,7 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 /**
- * T5 — 对话入口 Controller(spec §6.1 + §6.3).
+ * T5 — 对话入口 Controller(spec §6.1 + §6.3)。
  *
  * <p>鉴权 + 限流:
  * <ul>
@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit;
  * </ul>
  *
  * <p>SpEL key 用 {@code ?:} 短路 userId==null 时返回字面量 {@code 'anon'},
- * 避开 {@code T(...).userId()} 抛 NPE(1.x 对称行为,spec §5.4 (d) 提到).
+ * 避开 {@code T(...).userId()} 抛 NPE(1.x 对称行为,spec §5.4 (d) 提到)。
  */
 @Slf4j
 @RestController

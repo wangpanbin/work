@@ -5,13 +5,13 @@ import lombok.Data;
 import java.util.List;
 
 /**
- * T1 cycle 3 — 场次上下文 DTO(spec §6.1 context).
+ * T1 cycle 3 — 场次上下文 DTO(spec §6.1 context)。
  *
  * <p>前端用 useChatContext.ts 组装,随每条消息带上,
- * 让模型能解析"这个还有座吗"等指代(避免从对话历史猜当前场次).
+ * 让模型能解析"这个还有座吗"等指代(避免从对话历史猜当前场次)。
  *
  * <p>{@code sessionId} 是场次 ID(雪花 ID),<b>不是</b>聊天会话的
- * {@code chatSessionId}(后者在 {@link ChatRequestDTO} 上,不是 secting 字段).
+ * {@code chatSessionId}(后者在 {@link ChatRequestDTO} 上,不是 secting 字段)。
  */
 @Data
 public class ChatContextDTO {

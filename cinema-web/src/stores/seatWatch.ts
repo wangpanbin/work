@@ -1,5 +1,5 @@
 /**
- * 座位关注(Seat Watch) 与权威重拉的纯函数接缝.
+ * 座位关注(Seat Watch) 与权威重拉的纯函数接缝。
  *
  * <p>本仓 vitest 跑在 `environment: 'node'`, 没装 jsdom / @vue/test-utils, **挂不了 SFC**。
  * 因此所有新增判定逻辑都下沉到这里(无副作用纯函数), 由 store / 组件只负责接线与时机。

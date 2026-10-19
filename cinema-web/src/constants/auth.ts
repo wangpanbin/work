@@ -1,11 +1,11 @@
 /**
- * 鉴权相关常量 — 单一真理之源.
+ * 鉴权相关常量 — 单一真理之源。
  *
- * <p>#8 收尾: 消除前端散落 4 处的 token key 字面量 + 1 处的 40101/40102 magic int.
- * 与 backend `ResultCode.java`(40101 UNAUTHORIZED / 40102 TOKEN_EXPIRED) 一一对应.
+ * <p>#8 收尾: 消除前端散落 4 处的 token key 字面量 + 1 处的 40101/40102 magic int。
+ * 与 backend `ResultCode.java`(40101 UNAUTHORIZED / 40102 TOKEN_EXPIRED) 一一对应。
  *
- * <p>修改 AUTH_CODES 时**必须**同步 backend ResultCode; 反之亦然.
- * 这是跨前后端的契约, 任何 drift 都会导致 axios 拦截器不再触发 401 清理.
+ * <p>修改 AUTH_CODES 时**必须**同步 backend ResultCode; 反之亦然。
+ * 这是跨前后端的契约, 任何 drift 都会导致 axios 拦截器不再触发 401 清理。
  */
 
 /** localStorage 中存放 JWT 的 key */

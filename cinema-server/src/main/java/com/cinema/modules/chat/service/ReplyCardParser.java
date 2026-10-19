@@ -1,5 +1,6 @@
 package com.cinema.modules.chat.service;
 
+import com.cinema.modules.chat.order.OrderProposalService;
 import com.cinema.modules.chat.vo.ActionCardVO;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -12,7 +13,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * T9 cycle 1 — ReplyCardParser 纯函数(无依赖,易测).
+ * T9 cycle 1 — ReplyCardParser 纯函数(无依赖,易测)。
  *
  * <p>LLM 在 reply 末尾可输出 fenced {@code ```json-cards ... ```} 块,
  * 格式:<pre>{@code
@@ -33,7 +34,7 @@ import java.util.regex.Pattern;
  *
  * <p><b>为什么纯函数不在 ChatAssistantService 里:</b> spec §6.1 测试断言 cards 非空需要单测,而
  * {@code ChatAssistantService.chat()} 依赖 LangChain4j 代理, 单测 mock 字符串返 "hello world" 时
- * 永远测不到 cards 提取逻辑. 拆纯函数让契约清晰可测, 同时不污染 ChatAssistantService 的现有 7 个测试.
+ * 永远测不到 cards 提取逻辑. 拆纯函数让契约清晰可测, 同时不污染 ChatAssistantService 的现有 7 个测试。
  */
 @Slf4j
 public final class ReplyCardParser {
@@ -45,7 +46,7 @@ public final class ReplyCardParser {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** 解析结果: cards + followUps + 剥离 fence 后的 reply(给前端 UI 渲染用). */
+    /** 解析结果: cards + followUps + 剥离 fence 后的 reply(给前端 UI 渲染用)。 */
     public record ParseResult(
             List<ActionCardVO> cards,
             List<String> followUps,
@@ -87,7 +88,7 @@ public final class ReplyCardParser {
         return new ParseResult(List.of(), List.of(), stripped.toString().trim());
     }
 
-    /** 单个 body 尝试解析; 失败返 null (caller 继续试下一个). */
+    /** 单个 body 尝试解析; 失败返 null (caller 继续试下一个)。 */
     private static ParseResult tryParseBody(String body) {
         JsonNode root;
         try {
@@ -120,20 +121,43 @@ public final class ReplyCardParser {
         return new ParseResult(List.copyOf(cards), List.copyOf(followUps), null);
     }
 
-    /** 单卡解析; 缺必填字段返 null (caller 跳过). */
+    /**
+     * 单卡解析; 缺必填字段返 null (caller 跳过)。
+     *
+     * <p><b>必填规则按卡型分派</b>(ADR-0004):
+     * <ul>
+     *   <li>既有卡型(如 SEAT_SUGGESTION): {@code type + sessionId + seatIndexes[]} 全必填,
+     *       规则与改造前<b>一字未改</b>。</li>
+     *   <li>{@code ORDER_PROPOSAL}(一键下单确认卡): {@code type + sessionId + count} 必填,
+     *       {@code seatIndexes} 降级为<b>可选提示</b> —— 座位最终由服务端重读位图决定
+     *       (ADR-0004 决策 D8), 模型没给座位也不该让整张卡作废。</li>
+     * </ul>
+     */
     private static ActionCardVO tryParseCard(JsonNode cn) {
         if (!cn.isObject()) return null;
         String type = textOrNull(cn, "type");
+        if (type == null) return null;
         String sessionId = textOrNull(cn, "sessionId");
-        JsonNode seatIdx = cn.path("seatIndexes");
-        if (type == null || sessionId == null) return null;
-        if (!seatIdx.isArray() || seatIdx.isEmpty()) return null;
 
         List<Integer> indexes = new ArrayList<>();
-        for (JsonNode idx : seatIdx) {
-            if (idx.canConvertToInt()) indexes.add(idx.asInt());
+        JsonNode seatIdx = cn.path("seatIndexes");
+        if (seatIdx.isArray()) {
+            for (JsonNode idx : seatIdx) {
+                if (idx.canConvertToInt()) indexes.add(idx.asInt());
+            }
         }
-        if (indexes.isEmpty()) return null;
+
+        Integer count = null;
+        if (ActionCardVO.TYPE_ORDER_PROPOSAL.equals(type)) {
+            // 一键下单卡: count 必填且在 [1,4]; seatIndexes 只是提示, 可空
+            count = intOrNull(cn, "count");
+            if (sessionId == null || count == null || count < 1 || count > OrderProposalService.MAX_SEATS) {
+                return null;
+            }
+        } else {
+            // 既有卡型: 规则不变
+            if (sessionId == null || indexes.isEmpty()) return null;
+        }
 
         return ActionCardVO.builder()
                 .type(type)
@@ -142,11 +166,19 @@ public final class ReplyCardParser {
                 .hallName(textOrNull(cn, "hallName"))
                 .startTime(textOrNull(cn, "startTime"))
                 .price(decimalOrNull(cn, "price"))
-                .seatIndexes(indexes)
+                .seatIndexes(indexes.isEmpty() ? null : indexes)
                 .seatDesc(textOrNull(cn, "seatDesc"))
                 .totalAmount(decimalOrNull(cn, "totalAmount"))
                 .actionLabel(textOrNull(cn, "actionLabel"))
+                .count(count)
                 .build();
+    }
+
+    /** 读整数; 缺失 / 非数值 / 不可转 int 时返 null。 */
+    private static Integer intOrNull(JsonNode obj, String field) {
+        JsonNode n = obj.path(field);
+        if (n.isMissingNode() || n.isNull() || !n.canConvertToInt()) return null;
+        return n.asInt();
     }
 
     private static String textOrNull(JsonNode obj, String field) {

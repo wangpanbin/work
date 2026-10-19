@@ -1,8 +1,8 @@
 import request from './request'
-import type { ChatRequestDTO, ChatResponseVO } from '../types'
+import type { ChatRequestDTO, ChatResponseVO, OrderProposalVO } from '../types'
 
 /**
- * 对话式订票助手 API (spec §6.1, ticket #12 T6).
+ * 对话式订票助手 API (spec §6.1, ticket #12 T6)。
  *
  * <p>鉴权由 api/request.ts 拦截器自动处理:有 cinema_token 时加 Authorization,
  * 无 token 也可调(后端 50000 短路)— 不需要在本文件重复。
@@ -34,7 +34,14 @@ export function sendMessage(dto: Omit<ChatRequestDTO, 'chatSessionId'>): Promise
     message: dto.message,
     context: dto.context,
   }
-  return request.post('/chat/message', payload) as Promise<ChatResponseVO>
+  return (request.post('/chat/message', payload) as Promise<ChatResponseVO>).then((res) => {
+    // spec §6.1: 请求没带 id 时后端生成 fallback 并回传,下次请求复用它。
+    // 正常情况下前端总会带 id,这里是个无害的 no-op 兜底。
+    if (res?.chatSessionId && res.chatSessionId !== payload.chatSessionId) {
+      localStorage.setItem(CHAT_SESSION_KEY, res.chatSessionId)
+    }
+    return res
+  })
 }
 
 /**
@@ -43,4 +50,30 @@ export function sendMessage(dto: Omit<ChatRequestDTO, 'chatSessionId'>): Promise
  */
 export function resetChatSession(): void {
   localStorage.removeItem(CHAT_SESSION_KEY)
+}
+
+// ============ 一键下单 (ADR-0004) ============
+
+/**
+ * 重新找一组座位。
+ *
+ * <p>只有场次与张数 —— **座位由服务端重读位图挑, 客户端无从指定**。
+ * 端点返回的是一份服务端提案(座位 / 单价 / 总额 / 过期时刻), 确认时凭
+ * {@code proposalId} 回服务端取这份快照, 前端不回传任何座位。
+ *
+ * <p>{@code sessionId} 用 string 传(雪花 ID 是 19 位十进制数, 转成 number
+ * 会丢精度); 后端 DTO 是 Long, Jackson 能直接吃字符串。
+ */
+export function createOrderProposal(dto: { sessionId: string | number; count: number }): Promise<OrderProposalVO> {
+  return request.post('/chat/orders/proposals', dto) as Promise<OrderProposalVO>
+}
+
+/**
+ * 确认下单 —— 按服务端快照锁座, 订单进入「待支付」。
+ *
+ * <p>请求体只有一个 {@code proposalId}: 座位、单价、总额全在服务端快照里。
+ * 幂等键也是 {@code proposalId}, 所以重复点不会锁两次座。
+ */
+export function confirmOrderProposal(proposalId: string): Promise<OrderProposalVO> {
+  return request.post(`/chat/orders/${encodeURIComponent(proposalId)}/confirm`) as Promise<OrderProposalVO>
 }

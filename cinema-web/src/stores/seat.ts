@@ -138,7 +138,7 @@ export const useSeatStore = defineStore('seat', () => {
   }
 
   /**
-   * T7: 应用 preselect(来自 chat 行动卡片 — spec §7.2).
+   * T7: 应用 preselect(来自 chat 行动卡片 — spec §7.2)。
    *
    * <p>追加语义 + 超 maxSelect 按 preselect 索引最小优先剔除 + 冲突闪烁
    * (1.8s 自动清除, 与 applyEvent 走同一 schedule)。
@@ -165,7 +165,7 @@ export const useSeatStore = defineStore('seat', () => {
     }
   }
 
-  /** WS 事件应用: 本地位图同步. 注意: ref 包裹的 Uint8Array 必须整体替换才能触发响应式. */
+  /** WS 事件应用: 本地位图同步. 注意: ref 包裹的 Uint8Array 必须整体替换才能触发响应式。 */
   function applyEvent(type: string, seats: number[], seq?: number) {
     if (seats.length === 0) return
     // 先按座位序号过滤乱序的迟到事件(无序号时全部接受, 退化成改动前的纯增量行为)

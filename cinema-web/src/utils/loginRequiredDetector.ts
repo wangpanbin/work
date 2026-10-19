@@ -1,5 +1,5 @@
 /**
- * loginRequiredDetector — 检测 AI 回复是否含 "需要登录" 提示(spec #17 ID-4).
+ * loginRequiredDetector — 检测 AI 回复是否含 "需要登录" 提示(spec #17 ID-4)。
  *
  * <p>纯函数,无副作用,可独立测试。
  *

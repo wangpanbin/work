@@ -7,8 +7,8 @@ import {
 } from '../../src/constants/auth'
 
 /**
- * Auth 常量单测 — 锁定 wire-format 后端 ResultCode 一致 + localStorage key 单一来源.
- * 这些字符串/数字一旦漂移, 40101/40102 拦截失效 / 用户态不清理 → 严重 bug.
+ * Auth 常量单测 — 锁定 wire-format 后端 ResultCode 一致 + localStorage key 单一来源。
+ * 这些字符串/数字一旦漂移, 40101/40102 拦截失效 / 用户态不清理 → 严重 bug。
  */
 describe('Auth constants — localStorage keys', () => {
   it('AUTH_TOKEN_KEY 锁定为 "cinema_token"', () => {

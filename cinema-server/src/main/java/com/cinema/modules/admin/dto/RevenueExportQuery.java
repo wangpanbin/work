@@ -7,10 +7,10 @@ import lombok.Data;
 import java.time.LocalDate;
 
 /**
- * 营收导出请求参数 (T1).
+ * 营收导出请求参数 (T1)。
  *
  * <p>「mode」为前端 UI 状态语义（preset/custom），后端只关心 from/to 两个日期；
- * 范围补默认（最近 7 日）由 {@link #normalize()} 统一处理, controller 与 service 复用.
+ * 范围补默认（最近 7 日）由 {@link #normalize()} 统一处理, controller 与 service 复用。
  */
 @Data
 public class RevenueExportQuery {
@@ -26,7 +26,7 @@ public class RevenueExportQuery {
 
     /**
      * 补默认 + 校验. controller 调一次用于拼文件名, service 调一次用于拉数据,
-     * 任何位置调一次即可保证 from/to 在 (today-6, today) 区间内且合法.
+     * 任何位置调一次即可保证 from/to 在 (today-6, today) 区间内且合法。
      *
      * @throws BizException 起始日期晚于结束日期时
      */

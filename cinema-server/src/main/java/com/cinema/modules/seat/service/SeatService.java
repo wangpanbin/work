@@ -18,9 +18,9 @@ import java.util.Base64;
 import java.util.List;
 
 /**
- * 座位图服务(顶层 orchestrator).
+ * 座位图服务(顶层 orchestrator)。
  *
- * <p>#4 收尾: 原 234 行 god module 拆为 4 个 reader + 本 orchestrator.
+ * <p>#4 收尾: 原 234 行 god module 拆为 4 个 reader + 本 orchestrator。
  * <ul>
  *   <li>{@link SessionInfoLoader} — 缓存 + 4 表 join 回源</li>
  *   <li>{@link SessionBitmapReader} — Redis bitmap 读 + SETBIT 长度分配</li>
@@ -28,7 +28,7 @@ import java.util.List;
  *   <li>{@link MyLockedSeatsReader} — Redis Hash 优先 + DB 回填</li>
  * </ul>
  *
- * <p>本类只持有 4 个 reader + orderItemMapper, 字段从 10 → 5, seatMap() 缩成 5 行组合.
+ * <p>本类只持有 4 个 reader + orderItemMapper, 字段从 10 → 5, seatMap() 缩成 5 行组合。
  */
 @Service
 @RequiredArgsConstructor

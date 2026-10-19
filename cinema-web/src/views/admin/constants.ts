@@ -1,4 +1,4 @@
-/** T5 导出对话框 — 区间预设定义. 单一来源驱动 radio + computedRange. */
+/** T5 导出对话框 — 区间预设定义. 单一来源驱动 radio + computedRange。 */
 
 export type ExportPreset = 'today' | '7d' | '30d' | 'month' | 'custom'
 
@@ -9,7 +9,7 @@ export interface ExportPresetDef {
   compute: ((today: Date) => { from: Date; to: Date }) | null
 }
 
-/** 单一来源驱动 radio 渲染 + computedRange. 添加新预设只需在此注册, 不需改 Dashboard.vue. */
+/** 单一来源驱动 radio 渲染 + computedRange. 添加新预设只需在此注册, 不需改 Dashboard.vue。 */
 export const EXPORT_PRESETS: Record<ExportPreset, ExportPresetDef> = {
   today: {
     labelKey: 'admin.exportToday',

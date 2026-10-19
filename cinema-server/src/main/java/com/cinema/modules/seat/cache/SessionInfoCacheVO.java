@@ -11,10 +11,10 @@ import java.time.LocalDateTime;
 
 /**
  * 场次元数据缓存值(session/movie/hall/cinema 聚合)
- * <p>读路径优化(Phase A-①): 原 seatMap 每次查 4 张 DB 表, 改为读这个 Redis Hash(1800s TTL).
- * 写路径失效由 AdminSessionController.delete(RedisKeys.sessionInfo(...)) 兜底.
+ * <p>读路径优化(Phase A-①): 原 seatMap 每次查 4 张 DB 表, 改为读这个 Redis Hash(1800s TTL)。
+ * 写路径失效由 AdminSessionController.delete(RedisKeys.sessionInfo(...)) 兜底。
  * <p>字段集合是 SeatMapVO 元数据的最小子集(price/startTime/title/hallName/seatRows/Cols/SeatCount)
- * + 必要的 status 用于入场校验. 额外带 cacheAt 用于排查陈旧度.
+ * + 必要的 status 用于入场校验. 额外带 cacheAt 用于排查陈旧度。
  */
 @Data
 @Builder

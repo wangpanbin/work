@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 影院常见问答知识库服务(spec #20 ID-4).
+ * 影院常见问答知识库服务(spec #20 ID-4)。
  *
  * <p><b>初始化</b>:{@code @PostConstruct init()} 一次性从 DB 加载到内存 + 拆 keywordList,
  * 后续 searchFaq 是 O(n*m) 简单遍历(n ≤ 几十,m 平均 ≤ 5),&lt; 1ms。

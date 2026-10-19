@@ -2,9 +2,9 @@
  * 座位图 WebSocket 客户端: 自动重连 + 心跳 + 事件回调
  * 后端路径 /ws/seat/{sessionId} (已公开, 无需 token)
  * <p>Phase C-⑮ 优化: 把 setInterval id 存到 pingTimer,
- * onclose/close 时都 clearInterval, 避免重连过程中累积多个心跳 timer.
+ * onclose/close 时都 clearInterval, 避免重连过程中累积多个心跳 timer。
  * <p>P0-2 新增: 暴露 status 响应式 ref, 让 UI 能展示连接状态 (connecting/open/closed)
- * 并对被他人抢走的已选座位做"刚被抢"的临时标记.
+ * 并对被他人抢走的已选座位做"刚被抢"的临时标记。
  */
 import { ref } from 'vue'
 import { parseWsMessage } from './wsMessage'
@@ -15,7 +15,7 @@ export type SeatEvent = {
   sessionId: string | number
   seats: number[]
   /**
-   * 全局单调事件序号(服务端 Redis INCR 产生).
+   * 全局单调事件序号(服务端 Redis INCR 产生)。
    *
    * <p>**可选**: 缺失或类型非法时视为「无序号」, 事件总是应用。
    * `seq <= 0` 是服务端自增失败时的兜底值, 同样按「无序号」处理 ——

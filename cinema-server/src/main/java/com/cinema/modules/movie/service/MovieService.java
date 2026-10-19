@@ -16,7 +16,7 @@ public class MovieService {
     private final MovieMapper movieMapper;
 
     /**
-     * F1 搜索筛选分页查询.
+     * F1 搜索筛选分页查询。
      * <p>支持:
      * <ul>
      *   <li>keyword: 片名/描述 LIKE 模糊</li>

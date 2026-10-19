@@ -21,8 +21,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 订单核心公共逻辑 — CAS 校验 / 订单归属 / 座位索引读取 / Redis user:locked 清理.
- * <p>E1 拆分: 从 OrderService 抽出共享代码,各 service 注入使用.
+ * 订单核心公共逻辑 — CAS 校验 / 订单归属 / 座位索引读取 / Redis user:locked 清理。
+ * <p>E1 拆分: 从 OrderService 抽出共享代码,各 service 注入使用。
  */
 @Slf4j
 @Component
@@ -92,7 +92,7 @@ public class OrderCore {
     }
 
     /**
-     * 校验座位索引落在此场次的真实座位范围内 —— 防越界 SETBIT 撑爆 Redis 位图.
+     * 校验座位索引落在此场次的真实座位范围内 —— 防越界 SETBIT 撑爆 Redis 位图。
      *
      * <p>P0 修复(2026-10-11 稳定性测试): {@code LockSeatsDTO} 只有 {@code @NotEmpty} +
      * {@code @Size(max=4)}, 上界取决于场次(1 号厅 96 座 / 2 号厅 140 座), 无法用常量注解表达。

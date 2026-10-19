@@ -1,5 +1,5 @@
 /**
- * renderMarkdown — 极简 Markdown 渲染器(不引第三方库).
+ * renderMarkdown — 极简 Markdown 渲染器(不引第三方库)。
  *
  * <p>**为什么自己写**(E2E 2026-09-29 P2-2):LLM 回复里的表格/加粗原本以原始
  * `|影片|场次|` 文本直出,观感很差。项目约束不允许随意改 `package.json` 增依赖,

@@ -16,14 +16,14 @@ import java.io.ByteArrayOutputStream;
 import java.util.List;
 
 /**
- * T1 营收导出服务.
+ * T1 营收导出服务。
  *
- * <p>三步独立: 校验补默认 → 拉行 → 渲染字节流. 每步可单独替换实现 (如换图表库 / 换 SQL) 而不影响其它步.
+ * <p>三步独立: 校验补默认 → 拉行 → 渲染字节流. 每步可单独替换实现 (如换图表库 / 换 SQL) 而不影响其它步。
  *
  * <p>为什么返回 byte[] 而不是写 OutputStream:
  * 若 service 写外层流到一半抛 BizException, GlobalExceptionHandler 之后写 JSON body
- * 会因 response 已 commit 而抛 IllegalStateException 或得到半截损坏 .xlsx.
- * 把"写流"留给 controller, 失败时 advice 接管 JSON 写入, 此时 response 未 commit.
+ * 会因 response 已 commit 而抛 IllegalStateException 或得到半截损坏 .xlsx。
+ * 把"写流"留给 controller, 失败时 advice 接管 JSON 写入, 此时 response 未 commit。
  */
 @Slf4j
 @Service
@@ -33,7 +33,7 @@ public class AdminRevenueExportService {
     private final OrderMapper orderMapper;
 
     /**
-     * 编排: 校验 → 拉行 → 渲染.
+     * 编排: 校验 → 拉行 → 渲染。
      *
      * @throws BizException query 为 null / 起始日期晚于结束日期 / Excel 生成失败
      */
@@ -43,7 +43,7 @@ public class AdminRevenueExportService {
         return renderToBytes(rows);
     }
 
-    /** ① query 非空 + 补默认 + 范围校验. 失败抛 BizException(40001). */
+    /** ① query 非空 + 补默认 + 范围校验. 失败抛 BizException(40001)。 */
     private void validate(RevenueExportQuery query) {
         if (query == null) {
             throw new BizException(ResultCode.BAD_REQUEST, "查询参数为空");
@@ -51,7 +51,7 @@ public class AdminRevenueExportService {
         query.normalize();
     }
 
-    /** ② mapper 拉行; 含端点 → 半开区间由 mapper SQL 内部 `DATE_ADD(..., INTERVAL 1 DAY)` 处理. */
+    /** ② mapper 拉行; 含端点 → 半开区间由 mapper SQL 内部 `DATE_ADD(..., INTERVAL 1 DAY)` 处理。 */
     private List<RevenueRowVO> fetchRows(RevenueExportQuery query) {
         List<RevenueRowVO> rows = orderMapper.selectRevenueRows(query.getFrom(), query.getTo());
         log.info("营收导出: from={}, to={}, rows={}", query.getFrom(), query.getTo(),
@@ -59,7 +59,7 @@ public class AdminRevenueExportService {
         return rows == null ? List.of() : rows;
     }
 
-    /** ③ EasyExcel 写到内存字节流. 写失败抛 BizException(50000). */
+    /** ③ EasyExcel 写到内存字节流. 写失败抛 BizException(50000)。 */
     private byte[] renderToBytes(List<RevenueRowVO> rows) {
         ByteArrayOutputStream buf = new ByteArrayOutputStream(64 * 1024);
         try (ExcelWriter writer = EasyExcel.write(buf, RevenueRowVO.class).build()) {

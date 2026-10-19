@@ -2,7 +2,7 @@
  * 订单状态 UI 视图模型
  *
  * 单一真理之源:订单5 态的展示/行为契约。
- * 与 backend `cinema-server/.../OrderStatus.java` 一一对应 (int code 是后端唯一标识符).
+ * 与 backend `cinema-server/.../OrderStatus.java` 一一对应 (int code 是后端唯一标识符)。
  *
  * 数据流约定:
  * - 后端 `OrderVO.status: int + statusText: String` — 真实订单展示优先使用后端 statusText;

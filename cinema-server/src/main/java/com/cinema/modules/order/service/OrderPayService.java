@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 订单支付 / 退款 — E1 拆分的 service 之一.
+ * 订单支付 / 退款 — E1 拆分的 service 之一。
  * <p>E1 拆分: CAS 推进 PENDING_PAY → PAID
  * <p>N1 扩展: CAS 推进 PAID → REFUNDING → REFUNDED, 写 refund_log
  */

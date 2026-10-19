@@ -103,9 +103,9 @@ public interface OrderMapper extends BaseMapper<Order> {
     // ====================== T1 营收导出 ======================
 
     /**
-     * 营收明细行: 已支付订单 + 影片/影厅/用户 join.
+     * 营收明细行: 已支付订单 + 影片/影厅/用户 join。
      * <p>含端点区间 {@code [from, to]} (mapper 内部 `+1 day` 转半开);
-     * status=1 锁定已支付. 入参用 LocalDate 让语义直观, mapper 自管半开转换.
+     * status=1 锁定已支付. 入参用 LocalDate 让语义直观, mapper 自管半开转换。
      */
     @org.apache.ibatis.annotations.Select("SELECT " +
             "  o.order_no     AS orderNo, " +

@@ -30,7 +30,7 @@ let wsHandle: SeatWsHandle | null = null
 const wsStatus = ref<WsStatus>('connecting')
 
 /**
- * 拉取权威座位图.
+ * 拉取权威座位图。
  *
  * @param preserveSelection 权威重拉时为 true —— 不直接丢弃用户已选座位, 而是逐个用新位图复核。
  *   缺省 false, 保持改动前的语义(手动刷新按钮 / 首次装载仍清空选座)。

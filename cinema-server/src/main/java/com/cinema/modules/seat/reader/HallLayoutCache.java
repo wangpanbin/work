@@ -15,9 +15,9 @@ import java.time.Duration;
 import java.util.List;
 
 /**
- * 影厅布局缓存: Redis JSON 1h 缓存 + miss 时查 DB 回填.
+ * 影厅布局缓存: Redis JSON 1h 缓存 + miss 时查 DB 回填。
  *
- * <p>#4 收尾: 抽自 SeatService.hallLayout. 管理端改动影厅时通过 RedisKeys.hallLayout(hallId) 失效.
+ * <p>#4 收尾: 抽自 SeatService.hallLayout. 管理端改动影厅时通过 RedisKeys.hallLayout(hallId) 失效。
  */
 @Component
 @RequiredArgsConstructor

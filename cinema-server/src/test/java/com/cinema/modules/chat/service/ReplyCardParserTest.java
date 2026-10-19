@@ -164,4 +164,63 @@ class ReplyCardParserTest {
         assertThat(r.strippedReply()).contains("中间文字");
         assertThat(r.strippedReply()).contains("尾巴");
     }
+
+    // ============ ADR-0004: ORDER_PROPOSAL 卡型 ============
+
+    @Test
+    @DisplayName("ORDER_PROPOSAL 卡: count 必填、seatIndexes 照常解析")
+    void order_proposal_card_parsed_with_count() {
+        String reply = "好的,给你留 2 连座。\n\n"
+                + "```json-cards\n"
+                + "{\"cards\":[{\"type\":\"ORDER_PROPOSAL\",\"sessionId\":\"1001\","
+                + "\"count\":2,\"movieTitle\":\"流浪地球\",\"hallName\":\"19 号厅\","
+                + "\"startTime\":\"2026-09-21 20:00:00\",\"price\":45.00,"
+                + "\"seatIndexes\":[52,53],\"seatDesc\":\"5排4座、5排5座\","
+                + "\"totalAmount\":90.00}],"
+                + "\"followUps\":[]}\n"
+                + "```";
+        ParseResult r = ReplyCardParser.parse(reply);
+        assertThat(r.cards()).hasSize(1);
+        ActionCardVO c = r.cards().get(0);
+        assertThat(c.getType()).isEqualTo("ORDER_PROPOSAL");
+        assertThat(c.getSessionId()).isEqualTo("1001");
+        assertThat(c.getCount()).isEqualTo(2);
+        assertThat(c.getSeatIndexes()).containsExactly(52, 53);
+    }
+
+    @Test
+    @DisplayName("ORDER_PROPOSAL 卡: seatIndexes 可空(座位最终由服务端重读位图决定)")
+    void order_proposal_card_seat_indexes_optional() {
+        String reply = "```json-cards\n"
+                + "{\"cards\":[{\"type\":\"ORDER_PROPOSAL\",\"sessionId\":\"1001\",\"count\":2}],"
+                + "\"followUps\":[]}\n```";
+        ParseResult r = ReplyCardParser.parse(reply);
+        assertThat(r.cards()).hasSize(1);
+        assertThat(r.cards().get(0).getCount()).isEqualTo(2);
+        assertThat(r.cards().get(0).getSeatIndexes()).isNull();
+    }
+
+    @Test
+    @DisplayName("ORDER_PROPOSAL 卡: 缺 count → 丢卡")
+    void order_proposal_card_without_count_dropped() {
+        String reply = "```json-cards\n"
+                + "{\"cards\":[{\"type\":\"ORDER_PROPOSAL\",\"sessionId\":\"1001\"}],"
+                + "\"followUps\":[]}\n```";
+        ParseResult r = ReplyCardParser.parse(reply);
+        assertThat(r.cards()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("ORDER_PROPOSAL 卡: count 越界(0 或 5)→ 丢卡")
+    void order_proposal_card_with_out_of_range_count_dropped() {
+        String reply0 = "```json-cards\n"
+                + "{\"cards\":[{\"type\":\"ORDER_PROPOSAL\",\"sessionId\":\"1001\",\"count\":0}],"
+                + "\"followUps\":[]}\n```";
+        assertThat(ReplyCardParser.parse(reply0).cards()).isEmpty();
+
+        String reply5 = "```json-cards\n"
+                + "{\"cards\":[{\"type\":\"ORDER_PROPOSAL\",\"sessionId\":\"1001\",\"count\":5}],"
+                + "\"followUps\":[]}\n```";
+        assertThat(ReplyCardParser.parse(reply5).cards()).isEmpty();
+    }
 }

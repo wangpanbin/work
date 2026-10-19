@@ -36,8 +36,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 订单锁座下单 — OrderService 拆分的 4 个 service 之一.
- * <p>E1 拆分: 负责入场环节(锁座 → 建单 → 入延迟队列),与支付/取消解耦.
+ * 订单锁座下单 — OrderService 拆分的 4 个 service 之一。
+ * <p>E1 拆分: 负责入场环节(锁座 → 建单 → 入延迟队列),与支付/取消解耦。
  */
 @Slf4j
 @Service
@@ -202,8 +202,12 @@ public class OrderLockService {
      * 查用户在某场次的 PENDING_PAY 订单(锁座前幂等防重)。
      * <p>Redis user:pending 仅作为 lockSeats 写入提示; 本查询以 DB 为权威源
      * (Redis value 在本仓库从未被读取, 原 findPendingOrderShortCircuit 的 hasKey 分支是死分支, 见 #5 收尾)。
+     *
+     * <p><b>public 的原因</b>(ADR-0004):对话助手的下单提案在生成时也要知道
+     * 「同场次是否已有待支付单」—— 确认后那笔会被 {@link #closePending} 取消,
+     * 必须提前告知用户。复用同一个查询, 避免两处口径不一致。
      */
-    private Order findUserPendingOrder(Long userId, Long sessionId) {
+    public Order findUserPendingOrder(Long userId, Long sessionId) {
         return orderMapper.selectOne(new LambdaQueryWrapper<Order>()
                 .eq(Order::getUserId, userId)
                 .eq(Order::getSessionId, sessionId)

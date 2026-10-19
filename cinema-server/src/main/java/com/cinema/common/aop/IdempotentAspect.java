@@ -21,9 +21,9 @@ import java.lang.reflect.Method;
 import java.time.Duration;
 
 /**
- * 幂等切面 — SpEL 解析 key, Redis SETNX 判定是否重复提交.
- * <p>E5 实现: 命中抛 BizException(code=40900).
- * <p>注意: 业务侧仍需 DB 唯一约束兜底(本注解只防短时间重试).
+ * 幂等切面 — SpEL 解析 key, Redis SETNX 判定是否重复提交。
+ * <p>E5 实现: 命中抛 BizException(code=40900)。
+ * <p>注意: 业务侧仍需 DB 唯一约束兜底(本注解只防短时间重试)。
  */
 @Slf4j
 @Aspect

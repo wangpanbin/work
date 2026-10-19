@@ -24,7 +24,7 @@ import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * T3 cycle 1 — 对话助手 Bean 装配(spec §4.5 + §8).
+ * T3 cycle 1 — 对话助手 Bean 装配(spec §4.5 + §8)。
  *
  * <p>三个 Bean:
  * <ul>
@@ -61,7 +61,7 @@ public class ChatConfig {
 
     /**
      * ChatMemoryStore 默认实现:ConcurrentHashMap + MessageWindowChatMemory 窗口 10 条
-     * (spec §4.4 窗口大小下限,允许完整工具调用链组不被截断).
+     * (spec §4.4 窗口大小下限,允许完整工具调用链组不被截断)。
      */
     @Bean
     public ChatMemoryStore chatMemoryStore() {

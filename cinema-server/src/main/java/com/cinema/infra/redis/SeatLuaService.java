@@ -17,7 +17,7 @@ import java.util.List;
  * 座位位图 Lua 脚本封装
  * <p>Phase B-④ 优化: 启动期通过 SCRIPT LOAD 把 3 个脚本预热到 Redis,
  * 后续业务调用由 Spring Data Redis 走 EVALSHA(若 Redis 重启脚本丢失,
- * Spring Data Redis 会自动 fallback EVAL, 不影响功能).
+ * Spring Data Redis 会自动 fallback EVAL, 不影响功能)。
  * <p>脚本经 DefaultRedisScript 预加载(首次执行后缓存于 Redis, 后续只传 SHA)
  */
 @Slf4j
@@ -98,8 +98,8 @@ public class SeatLuaService {
     }
 
     /**
-     * P5 冷启动恢复: 原子批量 SETBIT(lockSeats → lock bitmap, soldSeats → sold bitmap).
-     * 用于服务重启 / Redis flush 后从 DB 重建位图.
+     * P5 冷启动恢复: 原子批量 SETBIT(lockSeats → lock bitmap, soldSeats → sold bitmap)。
+     * 用于服务重启 / Redis flush 后从 DB 重建位图。
      */
     public RecoverResult recoverSeats(String lockKey, String soldKey,
                                       List<Integer> lockSeats, List<Integer> soldSeats) {

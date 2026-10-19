@@ -17,9 +17,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 订单取消 / 超时关单 — OrderService 拆分的 4 个 service 之一.
- * <p>E1 拆分: 负责主动取消(cancel) + 扫描器/补偿触发的 closeIfUnpaid.
- * <p>复用 OrderCore 做状态校验和座位索引读取.
+ * 订单取消 / 超时关单 — OrderService 拆分的 4 个 service 之一。
+ * <p>E1 拆分: 负责主动取消(cancel) + 扫描器/补偿触发的 closeIfUnpaid。
+ * <p>复用 OrderCore 做状态校验和座位索引读取。
  */
 @Slf4j
 @Service

@@ -10,9 +10,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 影院常见问答知识库实体(spec #20 ID-2).
+ * 影院常见问答知识库实体(spec #20 ID-2)。
  *
- * <p>移植自 PR #15 {@code Knowledge.java},字段对齐 {@code sql/06_qa_knowledge.sql}.
+ * <p>移植自 PR #15 {@code Knowledge.java},字段对齐 {@code sql/06_qa_knowledge.sql}。
  *
  * <p>{@code keywordList} 非持久化字段:service 层在 init 时一次性 split 缓存,
  * searchFaq 时按 List 遍历 contains。

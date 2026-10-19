@@ -38,6 +38,11 @@ cinema:
     model-name: ${CINEMA_CHAT_MODEL_NAME:deepseek-chat}
     timeout-seconds: ${CINEMA_CHAT_TIMEOUT_SECONDS:90}
     max-retries: ${CINEMA_CHAT_MAX_RETRIES:2}
+    # 一键下单(ADR-0004):关闭后助手不再生成下单提案, /api/chat/orders/** 一律拒服务。
+    # 这是整条写路径的回滚闸门 —— 不发版即可让助手退回纯只读。
+    order-enabled: ${CINEMA_CHAT_ORDER_ENABLED:true}
+    # 下单提案快照的存活秒数。提案**不占位**, 只是「已算好的报价与座位方案」。
+    proposal-ttl-seconds: ${CINEMA_CHAT_PROPOSAL_TTL_SECONDS:90}
 
 springdoc:
   swagger-ui:

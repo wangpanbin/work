@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { detectLoginRequired } from '../../src/utils/loginRequiredDetector'
 
 /**
- * loginRequiredDetector 纯函数测试(spec #17 ID-4 + TD-2).
+ * loginRequiredDetector 纯函数测试(spec #17 ID-4 + TD-2)。
  *
  * <p>关键不变量:
  * <ul>

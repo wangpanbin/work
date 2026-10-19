@@ -18,12 +18,12 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 
 /**
- * T1 营收导出端点.
+ * T1 营收导出端点。
  *
  * <p>响应是裸二进制流 ({@code application/vnd.openxmlformats-officedocument.spreadsheetml.sheet}),
- * 不走 {@code R<>} 包装; 业务异常仍由 {@code GlobalExceptionHandler} 转 JSON (此时 response 还未 commit).
+ * 不走 {@code R<>} 包装; 业务异常仍由 {@code GlobalExceptionHandler} 转 JSON (此时 response 还未 commit)。
  *
- * <p>鉴权复用现有 {@code AdminInterceptor}: 该拦截器已对 {@code /api/admin/**} 全部生效, role=1 才能进.
+ * <p>鉴权复用现有 {@code AdminInterceptor}: 该拦截器已对 {@code /api/admin/**} 全部生效, role=1 才能进。
  */
 @RestController
 @RequestMapping("/api/admin/revenue")
@@ -54,9 +54,9 @@ public class AdminRevenueExportController {
 
         // 3. 设置响应头 + 写流 (第一次写 OutputStream 才 commit response)
         //    Header value 按 RFC 7230 §3.2.4 默认 ISO-8859-1; 汉字 (U+8425 营, U+81F3 至 ...) 直接
-        //    拼进 filename="..." 段会让 Tomcat 在 MessageBytes.toBytes() 抛 IAE.
+        //    拼进 filename="..." 段会让 Tomcat 在 MessageBytes.toBytes() 抛 IAE。
         //    修法: ASCII fallback 用纯英文+日期, 完整中文名走 RFC 5987 filename*=UTF-8'' 段
-        //    (现代浏览器 / Chrome / Firefox / Safari / Edge / wget 都支持).
+        //    (现代浏览器 / Chrome / Firefox / Safari / Edge / wget 都支持)。
         String displayName = "营收报表_" + query.getFrom() + "_至_" + query.getTo() + ".xlsx";
         String asciiFallback = "revenue_" + query.getFrom() + "_" + query.getTo() + ".xlsx";
         String encoded = URLEncoder.encode(displayName, StandardCharsets.UTF_8)

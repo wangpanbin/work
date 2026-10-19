@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, resolve, join } from 'node:path'
 
 /**
- * 主题 token 契约测试.
+ * 主题 token 契约测试。
  *
  * <p><b>为什么需要它</b>: 2026-10-12 换肤(暖米纸+朱红 → 冷靛蓝+皇家蓝)之前,
  * 全站 177 个用例<b>没有任何一条</b>断言颜色或读 {@code styles/main.css} ——
@@ -32,7 +32,7 @@ const readSrc = (rel: string) => readFileSync(resolve(SRC, rel), 'utf8')
 const MAIN_CSS = readSrc('styles/main.css')
 
 /**
- * 去掉 `/* ... *\/` 与 `<!-- ... -->` 注释.
+ * 去掉 `/* ... *\/` 与 `<!-- ... -->` 注释。
  * 注释里的色值是文档不是生效样式, 不该被「无硬编码色」判红;
  * 但反过来, 注释被去掉后依然能检出真硬编码, 所以这个顺序是安全的。
  */

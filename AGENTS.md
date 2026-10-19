@@ -20,8 +20,8 @@ Test accounts seeded by backend on startup: `user1/123456`, `user2/123456`, `adm
 
 ## Commands
 
-- Frontend: `pnpm dev` · `pnpm build` · `pnpm type-check` (`vue-tsc --noEmit`) · `pnpm test` (vitest 3.x, `tests/**/*.test.ts`,**295 用例跨 21 个 `.test.ts` 文件**,2026-10-19 实测;上一次 289/20,再上一次 223/19)。本轮新增 `tests/stores/seatWatch.test.ts`(35 用例)、`tests/utils/ws.test.ts`(6 用例,锁断连重连状态机,见下方坑)与 `tests/styles/themeTokens.test.ts` 的 3 条关注标识契约断言。新增 `tests/styles/themeTokens.test.ts`(49 用例)是换肤闸门,见下方「主题 token」。First test file: `tests/views/order/constants.test.ts` (**16 用例**覆盖 ORDER_STATUS 5 态 + 跨态 round-trip). `tests/utils/markdown.test.ts` 是 P2-2 聊天 Markdown 渲染的 24 用例,其中一组专门锁 XSS(先转义后拼标签).
-- Backend: `mvn spring-boot:run` · `mvn test` (**178 JUnit5+Mockito unit tests across 33 classes**,2026-10-19 实测;上一次 169/32,早期数字 29/8 → 69/17 → 105/24 → 118/24 → 115/25 → 127/26 → 139/26 过期). 本轮新增的 3 个类锁的是 P0 修复: `OrderCoreSeatRangeTest`(`seatIndex` 必须落在场次 `[0, seatCount)` 否则 40001)、`LockSeatsDTOValidationTest`(元素级 `@NotNull/@Min/@Max`)、`PageParamsTest`(分页钳制)。Seat Watch 轮新增 `SeatEventPublisherTest`(9 用例)锁事件序号注入,含「自增失败降级为 seq=0」与「序列化失败不外抛」。
+- Frontend: `pnpm dev` · `pnpm build` · `pnpm type-check` (`vue-tsc --noEmit`) · `pnpm test` (vitest 3.x, `tests/**/*.test.ts`,**313 用例跨 22 个 `.test.ts` 文件**,2026-10-19 实测;上一次 295/21,再上一次 289/20)。本轮新增 `tests/components/chat/orderProposalCard.test.ts`(18 用例,锁一键下单卡的倒计时/过期态/确认请求体不含座位)。上一轮新增 `tests/stores/seatWatch.test.ts`(35 用例)、`tests/utils/ws.test.ts`(6 用例,锁断连重连状态机,见下方坑)与 `tests/styles/themeTokens.test.ts` 的 3 条关注标识契约断言。新增 `tests/styles/themeTokens.test.ts`(49 用例)是换肤闸门,见下方「主题 token」。First test file: `tests/views/order/constants.test.ts` (**16 用例**覆盖 ORDER_STATUS 5 态 + 跨态 round-trip). `tests/utils/markdown.test.ts` 是 P2-2 聊天 Markdown 渲染的 24 用例,其中一组专门锁 XSS(先转义后拼标签).
+- Backend: `mvn spring-boot:run` · `mvn test` (**217 JUnit5+Mockito unit tests across 36 classes**,2026-10-19 实测;上一次 213/36,再上一次 178/33,早期数字 29/8 → 69/17 → 105/24 → 118/24 → 115/25 → 127/26 → 139/26 过期).ChatAssistantServiceTest 新增 4 条用例锁 **chatSessionId 缺省兜底**(spec §6.1:后端拿 null/blank 生成 fallback id 并回传 —— 不兜底会 NPE→50000「系统繁忙」,2026-10-19 联调实测踩过).本轮新增的 3 个类锁的是「一键下单」: `OrderProposalServiceTest`(15 用例,座位/价格以服务端为准 + 存量待支付单 + 一次性消费 + IDOR)、`OrderProposalAssemblerTest`(7 用例,既有卡原样透传 + 失败丢卡)、`ChatOrderControllerTest`(9 用例,座位来自快照 + 门禁注解反射断言)。上一轮新增的 3 个类锁的是 P0 修复: `OrderCoreSeatRangeTest`(`seatIndex` 必须落在场次 `[0, seatCount)` 否则 40001)、`LockSeatsDTOValidationTest`(元素级 `@NotNull/@Min/@Max`)、`PageParamsTest`(分页钳制)。Seat Watch 轮新增 `SeatEventPublisherTest`(9 用例)锁事件序号注入,含「自增失败降级为 seq=0」与「序列化失败不外抛」。
 - There is no linter configured in either module. **build 要单独验**:`pnpm build` 与 `pnpm type-check` 查出的问题不重叠(SCSS 变量/模板编译错误只有 build 报)。
 - **数字以实测为准**:README/AGENTS 里的用例数会随测试增长漂移,别照抄文档 —— 跑一次 `mvn test`(或聚合 `target/surefire-reports/TEST-*.xml`)和 `pnpm test` 取真值再更新。
 
@@ -30,12 +30,14 @@ Test accounts seeded by backend on startup: `user1/123456`, `user2/123456`, `adm
 - **换主题的最小改动面就是 `:root` 那几组 token** —— `Dashboard.vue` / `Login.vue` / `AdminHome.vue` 已全部 token 化,主色一改,折线图、面积渐变、票房柱、选座高亮、header chip 全站自动跟随。当前色板(2026-10-12 换肤):主色 `#2563eb`(唯一强调色)、内容区冷灰白 `#eef1f6`、墨色 `#0f172a`、管理端侧栏深靛蓝 `#0f172a`(与座位图暗场 `--hall` 同值,构成一个暗色家族)。
 - **⚠️ `rgba(var(--x-rgb), a)` 是非法 CSS,浏览器会静默丢弃整条声明**(2026-10-12 踩过:侧栏激活态底色因此变 transparent,页面看着像没上色)。`rgba()` 的逗号形式要求 R/G/B 也用逗号分隔,而 token 里存的是空格分隔。**正确写法是斜杠语法 `rgb(var(--x-rgb) / a)`**。themeTokens.test.ts 有一条断言专门锁这个。
 - **座位图 5 态转灰度后必须仍可分辨** —— 这是 `SeatSelect.vue` 的既有验收硬要求,现已固化成 `themeTokens.test.ts` 里的可执行断言(相邻灰度差 ≥ 2)。**改 `--seat-*` 任何一色前先跑这条**;实测 `--seat-mine-bg: #2f6b4f` 动一下间隔就掉到 1。
+- **中文注释句尾一律用全角 `。`,不用半角 `.`**(2026-10-19 统一)。仓库主流风格是全角(统一前 809 行全角 vs 255 行半角,45 个文件内部两种混用),现已是全仓 0 处半角句尾。**只管中文句尾,技术性 `.` 一个都不能动**:`.java` / `.ts` / `.xlsx` 等扩展名、`45.00` 小数、`v0.1.0` 版本号、`§4.5` 式引用、`e.g.` / `i.e.`、纯英文句末的 `.`、以及 `... . 复杂后缀` 这类。落地做法:**只替换注释正文最后一个 `.`**(末尾 `*/` 前那一个),不要正则全量替换 `.` → `。`。写文件时注意 `Read` 工具渲染的 `。` 可能实际是 ASCII `.`,锚点请用 Python `repr()` 验字节。
 
 - **前端 vitest 跑在 `environment: 'node'`, 且没装 jsdom / `@vue/test-utils`**(`vite.config.ts` 的 `test` 段 + `package.json` devDependencies)。**挂不了 Vue 组件**, 涉及视图层的测试只有三条路: ① 把判断逻辑下沉到纯函数/composable 测(如 `usePosterFallback`); ② 对 `.vue` 源码做静态契约断言(`tests/i18n/key-coverage.test.ts` 扫 `t()`、`tests/views/posterWiring.test.ts` 断言 `@error` 接线, 都是这一类, 脆性写在文件头注释里); ③ 上 Playwright 驱动真浏览器。**jsdom 也测不出真实渲染** —— `white-space` 这类 CSS 级联结果在 node/jsdom 下都取不到, 只能靠浏览器验证, 别用静态断言冒充渲染验证。也别为了"能挂组件"随手改 `environment`, 会波及全部 19 个测试文件。
 
 - **pnpm v11 blocks dependency postinstall scripts** by default; `pnpm-workspace.yaml` whitelists `esbuild` and `vue-demi` via `allowBuilds`. If installing/skipping builds behaves oddly, this is why.
 - Management API requires `role === 1`; the frontend route guard in `cinema-web/src/router/index.ts` blocks non-admins and redirects to `/` with `? _denied=1`. **`_denied` 的唯一消费者是 `App.vue` 的 watcher**(弹 `app.adminDenied` 提示后用 `router.replace` 把参数摘掉)——删掉那个 watcher 就会退回"静默弹回首页"。
 - **对话助手的身份参数一律服务端注入**:`ChatTools` 的任何 `@Tool` 方法都**不允许**出现 `userId` 形参,身份取自 `UserContext`。`@P` 参数由 LLM 合成,交给模型填 userId 就是 IDOR 越权(见 `test/e2e-report-2026-09-29.md` P0-1,匿名曾可读全站订单)。`ChatToolsStructureTest#noToolExposesUserIdParam()` 用反射锁死这条红线。
+- **一键下单的座位只走服务端快照**:对话助手确认下单时,座位与价格来自 Redis 里的提案快照(`cinema:chat:proposal:{id}`),**前端与模型都不回传座位**。改动这条链路时别把座位加进确认请求体 —— 那等于把 ADR-0002 当初反对的「模型决定锁哪个座」又放回来。`ChatMessage.vue` 的 v-for key 要用 `card.cardId ?? \`${card.sessionId}-${idx}\`` —— 装配器丢卡后索引会位移,用稳定 key 才不会让 Vue 复用错 DOM。
 - **位图三脚本语义不可混用**:`release_seat.lua` 只清"未售出的锁定位"(待支付单取消/超时用)· `confirm_seat.lua` 置 sold 并同步清 lock · **`refund_seat.lua` 同时清 sold+lock**(退票专用)。退票误用 `releaseSeats` 会导致座位 sold 残留、永久不可再售(P1-1)。改任一脚本后请跑一次"锁座→支付→退票→重新锁座"位图解码回归。
 - **`seatIndexes` 必须按场次校验范围, 上界不能用常量** — `LockSeatsDTO` 的 `@Max(4095)` 只是兜底, 真实上界是场次的 `seatCount`(1 号厅 96 / 2 号厅 140), 由 `OrderCore#requireSeatsInRange` 在进 Lua 之前拦住。**越界索引不会被业务拒绝, 而是直接落进 `lock_seat.lua` 的 `SETBIT`** —— Redis bitmap 按 offset 立即分配且永不回收(实测 offset=100000 把位图从 18B 撑到 12501B, 公开的 `GET /seat-map` 响应放大 61 倍; 硬上界 2^32-1 时单 key 512MiB)。`SessionBitmapReader.readWithPadding` 另有读侧截断兜底历史脏位图。改动这条链路请同时跑 `OrderCoreSeatRangeTest` + `LockSeatsDTOValidationTest` + `test/stability_edge_probe.py`。
 - **`_denied` / `test/` 下的报告文件**:E2E 报告见 `test/e2e-report-2026-09-29.md`(2026-09-29 的 14 个 bug 已全部修复,`git log` 可查对应 commit)。
@@ -85,7 +87,23 @@ Single-context layout. See `docs/agents/domain.md`. `CONTEXT.md` currently cover
 
 ### 对话式订票助手 (chat assistant)
 
-Design spec: `docs/superpowers/specs/2026-09-21-chat-assistant-design.md`. The assistant is **read-only + advisory by design** — it returns 「行动卡片」 suggestions and never locks seats, creates orders, or pays (ADR-0002). It rides LangChain4j inside `cinema-server` (ADR-0001) and deliberately does not use RAG (ADR-0003). There are **8 `@Tool` methods** on `ChatTools` (4 movie/session + 2 seat + 2 order); `ChatToolsStructureTest` is the reflection whitelist that fails if any write method ever gets annotated.
+Design spec: `docs/superpowers/specs/2026-09-21-chat-assistant-design.md` + `docs/superpowers/specs/2026-10-19-chat-one-click-order-design.md`。It rides LangChain4j inside `cinema-server` (ADR-0001) and deliberately does not use RAG (ADR-0003). There are **8 `@Tool` methods** on `ChatTools` (4 movie/session + 2 seat + 2 order); `ChatToolsStructureTest` is the reflection whitelist that fails if any write method ever gets annotated.
+
+**v0.2.0 起助手可以一键下单**(ADR-0004,局部修订 ADR-0002 —— 原文保留,只加修订标记)。三条不变量,改这块之前先确认没破:
+
+- **助手仍不注册任何写工具** —— `ChatTools` 仍是 8 个只读 `@Tool`,`ChatToolsStructureTest` 的 4 条断言一字未改。写路径全在 LLM 之外的**后处理装配层**(`OrderProposalAssembler`)。
+- **付款仍在用户手里** —— 助手只锁座建单到「待支付」,支付在 `/payment` 页由用户自己完成。
+- **不做机器自动换座重试** —— 40002 座位被抢时只告知 + 给「重新找一组」按钮,把重试的决定权交回用户。
+
+chat 模块第一次有了写操作,以下几条是踩坑点:
+
+- **幂等键 = `proposalId`,不是 `userId:sessionId:seatIndexes`** —— 座位列表从不进幂等键,模型的幻觉/重试产生不了第二把钥匙(这正是 ADR-0002 证据 2 的正面回应)。
+- **提案 = 服务端快照**(Redis `cinema:chat:proposal:{id}`,TTL 90s,**一次性**:确认时原子 GETDEL 读出即删)。**提案不占位** —— TTL 内座位不保证可用,占位只发生在 `lockSeats` 那一刻。
+- **座位与价格以服务端为准** —— 模型给的座位只是提示,服务端重读位图复核(在范围内 / 当前可选 / 同行连座),任一不满足就由服务端重找一组(优先中段);价格一律取 `session.getPrice()`,模型报价被丢弃。**越界索引绝不进 `lock_seat.lua`**(见下方 seatIndexes 范围校验那条)。
+- **`closeIfUnpaid` 副作用必须可见** —— 提案阶段查同场次存量待支付单(`OrderLockService.findUserPendingOrder`,已由 private 提为 public 供提案阶段复用),确认卡上显式列出「将被取消的订单号」。
+- **既有抢票链路零改动** —— 确认端点内部直接复用 `OrderLockService.lockSeats`;`POST /orders/lock` 及其 `@Idempotent`/`@RateLimit` 一行未动。
+- **鉴权** —— `/api/chat/orders/**` 已加入 `AuthRequiredInterceptor` 覆盖路径(未登录 40101);`/api/chat/message` 仍公开可匿名。
+- **回滚闸门** —— `cinema.chat.order-enabled=false` → 装配器停摆 + 端点拒服务,不发版即可让整条写路径失效。`cinema.chat.proposal-ttl-seconds` 默认 90。
 
 ### 中英文双语 (i18n)
 

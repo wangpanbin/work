@@ -3,7 +3,7 @@ import { buildSeatRoute } from '../../../src/components/chat/actionCardRoute'
 import type { ActionCardVO } from '../../../src/types'
 
 /**
- * ActionCard 跳转参数构造单测(spec T6 acceptance §9.2 第 3 条).
+ * ActionCard 跳转参数构造单测(spec T6 acceptance §9.2 第 3 条)。
  *
  * <p>关键不变量:
  * <ul>

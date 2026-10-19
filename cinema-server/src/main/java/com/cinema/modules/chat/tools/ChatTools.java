@@ -28,11 +28,11 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * T2 cycle 1 — 对话助手只读工具集(spec §5.1,ADR-0002).
+ * T2 cycle 1 — 对话助手只读工具集(spec §5.1,ADR-0002)。
  *
  * <p><b>只读 + 只推荐</b>:8 个 {@code @Tool} 方法全部走既有只读 Service + 知识库,
- * <b>不暴露任何写方法</b>(无 lockSeats / pay / cancel / refund / forceRecover / 管理端写接口).
- * spec §9.4 第 5 条 + ADR-0002 的硬性约束,反射白名单断言兜底.
+ * <b>不暴露任何写方法</b>(无 lockSeats / pay / cancel / refund / forceRecover / 管理端写接口)。
+ * spec §9.4 第 5 条 + ADR-0002 的硬性约束,反射白名单断言兜底。
  *
  * <p><b>入参白名单校验</b>(spec §5.5):
  * <ul>
@@ -52,7 +52,7 @@ import java.util.Map;
  * <p><b>null userId</b>(spec §5.1 + Q5 决策):{@code getMyOrders} / {@code getMyOrder}
  * 在服务端 {@code UserContext.userId()==null} 时直接返 {@code Map.of("error","LOGIN_REQUIRED")},
  * 由 §5.4(a) {@code ToolArgumentsErrorHandler} 路径转自然语言回复("请先登录"),
- * 不抛异常(避免浪费一次 LLM 轮次).
+ * 不抛异常(避免浪费一次 LLM 轮次)。
  *
  * <p><b>FAQ 工具</b>(spec #20):{@code searchFaq} 走 {@code KnowledgeService.searchFaq},
  * 18 条 qa_knowledge 种子数据(怎么买票/退票/取票/管理后台/退款周期等通用问答),

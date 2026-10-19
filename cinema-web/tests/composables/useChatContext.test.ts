@@ -5,7 +5,7 @@ import {
 } from '../../src/composables/useChatContext'
 
 /**
- * useChatContext 纯逻辑单测(spec T6 acceptance §9.2 第 2 条).
+ * useChatContext 纯逻辑单测(spec T6 acceptance §9.2 第 2 条)。
  *
  * <p>composable 本身依赖 vue-router + pinia 难测;抽出纯函数
  * {@link isChatHiddenRoute} / {@link buildChatContext} 让测试不依赖

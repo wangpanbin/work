@@ -3,7 +3,7 @@ import { watchEffect, nextTick } from 'vue'
 import { usePosterFallback } from '../../src/composables/usePosterFallback'
 
 /**
- * 海报加载失败降级逻辑单测.
+ * 海报加载失败降级逻辑单测。
  *
  * <p>背景(体检 2026-10-11): {@code Home.vue} / {@code MovieDetail.vue} 的 {@code <img>}
  * 只有 {@code v-if="poster"} —— 只挡住了「URL 为空」, 挡不住「URL 存在但加载不出来」

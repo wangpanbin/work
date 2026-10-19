@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 
 /**
- * 视图层<b>模板/样式接线契约</b>测试.
+ * 视图层<b>模板/样式接线契约</b>测试。
  *
  * <p>为什么需要它: 本仓库 vitest 是 {@code environment: 'node'} 且没装 jsdom /
  * @vue/test-utils, 无法挂载 SFC 做行为断言。挂不上组件, 但「降级逻辑」和「逻辑有没有
@@ -28,7 +28,7 @@ function readSrc(rel: string): string {
 }
 
 /**
- * 取出「{@code :src="<posterExpr>"} 的那个 {@code <img>} 整段标签文本.
+ * 取出「{@code :src="<posterExpr>"} 的那个 {@code <img>} 整段标签文本。
  * 单行写法和多行换行写法都能匹配, 且只在匹配到的 img 标签内部找属性,
  * 因此不受 {@code @error} 写在 {@code :src} 前还是后影响。
  */

@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { ChatResponseVO } from '../../types'
+import type { ChatResponseVO, OrderProposalVO } from '../../types'
 import { renderMarkdown } from '../../utils/markdown'
 import ActionCard from './ActionCard.vue'
+import OrderProposalCard from './OrderProposalCard.vue'
+import PendingOrderCard from './PendingOrderCard.vue'
+import { isOrderProposalCard, isPendingOrderCard } from './orderProposalCard'
 
 const props = defineProps<{
   /** 说话方。错误提示也是 assistant 说的(见 ChatWidget 的 catch 分支) */
@@ -14,6 +17,17 @@ const props = defineProps<{
   /** 当前时间显示 */
   timestamp: string
 }>()
+
+/**
+ * 一键下单确认成功后向上抛(ADR-0004)。
+ *
+ * 聊天窗口据此追加一张「待支付卡」(订单号 / 座位 / 金额 / 支付窗口倒计时)。
+ */
+const emit = defineEmits<{ (e: 'confirmed', vo: OrderProposalVO): void }>()
+
+function onConfirmed(vo: OrderProposalVO) {
+  emit('confirmed', vo)
+}
 
 /**
  * P2-2:LLM 回复的表格/加粗原本以原始 `|` 文本直出,这里走 Markdown 渲染。
@@ -37,11 +51,15 @@ const renderedReply = computed(() => renderMarkdown(props.response?.reply))
       <!-- P2-2:Markdown 渲染(已转义,见 utils/markdown.ts) -->
       <div class="chat-md" v-else v-html="renderedReply"></div>
       <div v-if="response && response.cards && response.cards.length" class="chat-msg-cards">
-        <ActionCard
-          v-for="(card, idx) in response.cards"
-          :key="`${card.sessionId}-${idx}`"
-          :card="card"
-        />
+        <template v-for="(card, idx) in response.cards" :key="card.cardId ?? `${card.sessionId}-${idx}`">
+          <OrderProposalCard
+            v-if="isOrderProposalCard(card)"
+            :card="card"
+            @confirmed="onConfirmed"
+          />
+          <PendingOrderCard v-else-if="isPendingOrderCard(card)" :card="card" />
+          <ActionCard v-else :card="card" />
+        </template>
       </div>
       <div v-if="response && response.followUps && response.followUps.length" class="chat-msg-followups">
         <span
