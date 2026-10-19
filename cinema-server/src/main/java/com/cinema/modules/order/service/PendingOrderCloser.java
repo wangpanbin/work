@@ -68,8 +68,18 @@ public class PendingOrderCloser {
             return false;
         }
         List<Integer> seats = orderCore.seatIndexesOf(order);
-        List<Integer> released = seatLuaService.releaseUnpaid(
-                new SeatWrite.Unpaid(order.getSessionId(), seats));
+        List<Integer> released;
+        try {
+            released = seatLuaService.releaseUnpaid(
+                    new SeatWrite.Unpaid(order.getSessionId(), seats));
+        } catch (Exception e) {
+            // 释放失败 = 座位被永久锁死: 订单已经是终态(CAS 已提交), 不会再有流程碰它。
+            // 明确记下 orderNo + seats, 便于用 tools/reconcile_seat_bitmap.py 定位并清理。
+            // 这里继续抛出: 座位没释放就不能发 RELEASED 事件, 否则客户端会把座位画回可选。
+            log.error("[关单] orderNo={} 座位释放失败, 座位可能永久占用 seats={}",
+                    order.getOrderNo(), seats, e);
+            throw e;
+        }
         redisTemplate.delete(RedisKeys.userPending(order.getUserId(), order.getSessionId()));
         orderCore.clearUserLockedHash(order.getUserId(), order.getSessionId());
         seatEventPublisher.publishReleased(order.getSessionId(), seats);

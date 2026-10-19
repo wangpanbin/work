@@ -34,8 +34,26 @@ public interface OrderMapper extends BaseMapper<Order> {
     int casMarkRefunded(@Param("orderNo") String orderNo);
 
     /** N1 补偿: 卡死退款单(REFUNDING 超 5min) → 已取消(降级,不入账) */
-    @Update("UPDATE `order` SET status = 2 WHERE status = 3 AND updated_at < DATE_SUB(NOW(), INTERVAL 5 MINUTE)")
-    int markStuckRefundingAsFailed();
+    /**
+     * N1 补偿: 查卡死退款单(REFUNDING 超 5min) —— 逐单返回, 补偿任务要按单释放座位。
+     *
+     * <p>原先这里是一条批量 UPDATE(只改订单状态, 不碰位图): 退款中的座位是**已售**状态,
+     * 订单被降级成「已取消」后座位就永远占着 —— 订单已死, 再没有流程会释放它
+     * (联调报告 F5)。所以改成「先查出来 → 释放座位 → 逐单 CAS 改状态」。
+     */
+    @org.apache.ibatis.annotations.Select("SELECT * FROM `order` "
+            + "WHERE status = 3 AND updated_at < DATE_SUB(NOW(), INTERVAL 5 MINUTE) "
+            + "ORDER BY updated_at LIMIT 100")
+    java.util.List<Order> selectStuckRefunding();
+
+    /**
+     * N1 补偿: 卡死退款单降级 CAS(3→2)。
+     *
+     * <p>只改「仍是退款中」的那一单: 退票主流程可能刚好把单推到 REFUNDED,
+     * 那时这条 UPDATE 影响 0 行 —— 属于正常竞争, 座位已被退票流程释放过。
+     */
+    @Update("UPDATE `order` SET status = 2 WHERE order_no = #{orderNo} AND status = 3")
+    int casStuckRefundingAsCancelled(@Param("orderNo") String orderNo);
 
     // ====================== O3 看板聚合 SQL ======================
 

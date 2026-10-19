@@ -27,8 +27,14 @@ export interface LockResult {
   seatIndexes: number[]
 }
 
+/**
+ * 锁座。
+ *
+ * <p>`skipErrorToast`: 冲突/失败的提示由 SeatSelect 按座位逐个说明(「所选座位已被抢走:
+ * 5排8座」), 拦截器那条通用文案会与之重复(联调报告 F1)。
+ */
 export function lockSeats(data: { sessionId: Id; seatIndexes: number[] }): Promise<LockResult> {
-  return request.post('/orders/lock', data) as Promise<LockResult>
+  return request.post('/orders/lock', data, { skipErrorToast: true }) as Promise<LockResult>
 }
 
 export function myOrders(params: { status?: OrderStatusCode; page?: number; size?: number }): Promise<PageData<OrderVO>> {

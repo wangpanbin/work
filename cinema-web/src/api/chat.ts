@@ -73,7 +73,13 @@ export function createOrderProposal(dto: { sessionId: Id; count: number }): Prom
  *
  * <p>请求体只有一个 {@code proposalId}: 座位、单价、总额全在服务端快照里。
  * 幂等键也是 {@code proposalId}, 所以重复点不会锁两次座。
+ *
+ * <p>`skipErrorToast`: 提案过期/被抢/功能关闭都有各自的卡片文案
+ * (见 {@code components/chat/orderProposalCard.ts} 的 CONFIRM_ERROR_KEYS),
+ * 拦截器的通用文案会与之重复(联调报告 F1)。
  */
 export function confirmOrderProposal(proposalId: string): Promise<OrderProposalVO> {
-  return request.post(`/chat/orders/${encodeURIComponent(proposalId)}/confirm`) as Promise<OrderProposalVO>
+  return request.post(`/chat/orders/${encodeURIComponent(proposalId)}/confirm`, undefined, {
+    skipErrorToast: true,
+  }) as Promise<OrderProposalVO>
 }

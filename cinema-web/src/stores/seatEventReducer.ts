@@ -8,6 +8,9 @@
  * 这里只返回 hasConflict 让 wrapper 决定是否需要排程超时。
  */
 
+/** 空集合常量 —— 默认参数里不要每次 new */
+const EMPTY_SEAT_SET: ReadonlySet<number> = new Set<number>()
+
 /**
  * @param prevLockBits  修改前的 lock bitmap
  * @param prevSoldBits 修改前的 sold bitmap
@@ -15,6 +18,9 @@
  * @param prevConflictFlash 修改前闪烁高亮的座位 Set
  * @param type        WS 事件类型: 'LOCKED' | 'RELEASED' | 'SOLD' | 其它
  * @param seats       受影响的座位索引数组
+ * @param myLockedSet 我自己已锁定的座位(来自 seat-map 的 myLockedSeats 或锁座成功的乐观标记)。
+ *                     落在其中的座位被 LOCKED/SOLD 时**不算冲突**: 那是我自己的操作,
+ *                     不是「被他人抢走」(联调报告 F2)。缺省 = 空集合 = 旧行为。
  * @returns 修改后的新位图 + 新 selected/conflictFlash + hasConflict 标志
  */
 export function computeApplyEvent(
@@ -24,6 +30,7 @@ export function computeApplyEvent(
   prevConflictFlash: Set<number>,
   type: string,
   seats: number[],
+  myLockedSet: ReadonlySet<number> = EMPTY_SEAT_SET,
 ): {
   newLockBits: Uint8Array
   newSoldBits: Uint8Array
@@ -49,9 +56,12 @@ export function computeApplyEvent(
 
   for (const s of seats) {
     if (s < 0 || s >= newLockBits.length) continue
+    // 我自己的座位: 位图照常更新, 但不算冲突 —— 不从选座里剔, 也不闪烁。
+    // 否则自家锁座的 WS 事件会被当成「你已选的 N 个座位被他人锁定」(联调报告 F2)。
+    const isMine = myLockedSet.has(s)
     if (type === 'LOCKED') {
       newLockBits[s] = 1
-      if (newSelected.has(s)) {
+      if (!isMine && newSelected.has(s)) {
         newSelected.delete(s)
         newConflictFlash.add(s)
         hasConflict = true
@@ -66,7 +76,7 @@ export function computeApplyEvent(
     } else if (type === 'SOLD') {
       newLockBits[s] = 1
       newSoldBits[s] = 1
-      if (newSelected.has(s)) {
+      if (!isMine && newSelected.has(s)) {
         newSelected.delete(s)
         newConflictFlash.add(s)
         hasConflict = true

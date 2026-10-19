@@ -227,22 +227,18 @@ describe('formatSeatPositions — 命中座位转可读位置', () => {
   const fmt = (row: number, col: number) => `${row}排${col}座`
 
   it('少量命中: 全部列出', () => {
-    const r = formatSeatPositions([2, 9], 8, fmt, ',')
-    expect(r.text).toBe('1排3座,2排2座')
-    expect(r.truncated).toBe(0)
+    expect(formatSeatPositions([2, 9], 8, fmt, ',')).toBe('1排3座,2排2座')
   })
 
-  it('命中过多: 截断并给出剩余数量(合并成一条提示, 不刷屏)', () => {
-    const r = formatSeatPositions([0, 1, 2, 3, 4, 5], 8, fmt, ',', 4)
-    expect(r.truncated).toBe(2)
-    expect(r.text.split(',').length).toBe(4)
+  it('领域上限内的 4 座: 全部列出(单笔订单最多 4 座, 不需要截断)', () => {
+    expect(formatSeatPositions([0, 1, 2, 3], 8, fmt, ',')).toBe('1排1座,1排2座,1排3座,1排4座')
   })
 
   it('单个命中', () => {
-    expect(formatSeatPositions([5], 8, fmt, ',').text).toBe('1排6座')
+    expect(formatSeatPositions([5], 8, fmt, ',')).toBe('1排6座')
   })
 
   it('空命中: 空文本', () => {
-    expect(formatSeatPositions([], 8, fmt, ',').text).toBe('')
+    expect(formatSeatPositions([], 8, fmt, ',')).toBe('')
   })
 })

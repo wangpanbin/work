@@ -154,7 +154,13 @@ function logout() {
     padding: 8px 12px;
     gap: 6px;
     position: sticky;
-    top: 64px;
+    /* ⚠️ 这里的 top 是相对**滚动容器**的, 不是相对视口。
+       窄屏下真正的 scrollport 是 App 的 el-main(overflow-y: auto), 它的顶边
+       已经在页头之下 —— 也就是说导航条在文档流里的自然位置就等于 scrollport 的顶边。
+       所以偏移必须写 0: 写 56/64 会把导航条从 scrollport 顶边**下推**同样的距离,
+       正好压住页面自己的页头(导出按钮所在行), 按钮点不动, 只能靠坐标硬点。
+       联调报告 F4。 */
+    top: 0;
     z-index: 50;
   }
   .mobile-nav .nav-item {

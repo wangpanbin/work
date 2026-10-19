@@ -83,6 +83,59 @@ describe('computeApplyEvent — selected 同步', () => {
   })
 })
 
+// ============================================================================
+// F2: 自家锁位 vs 他人抢占 —— 同一份 LOCKED 事件, 归属不同结果完全不同
+// ============================================================================
+
+describe('computeApplyEvent — 自家锁位不算冲突(联调报告 F2)', () => {
+  it('我已锁的座位收到 LOCKED: 位图置 1, 但不从 selected 移除, 不闪烁', () => {
+    // 场景: 锁座请求发出后, 自家锁座的 WS 事件早于 HTTP 响应到达。
+    // 客户端已经乐观认领了这几个座位, 所以不能再判成「被他人抢走」。
+    const r = computeApplyEvent(
+      new Uint8Array(10), new Uint8Array(10),
+      new Set([3]), new Set(),
+      'LOCKED', [3], new Set([3]),
+    )
+    expect(r.newLockBits[3]).toBe(1)
+    expect(r.newSelected.has(3)).toBe(true)
+    expect(r.newConflictFlash.has(3)).toBe(false)
+    expect(r.hasConflict).toBe(false)
+  })
+
+  it('别人锁的座位收到 LOCKED: 仍按被抢处理(移出选座 + 闪烁 + 标记冲突)', () => {
+    const r = computeApplyEvent(
+      new Uint8Array(10), new Uint8Array(10),
+      new Set([3]), new Set(),
+      'LOCKED', [3], new Set([9]),
+    )
+    expect(r.newSelected.has(3)).toBe(false)
+    expect(r.newConflictFlash.has(3)).toBe(true)
+    expect(r.hasConflict).toBe(true)
+  })
+
+  it('我已锁的座位收到 SOLD(自己付了款): 同样不算冲突', () => {
+    const r = computeApplyEvent(
+      new Uint8Array(10), new Uint8Array(10),
+      new Set([3]), new Set(),
+      'SOLD', [3], new Set([3]),
+    )
+    expect(r.newSoldBits[3]).toBe(1)
+    expect(r.newSelected.has(3)).toBe(true)
+    expect(r.newConflictFlash.has(3)).toBe(false)
+    expect(r.hasConflict).toBe(false)
+  })
+
+  it('缺省 myLockedSet: 行为与改动前完全一致(全部按他人处理)', () => {
+    const r = computeApplyEvent(
+      new Uint8Array(10), new Uint8Array(10),
+      new Set([3]), new Set(),
+      'LOCKED', [3],
+    )
+    expect(r.newSelected.has(3)).toBe(false)
+    expect(r.hasConflict).toBe(true)
+  })
+})
+
 describe('computeApplyEvent — 返回新副本(避免 mutate 输入)', () => {
   it('prevLockBits 不被 mutate', () => {
     const prev = new Uint8Array(5)

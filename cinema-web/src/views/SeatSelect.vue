@@ -7,6 +7,7 @@ import dayjs from 'dayjs'
 import { seatMap } from '../api/seat'
 import { lockSeats } from '../api/order'
 import { seatConflictOf } from '../api/errorCodes'
+import { errorText } from '../i18n/errorText'
 import { useUserStore } from '../stores/user'
 import { useSeatStore, MAX_WATCH } from '../stores/seat'
 import { InfoFilled, Refresh } from '@element-plus/icons-vue'
@@ -170,18 +171,14 @@ function notifyReleasedWatchHits(released: number[]) {
   )
   if (hits.length === 0) return
   const cols = seatStore.map?.cols || 1
-  const { text, truncated } = formatSeatPositions(
+  const text = formatSeatPositions(
     hits, cols,
     (row, col) => t('seat.rowColFormat', { row, col }),
     t('seat.listSeparator'),
   )
-  ElMessage.success(
-    truncated > 0
-      ? t('seat.watchReleasedMore', { list: text, n: truncated })
-      : t('seat.watchReleased', { list: text }),
-  )
+  ElMessage.success(t('seat.watchReleased', { list: text }))
   seatStore.clearWatchHits(hits)
-  }
+}
 
 onMounted(async () => {
   if (!userStore.isLogin) {
@@ -246,6 +243,10 @@ async function onConfirm() {
     return
   }
   submitting.value = true
+  // 先认领这些座位为「我的」: 自家锁座的 WS 事件可能早于 HTTP 响应到达,
+  // 不先认领就会被当成「你已选的座位被他人锁定」(联调报告 F2)。
+  // 认领**保留选座** —— 金额与数量不跳变, 失败时也不必恢复。
+  seatStore.claimMyLocked(seats)
   try {
     const result = await lockSeats({ sessionId: sessionId.value, seatIndexes: seats.sort((a, b) => a - b) })
     ElMessage.success(t('seat.successLock'))
@@ -256,27 +257,31 @@ async function onConfirm() {
     // 后端改一次文案, 串匹配就静默失效(历史包袱, 归属见 api/errorCodes.ts)。
     const conflict = seatConflictOf(e)
     if (conflict === null) {
-      // 不是锁座冲突 → 通用错误提示
+      // 不是锁座冲突 → 通用错误提示。
+      // 撤回乐观认领: 锁座是全有或全无的, 失败时一个座位都没被锁上。
+      // 随后的权威重拉(保留选座)把位图与订单状态对齐。
+      seatStore.revokeMyLocked(seats)
+      await refresh(true)
       const err = e as { message?: string }
-      ElMessage.error(err?.message || t('seat.errorLockFailed'))
+      ElMessage.error(errorText(err?.message, 'seat.errorLockFailed'))
     } else if (conflict.length === 0) {
       // 是锁座冲突但没拿到座位列表 → 兜底: 全量 refresh
-      await refresh()
+      seatStore.revokeMyLocked(seats)
+      await refresh(true)
       ElMessage.error(t('seat.errorConflictRefreshed'))
     } else {
-      // Phase D-⑱: 只对后端返回的 conflict 列表做局部置灰, 避免全量 refresh
+      // Phase D-⑱: 只对后端返回的 conflict 列表做局部置灰, 避免全量 refresh。
+      // 先撤回乐观认领 —— 被抢的座位不是「我的锁的」, 得按「他人锁定」处理,
+      // 否则它们不会闪烁、也不会从选座里剔出去。
+      seatStore.revokeMyLocked(seats)
       seatStore.applyEvent('LOCKED', conflict)
       // P1-#6: 把被抢的座位转成"X排Y座"格式, 让用户一眼能定位
-      // 换算与「最多显示 4 个」的截断规则统一由 formatSeatPositions 拥有
-      const { text, truncated } = formatSeatPositions(
+      const shown = formatSeatPositions(
         conflict,
         seatStore.map?.cols || 1,
         (row, col) => t('seat.rowColFormat', { row, col }),
         t('seat.listSeparator'),
       )
-      const shown = truncated > 0
-        ? text + ' ' + t('seat.conflictMore', { n: truncated })
-        : text
       ElMessage.error(t('seat.errorConflict', { list: shown }))
     }
   } finally {

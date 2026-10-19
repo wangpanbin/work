@@ -172,11 +172,25 @@ export const useSeatStore = defineStore('seat', () => {
     const f = filterBySeq(lastSeq.value, seats, seq)
     lastSeq.value = f.nextLastSeq
     if (f.accepted.length === 0) return   // 整条都是迟到事件, 位图不动
+    // 释放 = 座位回到可选池, 我对它的「我的锁」随之失效(否则它被别人锁上时会被当成我的)
+    if (type === 'RELEASED') {
+      const nextMy = new Set(myLockedSet.value)
+      let changed = false
+      for (const s of f.accepted) {
+        if (nextMy.delete(s)) changed = true
+      }
+      if (changed) {
+        myLockedSet.value = nextMy
+        if (map.value) map.value = { ...map.value, myLockedSeats: Array.from(nextMy) }
+      }
+    }
     // 位图 + selected/conflictFlash 状态机抽出到 computeApplyEvent (纯函数, 易测)
+    // myLockedSet 传进去: 我自己锁的座位被 LOCKED/SOLD 时不算冲突(联调报告 F2)
     const r = computeApplyEvent(
       lockBits.value, soldBits.value,
       selected.value, conflictFlash.value,
       type, f.accepted,
+      myLockedSet.value,
     )
     lockBits.value = r.newLockBits
     soldBits.value = r.newSoldBits
@@ -211,21 +225,56 @@ export const useSeatStore = defineStore('seat', () => {
     watched.value = new Set()
   }
 
-  /** 锁座成功后: 立即把锁位的位图置 1(乐观更新, 等待 WS 兜底) */
-  function markMyLocked(seats: number[]) {
+  /**
+   * 认领座位为「我的」: 置位图锁定位 + 记进 myLockedSet, **保留当前选座**。
+   *
+   * <p>锁座请求发出前调用 —— 自家锁座的 WS 事件可能在 HTTP 响应之前到达,
+   * 那时客户端还不知道这些座位是「我的锁的」, 于是会被当成「被他人抢走」
+   * (联调报告 F2: 锁座成功后弹「你已选的 2 个座位被他人锁定」)。
+   * 先认领, 事件到达时就能区分出「这是我自己锁的」。
+   */
+  function claimMyLocked(seats: number[]) {
     if (seats.length === 0) return
     const newLockBits = new Uint8Array(lockBits.value)
     for (const s of seats) {
       if (s >= 0 && s < newLockBits.length) newLockBits[s] = 1
     }
     lockBits.value = newLockBits
-    // 同步更新 Set
     const newSet = new Set(myLockedSet.value)
     for (const s of seats) newSet.add(s)
     myLockedSet.value = newSet
     if (map.value) {
       map.value = { ...map.value, myLockedSeats: Array.from(newSet) }
-      clearSelection()
+    }
+  }
+
+  /** 锁座成功后: 立即把锁位的位图置 1(乐观更新, 等待 WS 兜底) */
+  function markMyLocked(seats: number[]) {
+    if (seats.length === 0) return
+    claimMyLocked(seats)
+    // 座位已从「待锁」变成「已锁」, 不再留在选座里
+    clearSelection()
+  }
+
+  /**
+   * 锁座失败后撤销认领: 撤回「我的锁」标记与乐观置上的位图锁定位。
+   *
+   * <p>锁座是**全有或全无**的(lock_seat.lua 先查冲突, 任一冲突则整体失败,
+   * 一个座位都不锁), 所以失败时这些座位并没有被任何人锁上 —— 乐观置的位必须撤掉,
+   * 否则它们会被误判成「已锁」而选不了。权威状态由随后的 seat-map 重拉纠正。
+   */
+  function revokeMyLocked(seats: number[]) {
+    if (seats.length === 0) return
+    const newSet = new Set(myLockedSet.value)
+    for (const s of seats) newSet.delete(s)
+    myLockedSet.value = newSet
+    const newLockBits = new Uint8Array(lockBits.value)
+    for (const s of seats) {
+      if (s >= 0 && s < newLockBits.length) newLockBits[s] = 0
+    }
+    lockBits.value = newLockBits
+    if (map.value) {
+      map.value = { ...map.value, myLockedSeats: Array.from(newSet) }
     }
   }
 
@@ -236,6 +285,7 @@ export const useSeatStore = defineStore('seat', () => {
     lastSeq,                                        // 按座位的已应用事件序号
     watchMode, watched,                             // 座位关注
     load, statusAt, rowCol, toggle, clearSelection, applyEvent, applyPreselect, markMyLocked,
+    claimMyLocked, revokeMyLocked,
     setWatchMode, toggleWatch, clearWatchHits, clearWatch,
   }
 })

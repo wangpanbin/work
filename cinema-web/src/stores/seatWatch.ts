@@ -139,26 +139,26 @@ export function removeWatched(watched: Set<number>, seats: number[]): Set<number
 }
 
 /**
- * 把命中的座位索引转成可读位置列表(供提示文案用)。
+ * 把座位索引转成可读位置列表(供提示文案用)。
  * 纯函数: 只做「索引 → 行/列文本」的拼装, 不碰 i18n(由调用方传入已本地化的格式化函数)。
+ *
+ * <p><b>为什么没有「等 N 个」截断</b>: 两处调用点的列表长度都被领域规则封顶在 4 ——
+ * 冲突列表来自服务端对**本单所选座位**的检查(锁座上限 4 座),
+ * 关注命中列表来自**一笔订单**的释放座位(同样最多 4 座)。
+ * 所以「等 N 个」分支永远不可达, 留着就是死代码 + 永不触发的 i18n 键。
+ * 哪天把单笔座数上限调大, 必须把截断分支一并加回来。
  */
 export function formatSeatPositions(
   seats: number[],
   cols: number,
   format: (row: number, col: number) => string,
   separator: string,
-  maxShown = 4,
-): { text: string; truncated: number } {
-  const labels = seats.map((idx) => {
-    const row = Math.floor(idx / cols) + 1
-    const col = (idx % cols) + 1
-    return format(row, col)
-  })
-  if (labels.length <= maxShown) {
-    return { text: labels.join(separator), truncated: 0 }
-  }
-  return {
-    text: labels.slice(0, maxShown).join(separator),
-    truncated: labels.length - maxShown,
-  }
+): string {
+  return seats
+    .map((idx) => {
+      const row = Math.floor(idx / cols) + 1
+      const col = (idx % cols) + 1
+      return format(row, col)
+    })
+    .join(separator)
 }
