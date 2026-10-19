@@ -57,7 +57,12 @@ export function computeApplyEvent(
         hasConflict = true
       }
     } else if (type === 'RELEASED') {
+      // 释放事件同时清锁定位与已售位:
+      //   取消 / 超时关单 → release_seat.lua 只清 lock, sold 本就为 0, 这里是幂等空操作
+      //   退票             → refund_seat.lua 同清 sold + lock, 这里必须清, 否则残留"已售"
+      // 服务端不变式: 一个座位要么处于待支付锁、要么已售, 不会同时, 所以无条件清零既正确又幂等。
       newLockBits[s] = 0
+      newSoldBits[s] = 0
     } else if (type === 'SOLD') {
       newLockBits[s] = 1
       newSoldBits[s] = 1
@@ -70,6 +75,64 @@ export function computeApplyEvent(
   }
 
   return { newLockBits, newSoldBits, newSelected, newConflictFlash, hasConflict }
+}
+
+// ============ 事件序号: 按座位过滤乱序到达的迟到事件 ============
+
+/**
+ * 用**按座位寻址**的已应用序号数组过滤 WS 事件。
+ *
+ * <p><b>为什么必须按座位, 不能用一个整场次的序号</b>: 两个并发请求各自取到 seq=5 与 seq=6,
+ * 谁先 PUBLISH 是不确定的, 客户端确实可能先收到 6 再收到 5。序号因此只能在
+ * <b>同一座位上</b>提供先后关系, 提供不了全序。
+ * 若用一个整场次的 lastSeq, 当 5 号与 6 号事件作用于<b>不同座位</b>时, 迟到的 5 号会被
+ * 判为陈旧而整条丢弃 —— 那个座位的状态变更就彻底丢失, 直到下次权威重拉才恢复。
+ *
+ * <p><b>无序号的处理</b>: `seq` 缺失、类型非法、或 `seq <= 0`(服务端自增失败的兜底值)时,
+ * 一律「总是应用」且**不更新** lastSeq。这里 `seq <= 0` 尤其关键: 若把它当普通序号参与
+ * 比较, `0 > lastSeq[s]` 恒为假, 会把所有事件静默丢弃 —— 一个不报错的实时系统失效。
+ *
+ * <p><b>越界座位索引</b>直接跳过(既不接受也不丢弃), 与 {@link computeApplyEvent} 的边界一致。
+ *
+ * @param lastSeq  按座位索引寻址的已应用序号, 长度 = seatCount
+ * @param seats    受影响的座位索引
+ * @param seq      事件序号; undefined / 非有限 / <=0 表示「无序号」
+ */
+export function filterBySeq(
+  lastSeq: ArrayLike<number>,
+  seats: number[],
+  seq: number | undefined,
+): {
+  accepted: number[]
+  dropped: number[]
+  nextLastSeq: number[]
+} {
+  const next = Array.from(lastSeq as ArrayLike<number>)
+
+  // lastSeq 尚未按 seatCount 初始化(首次装载前) → 没有可比较的按座位序号, 全部接受。
+  // 不加这条守卫的话, 下面 `s >= next.length` 会把所有座位判成越界而静默丢弃,
+  // 表现是「连上 WebSocket 但座位图再也不更新」—— 一个不报错的实时失效。
+  if (next.length === 0) {
+    return { accepted: [...seats], dropped: [], nextLastSeq: next }
+  }
+
+  // 无序号 → 总是应用, 且不推进 lastSeq
+  if (typeof seq !== 'number' || !Number.isFinite(seq) || seq <= 0) {
+    return { accepted: [...seats], dropped: [], nextLastSeq: next }
+  }
+
+  const accepted: number[] = []
+  const dropped: number[] = []
+  for (const s of seats) {
+    if (!Number.isInteger(s) || s < 0 || s >= next.length) continue
+    if (seq > next[s]) {
+      next[s] = seq
+      accepted.push(s)
+    } else {
+      dropped.push(s)
+    }
+  }
+  return { accepted, dropped, nextLastSeq: next }
 }
 
 // ============ T7: preselect 处理(对话式订票助手行动卡片)============

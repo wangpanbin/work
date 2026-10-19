@@ -158,6 +158,16 @@ export default {
     rowColFormat: '{row}排{col}座',
     listSeparator: '、',
     conflictMore: '等 {n} 个',
+    // ---- 座位关注(Seat Watch)----
+    watchToggle: '关注座位释放',
+    watchHint: '点击被占用的座位关注, 释放时提示你（最多 {n} 个）',
+    watchLimitReached: '最多关注 {n} 个座位',
+    watchWatching: '关注中',
+    watchNotWatching: '点击关注',
+    watchReleased: '{list} 刚刚释放, 可能被其他用户再次锁定',
+    watchReleasedMore: '{list} 等 {n} 个座位刚刚释放, 可能被其他用户再次锁定',
+    // 权威座位图重拉连续失败后的提示
+    syncFailed: '座位状态未能同步, 点击刷新',
   },
 
   order: {

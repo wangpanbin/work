@@ -156,6 +156,16 @@ const messages: SameShape<typeof zhCN> = {
     rowColFormat: 'Row {row} Seat {col}',
     listSeparator: ', ',
     conflictMore: 'and {n} more',
+    // ---- Seat Watch ----
+    watchToggle: 'Watch for release',
+    watchHint: "Tap an occupied seat to watch it. We'll alert you when it frees up (up to {n}).",
+    watchLimitReached: 'You can watch up to {n} seats',
+    watchWatching: 'Watching',
+    watchNotWatching: 'Tap to watch',
+    watchReleased: '{list} just freed up — another user may lock it again',
+    watchReleasedMore: '{list} and {n} more just freed up — another user may lock them again',
+    // Shown after repeated authoritative seat-map refetch failures
+    syncFailed: "Seat status couldn't be synced. Tap refresh.",
   },
 
   order: {

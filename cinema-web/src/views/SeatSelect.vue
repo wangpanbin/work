@@ -7,8 +7,9 @@ import dayjs from 'dayjs'
 import { seatMap } from '../api/seat'
 import { lockSeats } from '../api/order'
 import { useUserStore } from '../stores/user'
-import { useSeatStore } from '../stores/seat'
+import { useSeatStore, MAX_WATCH } from '../stores/seat'
 import { parsePreselectFromQuery } from '../stores/seatEventReducer'
+import { computeReleasedWatchHits, formatSeatPositions } from '../stores/seatWatch'
 import { createSeatWs, type SeatWsHandle, type WsStatus } from '../utils/ws'
 import SeatItem from '../components/SeatItem.vue'
 
@@ -28,14 +29,86 @@ let wsHandle: SeatWsHandle | null = null
 // P0-2: WS 连接状态(从 wsHandle.status 同步过来给 template 用)
 const wsStatus = ref<WsStatus>('connecting')
 
-async function refresh() {
+/**
+ * 拉取权威座位图.
+ *
+ * @param preserveSelection 权威重拉时为 true —— 不直接丢弃用户已选座位, 而是逐个用新位图复核。
+ *   缺省 false, 保持改动前的语义(手动刷新按钮 / 首次装载仍清空选座)。
+ * @returns 本次被剔除的已选座位数(保留模式下才有意义)
+ */
+async function refresh(preserveSelection = false): Promise<number> {
   refreshing.value = true
   try {
     const m = await seatMap(sessionId.value)
-    seatStore.load(m)
+    return seatStore.load(m, { preserveSelection }).length
   } finally {
     refreshing.value = false
   }
+}
+
+// ============ 权威座位图重拉(断连补偿 + 释放后收敛)============
+//
+// 实时同步是「乐观视图」, 后端才是唯一权威。两个触发点:
+//   ① 释放事件之后 —— 释放最容易引发「同座位紧跟一次锁座」, 假可选最容易被察觉;
+//   ② 断连重连成功之后 —— 断连期间丢失的事件, 这是唯一的补偿点。
+// 防抖合并突发事件; 失败退避重试, 三次仍失败才提示用户。
+// ⚠️ 防抖与退避时长是可调参数, 刻意不写进单元测试断言(测行为不测时序)。
+const RECONCILE_DEBOUNCE_MS = 500
+const RECONCILE_BACKOFF_MS = [300, 1000, 3000]
+let reconcileTimer: number | null = null
+let reconcileAttempt = 0
+const reconcileFailed = ref(false)
+
+function scheduleReconcile() {
+  if (reconcileTimer != null) window.clearTimeout(reconcileTimer)
+  reconcileTimer = window.setTimeout(runReconcile, RECONCILE_DEBOUNCE_MS)
+}
+
+async function runReconcile() {
+  reconcileTimer = null
+  // 提交锁座过程中跳过: 避免与锁座响应相互覆盖
+  if (submitting.value || refreshing.value) return
+  try {
+    const lost = await refresh(true)
+    reconcileAttempt = 0
+    reconcileFailed.value = false
+    if (lost > 0) ElMessage.warning(t('seat.warnSeatsTaken', { n: lost }))
+  } catch {
+    if (reconcileAttempt < RECONCILE_BACKOFF_MS.length) {
+      window.setTimeout(runReconcile, RECONCILE_BACKOFF_MS[reconcileAttempt++])
+    } else {
+      // 静默失败比"慢 500ms"危险得多: 用户会继续信任一张可能已过期的座位图
+      reconcileFailed.value = true
+    }
+  }
+}
+
+// ============ 座位关注: 释放提醒 ============
+/**
+ * 释放事件后的关注命中提示。
+ * 命中 = 关注集合 ∩ 本次释放座位 ∩ 释放后本地状态确认已恢复可选;
+ * 多个命中合并成一条(不刷屏); 命中即结束该座位的一次性关注。
+ * ⚠️ 提醒是机会提示, 不是预留 —— 文案明确说明可能被别人再次锁定。
+ *    用户仍需自行选座并经服务端锁座校验, 系统绝不代为写入。
+ */
+function notifyReleasedWatchHits(released: number[]) {
+  if (seatStore.watched.size === 0) return
+  const hits = computeReleasedWatchHits(
+    seatStore.watched, released, seatStore.lockBits, seatStore.soldBits,
+  )
+  if (hits.length === 0) return
+  const cols = seatStore.map?.cols || 1
+  const { text, truncated } = formatSeatPositions(
+    hits, cols,
+    (row, col) => t('seat.rowColFormat', { row, col }),
+    t('seat.listSeparator'),
+  )
+  ElMessage.success(
+    truncated > 0
+      ? t('seat.watchReleasedMore', { list: text, n: truncated })
+      : t('seat.watchReleased', { list: text }),
+  )
+  seatStore.clearWatchHits(hits)
 }
 
 onMounted(async () => {
@@ -53,20 +126,31 @@ onMounted(async () => {
   }
   wsHandle = createSeatWs(sessionId.value, (evt) => {
     const before = seatStore.selected.size
-    seatStore.applyEvent(evt.type, evt.seats)
+    // 带 seq: 先按座位丢弃乱序到达的迟到事件(无序号时全部接受, 退化成纯增量)
+    seatStore.applyEvent(evt.type, evt.seats, evt.seq)
     // P0-2: WS 事件导致 selected 减少时, 提示用户具体被抢了哪个
     if ((evt.type === 'LOCKED' || evt.type === 'SOLD') && seatStore.selected.size < before) {
       const lostCount = before - seatStore.selected.size
       ElMessage.warning(t('seat.warnSeatsTaken', { n: lostCount }))
     }
+    if (evt.type === 'RELEASED') {
+      notifyReleasedWatchHits(evt.seats)
+      scheduleReconcile()
+    }
   })
   // 同步初始状态, 后续 watch 自动更新
   wsStatus.value = wsHandle.status.value
-  watch(wsHandle.status, (s) => { wsStatus.value = s })
+  // 断连重连 = 断连期间丢失事件的唯一补偿点 → 立刻做一次权威重拉。
+  // 只认 prev === 'closed': 首次 connecting→open 前面刚 load() 过, 再拉一次纯属浪费。
+  watch(wsHandle.status, (s, prev) => {
+    wsStatus.value = s
+    if (s === 'open' && prev === 'closed') scheduleReconcile()
+  })
 })
 
 onBeforeUnmount(() => {
   wsHandle?.close()
+  if (reconcileTimer != null) window.clearTimeout(reconcileTimer)
 })
 
 const remainingSeconds = computed(() => {
@@ -124,17 +208,6 @@ async function onConfirm() {
     submitting.value = false
   }
 }
-
-function seatClick(idx: number) {
-  if (!seatStore.toggle(idx)) {
-    const status = seatStore.statusAt(idx)
-    if (status === 'SOLD' || status === 'LOCKED_OTHER') {
-      ElMessage.info(t('seat.infoUnavailable'))
-    } else if (seatStore.selected.size >= seatStore.maxSelect) {
-      ElMessage.warning(t('seat.warnMaxSelect', { n: seatStore.maxSelect }))
-    }
-  }
-}
 </script>
 
 <template>
@@ -147,6 +220,7 @@ function seatClick(idx: number) {
         <template v-else-if="wsStatus === 'connecting'">{{ t('seat.wsConnecting') }}</template>
         <template v-else>{{ t('seat.wsClosed') }}</template>
       </span>
+      <span v-if="reconcileFailed" class="ws-sync-failed">{{ t('seat.syncFailed') }}</span>
     </div>
 
     <!-- Header -->
@@ -167,6 +241,21 @@ function seatClick(idx: number) {
         </svg>
         {{ t('seat.refresh') }}
       </el-button>
+    </div>
+
+    <!-- 座位关注: 显式模式开关。关闭时下方座位交互与改动前逐字一致(零回归) -->
+    <div class="watch-toolbar">
+      <button
+        type="button"
+        class="watch-toggle"
+        :class="{ active: seatStore.watchMode }"
+        :aria-pressed="seatStore.watchMode"
+        @click="seatStore.setWatchMode(!seatStore.watchMode)"
+      >
+        {{ t('seat.watchToggle') }}
+        <span v-if="seatStore.watched.size" class="watch-count">{{ seatStore.watched.size }}</span>
+      </button>
+      <p v-if="seatStore.watchMode" class="watch-hint">{{ t('seat.watchHint', { n: MAX_WATCH }) }}</p>
     </div>
 
     <!-- 暗场票面: 放映厅平面图 (全站纸白, 唯独这里是一张深色票面)
@@ -776,5 +865,80 @@ function seatClick(idx: number) {
 @keyframes seat-conflict-ring {
   0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgb(var(--danger-rgb) / 0.55); }
   50% { opacity: 0.5; box-shadow: 0 0 0 6px rgb(var(--danger-rgb) / 0); }
+}
+
+/* ============================================
+   座位关注(Seat Watch)
+   ============================================ */
+.watch-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.watch-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-2);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+.watch-toggle:hover {
+  color: var(--ink);
+  border-color: var(--rule-strong);
+}
+.watch-toggle.active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.watch-count {
+  min-width: 18px;
+  padding: 0 5px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+  color: var(--accent);
+  background: rgb(var(--accent-rgb) / 0.12);
+  border-radius: 9px;
+}
+.watch-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+/* 关注标识: 只用角标字形, 不改背景色 / 边框色。
+   座位图有「5 态去色后仍可分辨」的既有契约(themeTokens.test.ts 固化为可执行断言),
+   引入第 6 种座位背景色会与既有 5 态争抢明度层级, 把间隔压回 1 级。
+   非颜色通道 = 角标的有无本身。 */
+.seat.watched::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  /* 描一圈暗场色, 保证在「已售」的 45 度斜纹底上也读得出来 */
+  box-shadow: 0 0 0 1px var(--hall);
+  pointer-events: none;
+}
+
+/* 权威重拉连续失败后的提示 */
+.ws-sync-failed {
+  margin-left: auto;
+  padding-left: 10px;
+  color: var(--danger);
+  font-weight: 600;
 }
 </style>

@@ -9,7 +9,7 @@
 import { computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
-import { useSeatStore } from '../stores/seat'
+import { useSeatStore, MAX_WATCH } from '../stores/seat'
 
 const props = defineProps<{ index: number }>()
 
@@ -18,6 +18,15 @@ const seatStore = useSeatStore()
 const status = computed(() => seatStore.statusAt(props.index))
 const pos = computed(() => seatStore.rowCol(props.index))
 const isFlashing = computed(() => seatStore.conflictFlash.has(props.index))
+
+// ==== 座位关注(Seat Watch) ====
+// 提醒模式下「被占用的座位」值得等: 它不可选, 但可以关注。关闭模式时下面全部为 false,
+// 座位行为与改动前逐字一致(零回归)。
+const isWatched = computed(() => seatStore.watched.has(props.index))
+/** 只有「被占用的座位」可关注: 已售 / 他人锁定 */
+const watchable = computed(
+  () => seatStore.watchMode && (status.value === 'SOLD' || status.value === 'LOCKED_OTHER'),
+)
 
 /**
  * 无障碍: 5 种座位状态在座位图里主要靠"颜色 + 纹理/虚线/粗细"区分,
@@ -41,9 +50,13 @@ const statusLabel = computed(() => {
   }
 })
 
-const a11yLabel = computed(
-  () => t('seat.rowColFormat', { row: pos.value.row, col: pos.value.col }) + ' · ' + statusLabel.value,
-)
+const a11yLabel = computed(() => {
+  const base = t('seat.rowColFormat', { row: pos.value.row, col: pos.value.col })
+    + ' · ' + statusLabel.value
+  // 关注态必须是屏幕阅读器可读的非视觉通道, 不能只靠角标
+  if (!watchable.value) return base
+  return base + ' · ' + t(isWatched.value ? 'seat.watchWatching' : 'seat.watchNotWatching')
+})
 
 /**
  * 键盘可达性: 座位是 role="button" 的 div, 必须有 tabindex 才能被 Tab 聚焦,
@@ -52,7 +65,22 @@ const a11yLabel = computed(
  */
 const unavailable = computed(() => status.value === 'SOLD' || status.value === 'LOCKED_OTHER')
 
+/**
+ * 是否进 Tab 顺序。
+ * 普通模式下不可选座位保持 tabindex=-1(不制造无意义焦点停靠, 与改动前一致);
+ * 提醒模式下把它们放回焦点序列 —— 否则键盘用户根本无法关注任何座位。
+ */
+const focusable = computed(() => !unavailable.value || watchable.value)
+
 function onClick() {
+  // 提醒模式 + 被占用座位 → 切换关注, 不走选座
+  if (watchable.value) {
+    const reason = seatStore.toggleWatch(props.index)
+    if (reason === 'limit') {
+      ElMessage.warning(t('seat.watchLimitReached', { n: MAX_WATCH }))
+    }
+    return
+  }
   const ok = seatStore.toggle(props.index)
   if (ok) return
   // 切换失败: 给出原因提示
@@ -66,11 +94,16 @@ function onClick() {
 
 <template>
   <div
-    :class="['seat', status.toLowerCase(), { mine: status === 'LOCKED_MINE', flash: isFlashing }]"
+    :class="['seat', status.toLowerCase(), {
+      mine: status === 'LOCKED_MINE',
+      flash: isFlashing,
+      watched: isWatched,
+    }]"
     :title="a11yLabel"
     :aria-label="a11yLabel"
     :aria-disabled="unavailable"
-    :tabindex="unavailable ? -1 : 0"
+    :aria-pressed="watchable ? isWatched : undefined"
+    :tabindex="focusable ? 0 : -1"
     role="button"
     @click="onClick"
     @keydown.enter.prevent="onClick"

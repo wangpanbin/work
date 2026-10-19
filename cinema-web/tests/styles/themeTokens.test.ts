@@ -452,3 +452,55 @@ describe('主题契约 · favicon 跟随主题', () => {
     expect(HTML).toContain(accent)
   })
 })
+// =====================================================================
+// 座位关注(Seat Watch) · 关注标识不得引入第 6 种座位色
+// =====================================================================
+/**
+ * 座位图有「5 态去色后仍可分辨」的既有硬契约(见上方 describe), 已被固化为可执行断言。
+ * 关注态如果靠**改座位背景色 / 描边色**来表达, 就等于引入第 6 种座位色, 会与既有 5 态
+ * 争抢明度层级 —— 实测把相邻间隔从 2 级压回 1 级, 去色后 5 态糊成一片。
+ *
+ * 因此关注标识只能用<b>角标字形</b>这类非颜色通道表达。这条断言就是防止后续有人
+ * 「顺手」给它加个背景色。
+ *
+ * 注意只检查 `.seat.watched { }` 规则本身; `.seat.watched::after` 是角标,
+ * 它的 background 是角标自己的颜色, 不属于「座位色」。
+ */
+describe('主题契约 · 座位关注标识不是纯颜色通道', () => {
+  const seatSrc = readSrc('views/SeatSelect.vue')
+
+  it('关注标识用角标字形表达(::after), 而不是改座位本身的颜色', () => {
+    expect(seatSrc).toContain('.seat.watched::after')
+  })
+
+  it('.seat.watched 规则不得设置 background / background-color / border-color', () => {
+    const own = seatSrc.match(/\.seat\.watched\s*\{([^}]*)\}/)
+    // 没有独立的 .seat.watched 规则 = 完全靠 ::after 角标, 天然合规
+    if (!own) return
+    expect(
+      own[1],
+      '关注态改了座位本身的背景/描边色 —— 会引入第 6 种座位色, 撞 5 态灰度契约',
+    ).not.toMatch(/(?:^|[\s;{])(background|background-color|border-color)\s*:/)
+  })
+
+  it('未新增任何 --seat-* 色变量(5 态的色板保持原样)', () => {
+    const declared = [...seatSrc.matchAll(/(--seat-[\w-]+)\s*:/g)].map((m) => m[1])
+    const uniq = [...new Set(declared)].sort()
+    // 既有的 5 组: avail / sel / mine / locked / sold, 各含 bg/border/ink
+    expect(uniq).toEqual([
+      '--seat-avail-bg',
+      '--seat-avail-border',
+      '--seat-avail-ink',
+      '--seat-locked-border',
+      '--seat-locked-ink',
+      '--seat-mine-bg',
+      '--seat-mine-border',
+      '--seat-mine-ink',
+      '--seat-sel-bg',
+      '--seat-sel-border',
+      '--seat-sold-bg',
+      '--seat-sold-border',
+      '--seat-sold-ink',
+    ])
+  })
+})

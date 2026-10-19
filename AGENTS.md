@@ -20,8 +20,8 @@ Test accounts seeded by backend on startup: `user1/123456`, `user2/123456`, `adm
 
 ## Commands
 
-- Frontend: `pnpm dev` · `pnpm build` · `pnpm type-check` (`vue-tsc --noEmit`) · `pnpm test` (vitest 3.x, `tests/**/*.test.ts`,**223 用例跨 19 个 `.test.ts` 文件**,2026-10-12 实测;上一次 216/19)。新增 `tests/styles/themeTokens.test.ts`(46 用例)是换肤闸门,见下方「主题 token」。First test file: `tests/views/order/constants.test.ts` (**16 用例**覆盖 ORDER_STATUS 5 态 + 跨态 round-trip). `tests/utils/markdown.test.ts` 是 P2-2 聊天 Markdown 渲染的 24 用例,其中一组专门锁 XSS(先转义后拼标签).
-- Backend: `mvn spring-boot:run` · `mvn test` (**169 JUnit5+Mockito unit tests across 32 classes**,2026-10-11 实测;上一次 150/29,早期数字 29/8 → 69/17 → 105/24 → 118/24 → 115/25 → 127/26 → 139/26 过期). 本轮新增的 3 个类锁的是 P0 修复: `OrderCoreSeatRangeTest`(`seatIndex` 必须落在场次 `[0, seatCount)` 否则 40001)、`LockSeatsDTOValidationTest`(元素级 `@NotNull/@Min/@Max`)、`PageParamsTest`(分页钳制).
+- Frontend: `pnpm dev` · `pnpm build` · `pnpm type-check` (`vue-tsc --noEmit`) · `pnpm test` (vitest 3.x, `tests/**/*.test.ts`,**295 用例跨 21 个 `.test.ts` 文件**,2026-10-19 实测;上一次 289/20,再上一次 223/19)。本轮新增 `tests/stores/seatWatch.test.ts`(35 用例)、`tests/utils/ws.test.ts`(6 用例,锁断连重连状态机,见下方坑)与 `tests/styles/themeTokens.test.ts` 的 3 条关注标识契约断言。新增 `tests/styles/themeTokens.test.ts`(49 用例)是换肤闸门,见下方「主题 token」。First test file: `tests/views/order/constants.test.ts` (**16 用例**覆盖 ORDER_STATUS 5 态 + 跨态 round-trip). `tests/utils/markdown.test.ts` 是 P2-2 聊天 Markdown 渲染的 24 用例,其中一组专门锁 XSS(先转义后拼标签).
+- Backend: `mvn spring-boot:run` · `mvn test` (**178 JUnit5+Mockito unit tests across 33 classes**,2026-10-19 实测;上一次 169/32,早期数字 29/8 → 69/17 → 105/24 → 118/24 → 115/25 → 127/26 → 139/26 过期). 本轮新增的 3 个类锁的是 P0 修复: `OrderCoreSeatRangeTest`(`seatIndex` 必须落在场次 `[0, seatCount)` 否则 40001)、`LockSeatsDTOValidationTest`(元素级 `@NotNull/@Min/@Max`)、`PageParamsTest`(分页钳制)。Seat Watch 轮新增 `SeatEventPublisherTest`(9 用例)锁事件序号注入,含「自增失败降级为 seq=0」与「序列化失败不外抛」。
 - There is no linter configured in either module. **build 要单独验**:`pnpm build` 与 `pnpm type-check` 查出的问题不重叠(SCSS 变量/模板编译错误只有 build 报)。
 - **数字以实测为准**:README/AGENTS 里的用例数会随测试增长漂移,别照抄文档 —— 跑一次 `mvn test`(或聚合 `target/surefire-reports/TEST-*.xml`)和 `pnpm test` 取真值再更新。
 
@@ -42,6 +42,19 @@ Test accounts seeded by backend on startup: `user1/123456`, `user2/123456`, `adm
 - Auth state lives in `localStorage` under `cinema_token` / `cinema_user`; the axios interceptor (`src/api/request.ts`) reads the token and, on `40101/40102`, clears both keys and redirects to `/login`.
 - Backend API responses wrap as `{ code, msg, data }`; `code === 0` is success. Distinct codes: `40002` seat-conflict (conflicting seats in `data`), `40900` idempotent conflict, `42900` rate-limited, `40101/40102` auth. Frontend axios unwraps `data` on success.
 - WebSocket paths: `/ws/seat/{sessionId}` (public, auto-reconnect + 15s heartbeat in `src/utils/ws.ts`, intentionally hits port 8080 directly, not the vite proxy) and `/ws/admin` (demo-public).
+- **⚠️ `ws.ts` 的 `connect()` 绝不能无条件写 `status='connecting'`**（2026-10-19 浏览器验收实测出的真 bug）。`SeatSelect.vue` 靠 `s === 'open' && prev === 'closed'` 判定「这是一次断线重连」，从而触发权威重拉；但 `connect()` 每次都先写 `'connecting'`，`onopen` 时 `prev` 恒为 `'connecting'`，那个判定**永远为假** —— 断连期间丢失的事件一次都不会被补偿，用户会一直看着一张过期座位图而毫无察觉。症状极具迷惑性：状态条正常回到「实时同步中」，但网络面板里**一条 `GET /seat-map` 都没有**。修法是新增纯函数 `statusOnConnect(everOpened)`：首次建连返回 `'connecting'`，重连保持 `'closed'`，让 `closed → open` 这一跳专门代表重连。`tests/utils/ws.test.ts` 的「重连态必须与首连态不同」就是这条 bug 的最小复现。**改动 `ws.ts` 的状态赋值时，先跑那条断言。**
+- **同一用户同一场次只能有一个待支付单**（`RedisKeys.userPending(userId, sessionId)`，TTL=支付窗口 900s）。用 user2 造测试数据时，**第二笔锁座会把前一笔待支付单顶掉并自动取消**，于是先建的那几单 `status` 立刻变 2（已取消）、座位跟着释放。做「多座位同时释放」之类的验收必须**一笔订单锁 4 个座位**（`POST /orders/lock` 上限 4 座），不能一单一座地循环。另外 `@RateLimit` 会在连打 5~6 次 `POST /orders/lock` 后返回 `42900`，脚本里要留间隔。
+
+## 座位事件序号与座位关注（2026-10-19 新增）
+
+- **座位事件带全局单调序号**：`SeatEventPublisher` 发布前对 `cinema:seat:event:seq`（`RedisKeys.SEAT_EVENT_SEQ`）做一次 `INCR`，结果写进事件载荷的 `seq`。三个 `publishXxx` 的公开签名没变，所以 `SeatRedisSubscriber`/`SeatWsHandler` 零改动、四个下游 `@Mock` 测试类不受影响。
+- **序号是可选字段**：`parseWsMessage` 只在 `seq` 是有限数值时才挂到事件对象上，缺失/非法**剥掉**该字段而不是挂 `seq: 0`。前后端版本不一致时前端退化成纯增量行为。
+- **`seq <= 0` 必须走「无序号、总是应用」分支**：服务端 `INCR` 失败时兜底发 `seq=0`，若前端按 `0 > lastSeq[s]` 过滤会**把所有事件静默丢弃**。这是 `filterBySeq` 的第一条断言。
+- **序号只能按座位比较**：`stores/seat.ts` 的 `lastSeq` 是**按座位索引寻址的数组**，不是整场次一个值。两个并发请求拿到 seq=5/6，谁先 PUBLISH 不确定；若用整场次单值，迟到的跨座位事件会被判陈旧而整条丢弃，那个座位的状态变更彻底丢失。`tests/stores/seatEventReducer.test.ts` 里有一条专门锁这个的用例。
+- **`lastSeq` 在同场次重拉时不得重置**：重置会让重拉前仍在途的旧事件被重新应用，把刚刷新的权威位图改回旧状态。`load()` 只在换场次或 `seatCount` 变化时重建。
+- **权威重拉**：`SeatSelect.vue` 在「释放事件之后」与「WS 重连成功之后」各触发一次防抖（500ms）的 `GET /api/sessions/{id}/seat-map`，失败退避 300ms/1s/3s，三次仍失败才在状态条提示。`load(m, {preserveSelection:true})` 不清空用户已选座位，而是逐个复核、只剔除确实被占走的。**序号不能替代它** —— 取序号与发送不原子，理论上仍有一次短暂假可选。
+- **座位关注(Seat Watch)**：纯客户端、不占位、不落库、刷新即失，上限 8。命中释放提醒后自动结束一次性关注。判断逻辑全在 `stores/seatWatch.ts` 的纯函数里（`computeToggleWatch` / `computeReleasedWatchHits` / `computeRevalidateSelection`）—— 本仓 vitest 挂不了 SFC，只能这么测。
+- **关注标识只用角标字形**（`.seat.watched::after`），不改座位背景/描边色。`themeTokens.test.ts` 有一条契约断言专门守这条：引入第 6 种座位色会与既有 5 态争抢明度层级，把「去色后仍可分辨」的间隔压回 1 级。
 - Seat locking/paying/cancelling are decorated with `@RateLimit` + `@Idempotent` on the server; the frontend must handle the resulting error codes (e.g., refresh seat map on `40002`).
 - **Vite dev server binds IPv6 `[::1]` only** — probing `http://127.0.0.1:5173` returns connection-refused and looks like the frontend is down when it is actually fine. Use `http://localhost:5173`. `Test-NetConnection -Port 5173` can also report False while the server is up.
 - **Session listing filters by date; the frontend only ever asks for today/tomorrow/day-after** — `GET /api/movies/{movieId}/sessions` without `?date=` returns an **empty array** unless sessions exist today. `MovieDetail.vue` builds `dateOptions` from `dayjs().add(0|1|2,'day')` and defaults `selectedDate` to **tomorrow**, so if the DB has no sessions in that 3-day window every movie page degrades to `<el-empty>暂无场次` and the seat-selection demo is undemoable. This is data, not a broken endpoint.

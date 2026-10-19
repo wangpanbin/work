@@ -2,7 +2,11 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { decodeBitmap } from '../utils/bitmap'
 import type { SeatMap } from '../api/seat'
-import { computeApplyEvent, computeApplyPreselect } from './seatEventReducer'
+import { computeApplyEvent, computeApplyPreselect, filterBySeq } from './seatEventReducer'
+import { computeRevalidateSelection, computeToggleWatch, removeWatched, type WatchToggleReason } from './seatWatch'
+
+/** 座位关注容量上限(纯客户端, 不落库、不跨设备同步、刷新即失) */
+export const MAX_WATCH = 8
 
 /**
  * 座位图 store (Phase D-⑬ 优化)
@@ -24,12 +28,42 @@ export const useSeatStore = defineStore('seat', () => {
   // P0-2: 刚被他人抢走的座位(原在 selected 中) — 用于驱动 UI 闪烁/提示
   // 存的是 index, 1.8s 后自动清除
   const conflictFlash = ref<Set<number>>(new Set())
+  // 按座位索引寻址的「已应用事件序号」, 长度 = seatCount。用于丢弃乱序到达的迟到事件。
+  // 之所以按座位而不是整场次一个值: 序号只在同一座位上提供先后关系(并发请求谁先 PUBLISH
+  // 不确定), 用整场次单值会误杀跨座位的慢事件, 导致那个座位的状态变更彻底丢失。
+  const lastSeq = ref<number[]>([])
+  // ---- 座位关注(Seat Watch) ----
+  // 显式模式开关: 关闭时不可选座位的点击 / 键盘可达性 / 提示文案与改动前完全一致(零回归)。
+  const watchMode = ref(false)
+  // 被关注的座位索引。纯客户端意图表达 —— 不占位、不建单、不落库、刷新即清。
+  const watched = ref<Set<number>>(new Set())
 
-  function load(m: SeatMap) {
+  /** 1.8s 后清掉闪烁座位, 让高亮恢复普通样式。三处复用, 避免各写一份。 */
+  function scheduleFlashClear(flashed: Iterable<number>) {
+    const set = new Set(flashed)
+    window.setTimeout(() => {
+      const cur = new Set(conflictFlash.value)
+      let changed = false
+      for (const idx of set) {
+        if (cur.delete(idx)) changed = true
+      }
+      if (changed) conflictFlash.value = cur
+    }, 1800)
+  }
+
+  /**
+   * 装载座位图。
+   *
+   * @param opts.preserveSelection 权威重拉时为 true —— 不直接丢弃用户已选座位, 而是逐个用
+   *   新位图复核: 变为已售或他人锁定的移出并加入冲突闪烁。缺省为 false, 保持改动前的语义
+   *   (手动刷新按钮 / 首次装载仍清空选座)。
+   * @returns 本次被剔除的已选座位索引; 非保留模式下恒为空数组
+   */
+  function load(m: SeatMap, opts?: { preserveSelection?: boolean }): number[] {
+    const prevSessionId = map.value?.sessionId
     map.value = m
     lockBits.value = decodeBitmap(m.lockBitmap, m.seatCount)
     soldBits.value = decodeBitmap(m.soldBitmap, m.seatCount)
-    selected.value = new Set()
     // 预生成 O(1) 查表
     myLockedSet.value = new Set(m.myLockedSeats ?? [])
     const cols = m.cols || 1
@@ -41,6 +75,33 @@ export const useSeatStore = defineStore('seat', () => {
     }
     rowOfIdx.value = row
     colOfIdx.value = col
+    // 换场次才重置序号; 同场次重拉必须**保留**已有值 ——
+    // 重置会让重拉前仍在途的旧事件(seq 小于已应用值)被重新应用,
+    // 把刚刷新的权威位图改回旧状态。
+    if (prevSessionId !== m.sessionId || lastSeq.value.length !== m.seatCount) {
+      lastSeq.value = new Array<number>(m.seatCount).fill(0)
+    }
+    // 换场次: 关注集合随页面语义一并作废(关注只对当前场次成立)
+    if (prevSessionId !== m.sessionId) {
+      watched.value = new Set()
+      watchMode.value = false
+    }
+
+    if (!opts?.preserveSelection) {
+      selected.value = new Set()
+      return []
+    }
+
+    const r = computeRevalidateSelection(
+      selected.value, conflictFlash.value,
+      lockBits.value, soldBits.value, myLockedSet.value,
+    )
+    selected.value = r.selected
+    if (r.hasConflict) {
+      conflictFlash.value = r.conflictFlash
+      scheduleFlashClear(r.lost)
+    }
+    return r.lost
   }
 
   // 兼容老接口: 把 Set 转回数组, 保持 SeatMap 类型契约
@@ -100,26 +161,22 @@ export const useSeatStore = defineStore('seat', () => {
     selected.value = r.newSelected
     if (r.hasNewFlash) {
       conflictFlash.value = r.newConflictFlash
-      const flashed = new Set(r.newConflictFlash)
-      window.setTimeout(() => {
-        const cur = new Set(conflictFlash.value)
-        let changed = false
-        for (const idx of flashed) {
-          if (cur.delete(idx)) changed = true
-        }
-        if (changed) conflictFlash.value = cur
-      }, 1800)
+      scheduleFlashClear(r.newConflictFlash)
     }
   }
 
   /** WS 事件应用: 本地位图同步. 注意: ref 包裹的 Uint8Array 必须整体替换才能触发响应式. */
-  function applyEvent(type: string, seats: number[]) {
+  function applyEvent(type: string, seats: number[], seq?: number) {
     if (seats.length === 0) return
+    // 先按座位序号过滤乱序的迟到事件(无序号时全部接受, 退化成改动前的纯增量行为)
+    const f = filterBySeq(lastSeq.value, seats, seq)
+    lastSeq.value = f.nextLastSeq
+    if (f.accepted.length === 0) return   // 整条都是迟到事件, 位图不动
     // 位图 + selected/conflictFlash 状态机抽出到 computeApplyEvent (纯函数, 易测)
     const r = computeApplyEvent(
       lockBits.value, soldBits.value,
       selected.value, conflictFlash.value,
-      type, seats,
+      type, f.accepted,
     )
     lockBits.value = r.newLockBits
     soldBits.value = r.newSoldBits
@@ -127,16 +184,31 @@ export const useSeatStore = defineStore('seat', () => {
     if (r.hasConflict) {
       conflictFlash.value = r.newConflictFlash
       // 1.8s 后清掉, 让闪烁/高亮恢复普通 LOCKED_OTHER 样式
-      const flashed = r.newConflictFlash
-      window.setTimeout(() => {
-        const cur = new Set(conflictFlash.value)
-        let changed = false
-        for (const idx of flashed) {
-          if (cur.delete(idx)) changed = true
-        }
-        if (changed) conflictFlash.value = cur
-      }, 1800)
+      scheduleFlashClear(r.newConflictFlash)
     }
+  }
+
+  // ============ 座位关注(Seat Watch)============
+
+  function setWatchMode(on: boolean) {
+    watchMode.value = on
+    if (!on) watched.value = new Set()   // 退出模式即清空关注, 避免下次进入时冒出陈旧关注
+  }
+
+  /** 切换某座位的关注; 返回结果分支供 UI 决定提示文案 */
+  function toggleWatch(idx: number): WatchToggleReason {
+    const r = computeToggleWatch(watched.value, idx, MAX_WATCH, statusAt(idx))
+    watched.value = r.watched
+    return r.reason
+  }
+
+  /** 释放提醒命中后结束这些座位的一次性关注 */
+  function clearWatchHits(seats: number[]) {
+    watched.value = removeWatched(watched.value, seats)
+  }
+
+  function clearWatch() {
+    watched.value = new Set()
   }
 
   /** 锁座成功后: 立即把锁位的位图置 1(乐观更新, 等待 WS 兜底) */
@@ -161,6 +233,9 @@ export const useSeatStore = defineStore('seat', () => {
     map, lockBits, soldBits, selected, maxSelect,
     myLockedSeats,                                  // computed: 兼容原组件读取
     conflictFlash,                                  // P0-2: 暴露给 SeatItem
+    lastSeq,                                        // 按座位的已应用事件序号
+    watchMode, watched,                             // 座位关注
     load, statusAt, rowCol, toggle, clearSelection, applyEvent, applyPreselect, markMyLocked,
+    setWatchMode, toggleWatch, clearWatchHits, clearWatch,
   }
 })

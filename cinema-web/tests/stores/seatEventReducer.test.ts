@@ -3,6 +3,7 @@ import {
   computeApplyEvent,
   computeApplyPreselect,
   parsePreselectFromQuery,
+  filterBySeq,
 } from '../../src/stores/seatEventReducer'
 
 /**
@@ -102,6 +103,172 @@ describe('computeApplyEvent — 未知 type 透传(不改位图)', () => {
     const r = computeApplyEvent(new Uint8Array(5), new Uint8Array(5), new Set([1]), new Set(), 'UNKNOWN', [1, 2])
     expect(r.newLockBits.every((b) => b === 0)).toBe(true)
     expect(r.newSelected.has(1)).toBe(true)
+  })
+})
+
+describe('computeApplyEvent — RELEASED 双位清零(退票残留已售修复)', () => {
+  it('已售座位收到释放事件: 已售位归零(退票路径, 修复的核心断言)', () => {
+    const lock = new Uint8Array(10)
+    const sold = new Uint8Array(10)
+    sold[5] = 1
+    const r = computeApplyEvent(lock, sold, new Set(), new Set(), 'RELEASED', [5])
+    expect(r.newSoldBits[5]).toBe(0)
+    expect(r.newLockBits[5]).toBe(0)
+  })
+
+  it('仅被锁定的座位收到释放事件: 两个位都为 0(取消/超时路径, 幂等空操作)', () => {
+    const lock = new Uint8Array(10)
+    lock[5] = 1
+    const r = computeApplyEvent(lock, new Uint8Array(10), new Set(), new Set(), 'RELEASED', [5])
+    expect(r.newLockBits[5]).toBe(0)
+    expect(r.newSoldBits[5]).toBe(0)
+  })
+
+  it('已售座位收到释放事件: 不影响其他座位的已售位', () => {
+    const sold = new Uint8Array(10)
+    sold[5] = 1
+    sold[7] = 1
+    const r = computeApplyEvent(new Uint8Array(10), sold, new Set(), new Set(), 'RELEASED', [5])
+    expect(r.newSoldBits[5]).toBe(0)
+    expect(r.newSoldBits[7]).toBe(1)
+  })
+
+  it('同座位 先释放后锁定: 终态 lock=1 sold=0(锁定正确胜出)', () => {
+    let bits = computeApplyEvent(new Uint8Array(10), new Uint8Array(10), new Set(), new Set(), 'RELEASED', [3])
+    bits = computeApplyEvent(bits.newLockBits, bits.newSoldBits, new Set(), new Set(), 'LOCKED', [3])
+    expect(bits.newLockBits[3]).toBe(1)
+    expect(bits.newSoldBits[3]).toBe(0)
+  })
+
+  it('同座位 先锁定后释放: 终态 lock=0 sold=0 —— 这是短暂的假可选窗口', () => {
+    // ⚠️ 这不是 bug 断言, 是如实记录既有行为:
+    // 退票(seq 低)与他人重锁(seq 高)若乱序到达, 客户端会按到达顺序应用,
+    // 短暂把真实已被锁住的座位显示成可选。
+    // 修复手段不是改这里的语义, 而是:
+    //   ① 按座位的事件序号过滤乱序(见 filterBySeq)
+    //   ② 释放事件后与断连重连后的防抖权威重拉收敛残留
+    // 断言成"应该是 lock=1"是一条假断言 —— 请勿改写。
+    let bits = computeApplyEvent(new Uint8Array(10), new Uint8Array(10), new Set(), new Set(), 'LOCKED', [3])
+    bits = computeApplyEvent(bits.newLockBits, bits.newSoldBits, new Set(), new Set(), 'RELEASED', [3])
+    expect(bits.newLockBits[3]).toBe(0)
+    expect(bits.newSoldBits[3]).toBe(0)
+  })
+
+  it('越界座位索引的释放事件被跳过, 不会越界写位图', () => {
+    const sold = new Uint8Array(5)
+    const r = computeApplyEvent(new Uint8Array(5), sold, new Set(), new Set(), 'RELEASED', [99])
+    expect(r.newSoldBits).toHaveLength(5)
+  })
+})
+
+// ============================================================================
+// 事件序号过滤: 必须按座位, 不能用整场次单值
+// ============================================================================
+
+describe('filterBySeq — 无序号 / 零序号走「总是应用」', () => {
+  it('seq 为 undefined: 全部接受, 且不推进 lastSeq', () => {
+    const last = [10, 10, 10]
+    const r = filterBySeq(last, [0, 1, 2], undefined)
+    expect(r.accepted).toEqual([0, 1, 2])
+    expect(r.dropped).toEqual([])
+    expect(r.nextLastSeq).toEqual([10, 10, 10])
+  })
+
+  it('seq = 0(服务端自增失败兜底): 全部接受 —— 关键, 否则 0 > lastSeq 恒假会丢光事件', () => {
+    const last = [500, 500]
+    const r = filterBySeq(last, [0, 1], 0)
+    expect(r.accepted).toEqual([0, 1])
+    expect(r.nextLastSeq).toEqual([500, 500])
+  })
+
+  it('seq 为负数: 同样走「总是应用」', () => {
+    const r = filterBySeq([7], [0], -1)
+    expect(r.accepted).toEqual([0])
+    expect(r.nextLastSeq).toEqual([7])
+  })
+
+  it('seq 为 NaN / Infinity: 走「总是应用」', () => {
+    expect(filterBySeq([7], [0], NaN).accepted).toEqual([0])
+    expect(filterBySeq([7], [0], Infinity).accepted).toEqual([0])
+  })
+})
+
+describe('filterBySeq — 按座位的单调推进', () => {
+  it('新事件: 接受并把该座位的 lastSeq 推进到 seq', () => {
+    const r = filterBySeq([1, 1, 1], [2], 9)
+    expect(r.accepted).toEqual([2])
+    expect(r.dropped).toEqual([])
+    expect(r.nextLastSeq).toEqual([1, 1, 9])
+  })
+
+  it('同座位更旧的 seq: 丢弃(退票后重锁乱序的正确处理)', () => {
+    // 座位 5 已应用 seq=11(重锁), 迟到的 seq=10(退票) 必须丢弃
+    const r = filterBySeq([0, 0, 0, 0, 0, 11], [5], 10)
+    expect(r.accepted).toEqual([])
+    expect(r.dropped).toEqual([5])
+    expect(r.nextLastSeq[5]).toBe(11)
+  })
+
+  it('同座位相同 seq(重复投递): 丢弃', () => {
+    const r = filterBySeq([0, 0, 8], [2], 8)
+    expect(r.accepted).toEqual([])
+    expect(r.dropped).toEqual([2])
+  })
+
+  it('★ 跨座位的慢事件不被误杀(整场次单值方案的致命缺陷)', () => {
+    // seq=5 锁座位 10, seq=6 释放座位 20。到达顺序反过来: 6 先到, 5 后到。
+    // 用按座位数组: 座位10 的 lastSeq 仍是 0, 5 > 0 → 必须接受。
+    const sized = () => new Array(30).fill(0)   // 与 store 里 seatCount 对齐的真实形状
+    let last: number[] = sized()
+    const first = filterBySeq(last, [20], 6)
+    last = first.nextLastSeq
+    const second = filterBySeq(last, [10], 5)
+    expect(second.accepted).toEqual([10])
+    expect(second.dropped).toEqual([])
+    // 终态: 两个座位各自记住了自己的序号
+    expect(second.nextLastSeq[10]).toBe(5)
+    expect(second.nextLastSeq[20]).toBe(6)
+  })
+
+  it('★ lastSeq 尚未按 seatCount 初始化(空数组): 全部接受而不是静默判越界', () => {
+    // 守卫缺失时的表现是 `s >= 0 === next.length` → 全部越界 → 事件被静默丢弃,
+    // 表现为"连上 WebSocket 但座位图再也不更新"。
+    const r = filterBySeq([], [20, 10], 5)
+    expect(r.accepted).toEqual([20, 10])
+    expect(r.dropped).toEqual([])
+  })
+
+  it('一个事件里混合新旧序号: 按座位分别判定', () => {
+    const last = [0, 100, 0]
+    const r = filterBySeq(last, [0, 1, 2], 50)
+    expect(r.accepted).toEqual([0, 2])   // 0 与 2 从未应用过 → 接受
+    expect(r.dropped).toEqual([1])      // 1 已应用到 100 > 50 → 丢弃
+    expect(r.nextLastSeq).toEqual([50, 100, 50])
+  })
+})
+
+describe('filterBySeq — 边界与不可变性', () => {
+  it('越界座位索引被跳过(既不接受也不丢弃)', () => {
+    const r = filterBySeq([0, 0, 0], [0, 99, -1], 5)
+    expect(r.accepted).toEqual([0])
+    expect(r.dropped).toEqual([])
+  })
+
+  it('非整数座位索引被跳过', () => {
+    const r = filterBySeq([0, 0, 0], [0, 1.5], 5)
+    expect(r.accepted).toEqual([0])
+  })
+
+  it('不 mutate 传入的 lastSeq', () => {
+    const last = [1, 2, 3]
+    filterBySeq(last, [0], 99)
+    expect(last).toEqual([1, 2, 3])
+  })
+
+  it('空 seats: 返回空集合, lastSeq 原样', () => {
+    const r = filterBySeq([1, 2], [], 5)
+    expect(r.accepted).toEqual([])
+    expect(r.nextLastSeq).toEqual([1, 2])
   })
 })
 

@@ -23,7 +23,16 @@ export function parseWsMessage(raw: string): SeatEvent | null {
     return null
   }
   if (!isSeatEvent(parsed)) return null
-  return parsed
+  // 宽松透传 seq: 仅当它是有限数值才挂到返回对象上; 缺失或非法则**剥掉该字段**。
+  //   ① 剥掉而不是原样放行 —— 否则 seq:"42" / null / Infinity 会残留在事件对象上,
+  //      下游虽然仍会按"无序号"处理, 但对象形状不再可信, 任何 toEqual 断言都会误伤;
+  //   ② 剥掉也让"无序号"在下游有明确表示, 下游一律"总是应用";
+  //   ③ 前后端版本不一致时退化成改动前的纯增量行为, 而不是静默失同步。
+  const { seq, ...rest } = parsed as Record<string, unknown>
+  if (typeof seq === 'number' && Number.isFinite(seq)) {
+    return { ...rest, seq } as SeatEvent
+  }
+  return rest as SeatEvent
 }
 
 function isSeatEvent(v: unknown): v is SeatEvent {
