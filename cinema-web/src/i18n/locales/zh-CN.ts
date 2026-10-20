@@ -38,6 +38,11 @@ export default {
     localeSwitchTo: 'EN',
     mobileMenuLocale: 'English',
     localeSwitchAria: '切换语言',
+    // 主题芯片: 三态循环(跟随系统 → 亮色 → 暗色)
+    themeToggleAria: '切换主题',
+    themeAuto: '跟随系统',
+    themeLight: '亮色',
+    themeDark: '暗色',
     menuAria: '用户菜单',
     logoutTitle: '退出登录',
     logoutConfirm: '确定退出当前登录状态?',

@@ -7,7 +7,14 @@ const { t, locale } = useI18n()
 /** WS 消息处理里 `t` 被事件类型局部变量遮蔽, 这里留一个不冲突的别名给模板/事件拼装用 */
 const t2 = t
 const data = ref<DashboardSummary | null>(null)
-const events = ref<Array<{ time: string; type: string; text: string }>>([])
+const events = ref<Array<{ id: number; time: string; type: string; text: string }>>([])
+/**
+ * 事件序号 —— 事件行的 key。
+ * 早先用的是数组下标做 key, 而新事件是 unshift 到最前面的, 于是下标整体位移、
+ * DOM 被复用, 新事件「到了」这件事在视觉上没有任何提示。改成稳定的 id 之后,
+ * 新事件 = 新元素 = 挂载 = 播一次 event-fresh 动画。
+ */
+let eventSeq = 0
 const connected = ref(false)
 let ws: WebSocket | null = null
 let pollTimer: ReturnType<typeof setInterval> | null = null
@@ -75,7 +82,7 @@ function connectWs() {
 function pushEvent(type: string, text: string) {
   // 时间格式跟随 i18n locale (spec §3.5)
   const time = new Date().toLocaleTimeString(locale.value)
-  events.value.unshift({ time, type, text })
+  events.value.unshift({ id: ++eventSeq, time, type, text })
   if (events.value.length > 50) events.value.length = 50
 }
 
@@ -131,7 +138,7 @@ onUnmounted(() => {
     <div class="panel">
       <h3>{{ t('admin.liveEventsTitle') }}</h3>
       <div class="event-list">
-        <div v-for="(e, i) in events" :key="i" class="event-row" :class="e.type">
+        <div v-for="(e, i) in events" :key="e.id" class="event-row" :class="[e.type, { fresh: i === 0 }]">
           <span class="event-time">{{ e.time }}</span>
           <span class="event-type">{{ e.type }}</span>
           <span class="event-text">{{ e.text }}</span>
@@ -204,10 +211,16 @@ onUnmounted(() => {
 .panel h3 { margin: 0 0 12px 0; font-family: var(--font-display); font-size: 16px; }
 /* 反馈层: 卡片悬停提亮描边, 事件行悬停淡底 —— 控制台不做抬升 */
 .card {
-  transition: border-color var(--transition-normal);
+  transition:
+    border-color var(--transition-normal),
+    box-shadow var(--transition-normal),
+    transform var(--transition-normal);
 }
+/* 控制台的悬停: 只抬升 + 描边变强, 不改色(见 Dashboard.vue 同一处注释)。 */
 .card:hover {
   border-color: var(--rule-strong);
+  box-shadow: var(--shadow-paper-hover);
+  transform: translateY(-2px);
 }
 .event-row {
   transition: background-color var(--transition-normal);
@@ -235,13 +248,35 @@ onUnmounted(() => {
   font-family: var(--font-mono);
 }
 /* 事件语义色: 印刷风用左侧 2px 印色条区分, 不用半透明底色 */
-.event-row.LOCK    { border-left-color: var(--ink-3); }
-.event-row.SOLD    { border-left-color: var(--ok); }
-.event-row.CANCEL  { border-left-color: var(--ink-2); }
-.event-row.TIMEOUT { border-left-color: var(--warn); }
-.event-row.REFUND  { border-left-color: var(--accent); }
-.event-row.WARN    { border-left-color: var(--warn); }
-.event-row.ERR     { border-left-color: var(--danger); }
+.event-row.LOCK    { --ev-color: var(--ink-3);   border-left-color: var(--ink-3); }
+.event-row.SOLD    { --ev-color: var(--ok);     border-left-color: var(--ok); }
+.event-row.CANCEL  { --ev-color: var(--ink-2);  border-left-color: var(--ink-2); }
+.event-row.TIMEOUT { --ev-color: var(--warn);   border-left-color: var(--warn); }
+.event-row.REFUND  { --ev-color: var(--accent); border-left-color: var(--accent); }
+.event-row.WARN    { --ev-color: var(--warn);   border-left-color: var(--warn); }
+.event-row.ERR     { --ev-color: var(--danger); border-left-color: var(--danger); }
+/* INFO 没有专属语义色(它只是「连上了」这类中性播报), 借中性墨色;
+   它仍然需要一个 --ev-color —— 新事件亮一下那步要靠它。 */
+.event-row.INFO    { --ev-color: var(--ink-2); }
+
+/* 新到的事件亮一下: 只给最新一行挂 .fresh, 它一挂载就播一次, 播完就停。
+   亮色用该行自己的语义色(左侧印色条那一支), 不引入任何新色相 ——
+   管理端仍然只有数据墨 / 交互墨 / 状态色三种角色。 */
+.event-row.fresh {
+  animation: event-fresh 1.4s ease-out;
+}
+@keyframes event-fresh {
+  0% {
+    /* 兜底色: 将来新增事件类型忘了配 --ev-color 时, 这一步仍然有合法颜色,
+       而不是整条 background-color 变成 invalid 被丢掉(那样等于没动画)。 */
+    background-color: color-mix(in srgb, var(--ev-color, var(--ink-2)) 22%, transparent);
+    transform: translateX(-6px);
+  }
+  100% {
+    background-color: transparent;
+    transform: translateX(0);
+  }
+}
 .event-time { color: var(--ink-3); }
 .event-type {
   font-weight: 600;

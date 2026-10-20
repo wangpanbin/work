@@ -2,9 +2,10 @@
 import { computed, onMounted, watch, type Component } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Compass, Setting, SwitchButton, Ticket, User } from '@element-plus/icons-vue'
+import { Compass, Monitor, Moon, Setting, Sunny, SwitchButton, Ticket, User } from '@element-plus/icons-vue'
 import { useUserStore } from './stores/user'
 import { useI18nStore } from './stores/i18n'
+import { useThemeStore } from './stores/theme'
 import { elementPlusLocale } from './utils/elementPlusLocale'
 import BrandMark from './components/BrandMark.vue'
 import ChatWidget from './components/chat/ChatWidget.vue'
@@ -16,11 +17,30 @@ const { t: $t } = useI18n()
 
 const userStore = useUserStore()
 const i18nStore = useI18nStore()
+const themeStore = useThemeStore()
 const router = useRouter()
 const route = useRoute()
 
 // P3-5:Element Plus 组件库语言包,随应用语言实时切换
 const epLocale = computed(() => elementPlusLocale(i18nStore.locale))
+
+/**
+ * 主题芯片的文案与图标。
+ *
+ * 显示的是**当前偏好**(跟随系统 / 亮色 / 暗色),不是「点击后会变成什么」——
+ * 三态循环的「目标态」会让人以为点一下就直接到那个态,反而看不懂。
+ * 点击即按 跟随系统 → 亮 → 暗 → 跟随系统 循环。
+ */
+const themeLabel = computed(() => {
+  if (themeStore.pref === 'light') return $t('app.themeLight')
+  if (themeStore.pref === 'dark') return $t('app.themeDark')
+  return $t('app.themeAuto')
+})
+const themeIcon = computed(() => {
+  if (themeStore.pref === 'light') return Sunny
+  if (themeStore.pref === 'dark') return Moon
+  return Monitor
+})
 
 onMounted(() => {
   userStore.fetchMe()
@@ -107,6 +127,16 @@ function onMobileSelect(key: string | number) {
           <el-icon class="chip-icon"><Compass /></el-icon>
           <span class="chip-text">{{ $t('app.localeSwitchTo') }}</span>
         </el-button>
+        <!-- 主题芯片: 三态循环(跟随系统 → 亮 → 暗)。所有路由可用, 含 /admin。 -->
+        <el-button
+          class="header-chip chip-theme chip-icon-text"
+          size="default"
+          :aria-label="$t('app.themeToggleAria', 'Switch theme')"
+          @click="themeStore.cycle()"
+        >
+          <el-icon class="chip-icon"><component :is="themeIcon" /></el-icon>
+          <span class="chip-text">{{ themeLabel }}</span>
+        </el-button>
         <el-button
           v-if="userStore.isLogin && userStore.user?.role === 1"
           class="header-chip chip-warning chip-icon-text"
@@ -142,6 +172,18 @@ function onMobileSelect(key: string | number) {
 
       <!-- 移动端: 折叠成下拉菜单 -->
       <div class="user-area mobile-only">
+        <!-- 主题芯片: 独立成一枚, 不塞进下拉菜单 ——
+             下拉菜单只对已登录用户出现, 而主题是所有人的偏好。
+             放在外面, 匿名用户也切得到。 -->
+        <el-button
+          class="header-chip chip-theme chip-icon-text"
+          size="default"
+          :aria-label="$t('app.themeToggleAria', 'Switch theme')"
+          @click="themeStore.cycle()"
+        >
+          <el-icon class="chip-icon"><component :is="themeIcon" /></el-icon>
+          <span class="chip-text">{{ themeLabel }}</span>
+        </el-button>
         <template v-if="userStore.user">
           <el-dropdown trigger="click" @command="onMobileSelect">
             <el-button class="avatar-btn" circle size="default" :aria-label="$t('app.menuAria', 'User menu')">
@@ -246,12 +288,14 @@ function onMobileSelect(key: string | number) {
 
 /* --- T9: 语言切换 chip 样式 ---
    中性墨色,避免与 chip-warning/danger/primary 重复 */
-.chip-locale {
+.chip-locale,
+.chip-theme {
   background: var(--paper-sunk);
   border: 1px solid var(--rule);
   color: var(--ink-2);
 }
-.chip-locale:hover {
+.chip-locale:hover,
+.chip-theme:hover {
   background: var(--paper);
   border-color: var(--rule-strong);
   color: var(--ink);

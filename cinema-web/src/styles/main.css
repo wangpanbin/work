@@ -80,13 +80,20 @@
   --danger-rgb: 168 39 27;
 }
 
-/* --- 设计 Token: 暗场 Hall (仅座位图面板) --- */
+/* --- 设计 Token: 暗场 Hall (座位图面板 + 管理端侧栏) --- */
 :root {
   --hall: #0f172a;
   --hall-raised: #16203a;
   --hall-rule: #2c3a55;
   --hall-ink: #e2e8f0;
   --hall-ink-2: #93a3ba;
+  /* 暗场文字的 RGB 分量: 供 rgb(var(--hall-ink-rgb) / a) 拼半透叠加(骨架屏高光等) */
+  --hall-ink-rgb: 226 232 240;
+  /* 暗场家族最深一档。模式无关(亮暗同值), 亮色下无人引用。
+     用途: 暗色模式下管理端侧栏用它, 比页面底再暗一档, 保住「午夜侧栏」身份。
+     ⚠️ --hall 本身绝不能改: 座位 5 态的 locked 是 transparent(透出面板底色),
+        实测相邻灰度间隔 [2,2,24,9], 最小值恰好 2、零余量。 */
+  --hall-deep: #0a0f1a;
   /* 暗场内的低透叠加: 银幕辉光 / 提示条底 / 已售斜纹, 统一走 --hall-ink 派生 */
   --hall-wash: rgba(226, 232, 240, 0.07);
   --hall-wash-soft: rgba(226, 232, 240, 0.04);
@@ -173,6 +180,113 @@
   --el-fill-color-blank: var(--paper-raised);
 }
 
+/* ============================================
+   暗色主题 · 影院暗场 (The Two-Mode Rule)
+   ------------------------------------------------------------
+   作用域是 html[data-theme='dark'], 不是 :root。
+   原因: 现有闸门 themeTokens.test.ts 的 parseRootTokens() 只匹配
+   `:root { }` 块; 暗色值若写进 :root, 两套值会被合并、断言只测到最后一套,
+   闸门静默失效。`html[data-theme='dark']` 特异性 (0,1,1) 高于 `:root` (0,1,0),
+   暗色值天然覆盖亮色值。
+
+   设计取向: 极简暗底 + 海报主导 —— 不加辉光、不加渐变。
+   层次靠「明度阶 + 1px 亮边」, 阴影只留给真正离开页面的浮层。
+   ============================================ */
+html[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* --- 纸面: 页面底比 --hall 更暗一档, 卡面 = --hall 值 --- */
+  --paper: #0a0f1a;
+  --paper-raised: #0f172a;
+  --paper-sunk: #070b14;
+  --rule: #253148;
+  --rule-strong: #33415c;
+
+  /* --- 墨: 暗底上文字要亮 --- */
+  --ink: #e2e8f0;
+  --ink-2: #93a3ba;
+  --ink-3: #7d8ca6;
+  /* 语义翻转: 暗底主按钮是亮蓝填充, 落在它上面的字取深色 */
+  --ink-inverse: #0a0f1a;
+
+  /* --- 印色: 同色相的明度变体 (#2563eb 221° -> #3b82f6 217°), 仍是一支色 --- */
+  --accent: #3b82f6;
+  /* 暗底的 hover 方向与亮色相反: 亮色压深, 暗底提亮 */
+  --accent-hover: #60a5fa;
+  --accent-press: #2563eb;
+  --accent-wash: rgba(59, 130, 246, 0.14);
+  --accent-stamp: rgba(59, 130, 246, 0.22);
+  --accent-disabled: #2d4468;
+  --accent-rgb: 59 130 246;
+
+  /* --- 场景身份色: 每族双份, 暗底的 ink 是比 base 更亮的那一支 --- */
+  --scene-browse: #fb923c;
+  --scene-browse-ink: #fdba74;
+  --scene-browse-rgb: 251 146 60;
+
+  --scene-seat: #22d3ee;
+  --scene-seat-ink: #67e8f9;
+  --scene-seat-rgb: 34 211 238;
+
+  --scene-order: #a78bfa;
+  --scene-order-ink: #c4b5fd;
+  --scene-order-rgb: 167 139 250;
+
+  --scene-payment: #e879f9;
+  --scene-payment-ink: #f0abfc;
+  --scene-payment-rgb: 232 121 249;
+
+  /* --- 语义色: 暗底整体提亮 --- */
+  --ok: #34d399;
+  --warn: #fbbf24;
+  --danger: #f87171;
+  --danger-hover: #ef4444;
+  --warn-hover: #f59e0b;
+  --info: #94a3b8;
+  --ok-rgb: 52 211 153;
+  --warn-rgb: 251 191 36;
+  --danger-rgb: 248 113 113;
+
+  /* --- 层次: 暗底上阴影几乎不可见, 改用「明度阶 + 亮边」 --- */
+  --shadow-paper: 0 1px 0 rgba(0, 0, 0, 0.4), 0 6px 16px rgba(0, 0, 0, 0.28);
+  --shadow-paper-hover: 0 1px 0 rgba(0, 0, 0, 0.45), 0 8px 20px rgba(0, 0, 0, 0.38);
+  --shadow-modal: 0 12px 32px rgba(0, 0, 0, 0.6);
+  --shadow-hall: 0 1px 0 rgba(0, 0, 0, 0.45);
+  --shadow-tooltip: 0 2px 8px rgba(0, 0, 0, 0.55);
+  --overlay-poster: rgba(2, 6, 16, 0.72);
+
+  /* --- Element Plus 覆盖: 用我们的暗底值, 不让 EP 官方暗色色板夺权 --- */
+  --el-color-primary: var(--accent);
+  --el-color-primary-light-3: color-mix(in srgb, #fff 30%, var(--accent));
+  --el-color-primary-light-5: color-mix(in srgb, #fff 50%, var(--accent));
+  --el-color-primary-light-7: color-mix(in srgb, #fff 70%, var(--accent));
+  --el-color-primary-light-8: color-mix(in srgb, #fff 80%, var(--accent));
+  --el-color-primary-light-9: color-mix(in srgb, #fff 90%, var(--accent));
+  --el-color-primary-dark-2: color-mix(in srgb, #000 20%, var(--accent));
+
+  --el-color-success: var(--ok);
+  --el-color-warning: var(--warn);
+  --el-color-danger: var(--danger);
+  --el-color-info: var(--ink-2);
+
+  --el-text-color-primary: var(--ink);
+  --el-text-color-regular: var(--ink-2);
+  --el-text-color-secondary: var(--ink-3);
+  --el-text-color-placeholder: var(--ink-3);
+
+  --el-border-color: var(--rule);
+  --el-border-color-light: #1b2637;
+  --el-border-color-lighter: #161f2e;
+  --el-border-color-extra-light: #131a26;
+
+  --el-bg-color: var(--paper-raised);
+  --el-bg-color-page: var(--paper);
+  --el-bg-color-overlay: var(--paper-raised);
+  --el-fill-color-light: #1b2637;
+  --el-fill-color-lighter: #161f2e;
+  --el-fill-color-blank: var(--paper-raised);
+}
+
 /* --- 管理端冷调报表变体 ---
    同 token、覆盖面覆盖三个变量, 一处定义全管理端 6 个 view 生效。
    印色 / 墨色与全站一致, 保证品牌统一, 只把纸面压深一档做报表底。
@@ -183,6 +297,24 @@
   --paper-sunk: #dde4ef;
   --rule: #bac5d7; /* 与 :root 同步 */
   --rule-strong: #a4b0c4;
+}
+
+/* --- 管理端暗色变体 (The Two-Mode Rule) ---
+   暗色下管理端整体交给暗场家族, 三级明度阶梯:
+     侧栏 --hall-deep #0a0f1a  <  页面 --hall #0f172a  <  卡片 --hall-raised #16203a
+   特异性 (0,2,1) 必须高于上面 .app-main.is-admin 的 (0,2,0), 否则暗色压不住亮色覆盖。
+   管理端仍然一个 --scene-* 都不许用 —— 主题切换管的是明度, 不是角色。 */
+html[data-theme='dark'] .app-main.is-admin {
+  --paper: #0f172a;
+  --paper-raised: #16203a;
+  --paper-sunk: #0b1220;
+  --rule: #253148;
+  --rule-strong: #33415c;
+}
+
+/* 管理端侧栏: 亮色用 --hall, 暗色下沉一档到 --hall-deep, 保住「午夜侧栏」身份。 */
+html[data-theme='dark'] .aside {
+  --aside-bg: var(--hall-deep);
 }
 
 /* --- 全局重置 --- */
@@ -339,7 +471,15 @@ img {
   transition:
     background-color var(--transition-fast),
     border-color var(--transition-fast),
-    color var(--transition-fast);
+    color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+/* --- 芯片按下反馈 ---
+   实心印色芯片(chip-primary / chip-login)属于主操作面, 只回更深的墨色, 不位移;
+   中性芯片按下时下沉 1px, 告诉用户「这一下按到了」。 */
+.header-chip:not(.chip-primary):not(.chip-login):active {
+  transform: translateY(1px);
 }
 
 /* chip 内部文字的长昵称溢出保护 */
@@ -463,12 +603,21 @@ img {
   transition:
     background-color var(--transition-fast),
     border-color var(--transition-fast),
-    color var(--transition-fast);
+    color var(--transition-fast),
+    transform var(--transition-fast);
 }
 .btn-action:hover {
   background: var(--paper-sunk);
   border-color: var(--rule-strong);
   color: var(--ink);
+}
+
+/* --- 按下反馈 (非主操作面) ---
+   主 CTA 仍然只回「更深的墨色」, 不位移 —— 那是全局印色的地盘。
+   其余按钮按下时下沉 1px: 幅度在 2px 上限内, 而且它回的是「按下去了」这个
+   状态, 不是装饰动效(见 DESIGN.md The Flat-By-Default Rule)。 */
+.btn-action:active {
+  transform: translateY(1px);
 }
 
 /* 等宽修饰: 固定宽度的等宽按钮 */

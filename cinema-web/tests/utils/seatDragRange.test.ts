@@ -93,3 +93,42 @@ describe('computeDragRange — 拖拽连选区间', () => {
     expect(r.truncated).toBe(true)
   })
 })
+
+/**
+ * 悬停预演(2026-10-20 批次二)与拖拽连选**共用**这个纯函数, 区别只在锚点:
+ * 拖拽的锚点是「按下的那个座位」, 悬停的锚点是「本轮划过这一排时的第一个座位」。
+ *
+ * <p>所以悬停路径的契约就是这四条 —— 组件层只负责「换行就换锚点」和
+ * 「不足两座就不画环」, 其余全部由这个纯函数保证。
+ */
+describe('computeDragRange — 悬停预演路径', () => {
+  it('划过一排: 区间从锚点起算, 逐格增长', () => {
+    const anchor = 10
+    const grown = [10, 11, 12, 13].map((idx) =>
+      computeDragRange(anchor, idx, 10, allAvailable, 4).indexes,
+    )
+    expect(grown).toEqual([[10], [10, 11], [10, 11, 12], [10, 11, 12, 13]])
+  })
+
+  it('换行即换锚点: 跨行不成区间', () => {
+    // 组件在换行时会把锚点重置到新行, 纯函数这一侧表现为「跨行不连座」
+    expect(computeDragRange(10, 20, 10, allAvailable, 4).indexes).toEqual([])
+  })
+
+  it('预演撞到不可选座位即截断, 不跨越(不承诺选不上的座位)', () => {
+    const r = computeDragRange(10, 14, 10, withStatus({ 12: 'SOLD' }), 4)
+    expect(r.indexes).toEqual([10, 11])
+    expect(r.truncated).toBe(true)
+  })
+
+  it('预演受 maxSelect 预算限制: 不会承诺选不上的座位数', () => {
+    const r = computeDragRange(10, 15, 10, allAvailable, 2)
+    expect(r.indexes).toEqual([10, 11])
+    expect(r.truncated).toBe(true)
+  })
+
+  it('锚点本身不可选(划到一张已售的座位上): 不成区间', () => {
+    const r = computeDragRange(10, 12, 10, withStatus({ 10: 'SOLD' }), 4)
+    expect(r.indexes).toEqual([])
+  })
+})

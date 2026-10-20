@@ -376,10 +376,16 @@ function logout() {
 
 /* 反馈层: 欢迎卡悬停提亮描边 */
 .welcome-cards .card {
-  transition: border-color var(--transition-normal);
+  transition:
+    border-color var(--transition-normal),
+    box-shadow var(--transition-normal),
+    transform var(--transition-normal);
 }
+/* 控制台的悬停: 只抬升 + 描边变强, 不改色(见 Dashboard.vue 同一处注释)。 */
 .welcome-cards .card:hover {
   border-color: var(--rule-strong);
+  box-shadow: var(--shadow-paper-hover);
+  transform: translateY(-2px);
 }
 
 @media (max-width: 768px) {

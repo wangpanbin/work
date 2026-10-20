@@ -85,6 +85,123 @@ function parseRootTokens(css: string): Map<string, string> {
   return map
 }
 
+/**
+ * 按**作用域**分别取 token(双主题闸门的核心)。
+ *
+ * <p>两套作用域:
+ * <ul>
+ *   <li>{@code light} → {@code :root { }} 块 —— 亮色真源</li>
+ *   <li>{@code dark} → {@code html[data-theme='dark'] { }} 块 —— 暗色覆盖</li>
+ * </ul>
+ *
+ * <p><b>为什么必须按作用域拆开</b>: 旧的 {@code parseRootTokens} 只匹配 {@code :root},
+ * 暗色值若也写进 {@code :root} 会被合并 —— 断言只测到最后一套, 闸门静默失效。
+ * 现在暗色作用域是独立选择器, 两套值互不污染, 断言才能真的分别验两套。
+ */
+function parseScopedTokens(css: string, scope: 'light' | 'dark'): Map<string, string> {
+  const map = new Map<string, string>()
+  const selector =
+    scope === 'dark'
+      ? /html\[data-theme=['"]dark['"]\]\s*\{([^}]*)\}/g
+      : /:root\s*\{([^}]*)\}/g
+  for (const m of css.matchAll(selector)) {
+    for (const d of m[1].matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) {
+      map.set(d[1], d[2].trim())
+    }
+  }
+  return map
+}
+
+/** 两套作用域各自的 token 表 */
+const LIGHT = parseScopedTokens(MAIN_CSS, 'light')
+const DARK = parseScopedTokens(MAIN_CSS, 'dark')
+
+/**
+ * 取某个作用域的**原始 CSS 文本**(断言「派生关系还在」这类需要看原文的场合)。
+ */
+function scopeText(css: string, scope: 'light' | 'dark'): string {
+  if (scope === 'dark') {
+    const m = css.match(/html\[data-theme=['"]dark['"]\]\s*\{[^}]*\}/)
+    return m ? m[0] : ''
+  }
+  return [...css.matchAll(/:root\s*\{[^}]*\}/g)].map((m) => m[0]).join('\n')
+}
+
+/**
+ * 取某个**独立选择器块**里的自定义属性(如管理端的纸面覆盖块)。
+ * 这类块不在 :root / 暗色作用域里, 得单独抓。
+ */
+function blockDecls(css: string, selector: RegExp): Map<string, string> {
+  const map = new Map<string, string>()
+  const m = css.match(selector)
+  if (m) {
+    for (const d of m[1].matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) {
+      map.set(d[1], d[2].trim())
+    }
+  }
+  return map
+}
+
+/** 管理端纸面覆盖块(亮色) */
+const ADMIN_LIGHT = blockDecls(MAIN_CSS, /^\.app-main\.is-admin\s*\{([^}]*)\}/m)
+/** 管理端纸面覆盖块(暗色) */
+const ADMIN_DARK = blockDecls(
+  MAIN_CSS,
+  /^html\[data-theme='dark'\]\s*\.app-main\.is-admin\s*\{([^}]*)\}/m,
+)
+
+/**
+ * 必须在暗色作用域里**换值**的 token 清单。
+ *
+ * <p>这些 token 留着亮色值到暗底上必然出问题(墨色读不清 / 身份色撞色 /
+ * 印色对比度不足)。漏配一个 → 下面那条断言立刻红。
+ */
+const MUST_SWITCH: string[] = [
+  '--paper', '--paper-raised', '--paper-sunk', '--rule', '--rule-strong',
+  '--ink', '--ink-2', '--ink-3', '--ink-inverse',
+  '--accent', '--accent-hover', '--accent-press', '--accent-wash', '--accent-stamp', '--accent-disabled', '--accent-rgb',
+  '--scene-browse', '--scene-browse-ink', '--scene-browse-rgb',
+  '--scene-seat', '--scene-seat-ink', '--scene-seat-rgb',
+  '--scene-order', '--scene-order-ink', '--scene-order-rgb',
+  '--scene-payment', '--scene-payment-ink', '--scene-payment-rgb',
+  '--ok', '--warn', '--danger', '--danger-hover', '--warn-hover', '--info',
+  '--ok-rgb', '--warn-rgb', '--danger-rgb',
+  '--shadow-paper', '--shadow-paper-hover', '--shadow-modal', '--shadow-hall', '--shadow-tooltip', '--overlay-poster',
+]
+
+/**
+ * 模式无关的 token —— 两模式同值, 因此**只**在 {@code :root} 声明一次。
+ * 暗色作用域不再重复声明它们(重复声明同值 = 复制粘贴的温床)。
+ */
+const MODE_INDEPENDENT: string[] = [
+  // 暗场家族: 座位面板在两种模式下是同一块暗色票面(见 DESIGN.md §The Two-Mode Rule)
+  '--hall', '--hall-raised', '--hall-rule', '--hall-ink', '--hall-ink-2', '--hall-deep', '--hall-ink-rgb',
+  '--hall-wash', '--hall-wash-soft', '--hall-stripe', '--hall-mine-bar', '--hall-scene', '--hall-glow',
+  // 字体 / 圆角 / 过渡
+  '--font-display', '--font-body', '--font-mono',
+  '--radius-sm', '--radius-md', '--radius-lg', '--radius-xl',
+  '--transition-fast', '--transition-normal',
+]
+
+/**
+ * 某模式下的**有效** token 集 = 亮色基线 + 该模式的覆盖(暗色优先)。
+ *
+ * <p>为什么需要合并: 暗场家族(座位面板底 --hall 等)是模式无关的, 只在 :root 声明一次;
+ * 解析暗底某个 token 的计算值时, 必须能在暗色作用域找不到时回落到亮色基线。
+ * 这与浏览器真实的层叠行为一致(暗色块只覆盖它声明的那几个 token)。
+ */
+function effectiveTokens(mode: 'light' | 'dark'): Map<string, string> {
+  if (mode === 'light') return LIGHT
+  const merged = new Map(LIGHT)
+  for (const [k, v] of DARK) merged.set(k, v)
+  return merged
+}
+
+const EFFECTIVE = {
+  light: effectiveTokens('light'),
+  dark: effectiveTokens('dark'),
+}
+
 /** 递归解析 var(--x) 引用, 直到拿到字面 hex */
 function resolveToken(name: string, tokens: Map<string, string>, depth = 0): string {
   if (depth > 8) throw new Error(`token 引用过深, 可能成环: ${name}`)
@@ -149,55 +266,108 @@ describe('主题契约 · 硬编码色收敛', () => {
 
 // =====================================================================
 describe('主题契约 · 主色与侧边栏', () => {
-  it('--accent 是皇家蓝 #2563eb', () => {
-    expect(MAIN_CSS).toMatch(/--accent:\s*#2563eb\s*;/)
+  /**
+   * 两套印色各自的期望值。
+   * 暗色是同色相的明度变体(#2563eb 221° → #3b82f6 217°), 仍然是一支色 ——
+   * 不是第二支全局色, 所以不破 The One Global Ink Rule。
+   */
+  const ACCENT_BY_MODE = {
+    light: {
+      base: '#2563eb',
+      hover: '#1d4ed8',
+      press: '#1e40af',
+      wash: 'rgba(37, 99, 235, 0.08)',
+      stamp: 'rgba(37, 99, 235, 0.14)',
+      disabled: '#a7bfe8',
+      rgb: '37 99 235',
+    },
+    dark: {
+      base: '#3b82f6',
+      hover: '#60a5fa',
+      press: '#2563eb',
+      wash: 'rgba(59, 130, 246, 0.14)',
+      stamp: 'rgba(59, 130, 246, 0.22)',
+      disabled: '#2d4468',
+      rgb: '59 130 246',
+    },
+  } as const
+
+  it.each(['light', 'dark'] as const)('%s 模式的印色七件套齐全', (mode) => {
+    const a = ACCENT_BY_MODE[mode]
+    const tokens = EFFECTIVE[mode]
+    expect(resolveToken('--accent', tokens), `${mode} --accent`).toBe(a.base)
+    expect(tokens.get('--accent-hover'), `${mode} --accent-hover`).toBe(a.hover)
+    expect(tokens.get('--accent-press'), `${mode} --accent-press`).toBe(a.press)
+    expect(tokens.get('--accent-wash'), `${mode} --accent-wash`).toBe(a.wash)
+    expect(tokens.get('--accent-stamp'), `${mode} --accent-stamp`).toBe(a.stamp)
+    expect(tokens.get('--accent-disabled'), `${mode} --accent-disabled`).toBe(a.disabled)
+    expect(tokens.get('--accent-rgb'), `${mode} --accent-rgb`).toBe(a.rgb)
   })
 
-  it('主色的 hover / press / wash / stamp / rgb 分量齐全', () => {
-    expect(MAIN_CSS).toMatch(/--accent-hover:\s*#1d4ed8\s*;/)
-    expect(MAIN_CSS).toMatch(/--accent-press:\s*#1e40af\s*;/)
-    expect(MAIN_CSS).toMatch(/--accent-wash:\s*rgba\(37,\s*99,\s*235,\s*0\.08\)\s*;/)
-    expect(MAIN_CSS).toMatch(/--accent-stamp:\s*rgba\(37,\s*99,\s*235,\s*0\.14\)\s*;/)
-    expect(MAIN_CSS).toMatch(/--accent-rgb:\s*37\s+99\s+235\s*;/)
-  })
-
-  it('Element Plus primary 六阶 + dark-2 全部就位, 且都从 --accent 派生', () => {
-    // EP 色阶已不再手写 hex, 而是从 --accent 派生: 主色直接引用 token,
-    // light-N = 混入 (N*10)% 白, dark-2 = 混入 20% 黑。
-    // 这样换印色只需改 --accent 一处, 6 档自动跟随(见 main.css :root 注释)。
-    // 基准色由上面「--accent 是皇家蓝 #2563eb」那条锁定, 这里只锁"派生关系还在"。
-    expect(MAIN_CSS, '--el-color-primary 应引用 --accent').toMatch(
-      /--el-color-primary:\s*var\(--accent\)\s*;/,
+  it('暗色印色是亮色印色的同色相明度变体(不是第二支全局色)', () => {
+    const lightHue = hexToHsl(resolveToken('--accent', LIGHT)).h
+    const darkHue = hexToHsl(resolveToken('--accent', DARK)).h
+    const raw = Math.abs(lightHue - darkHue) % 360
+    const gap = raw > 180 ? 360 - raw : raw
+    expect(gap, `亮 ${lightHue.toFixed(1)}° vs 暗 ${darkHue.toFixed(1)}°`).toBeLessThanOrEqual(10)
+    // 暗底上印色必须提亮, 否则主 CTA 上的字读不清
+    expect(grayscaleLevel(resolveToken('--accent', DARK))).toBeGreaterThan(
+      grayscaleLevel(resolveToken('--accent', LIGHT)),
     )
-    const mixRamp: [string, number][] = [
-      ['--el-color-primary-light-3', 30],
-      ['--el-color-primary-light-5', 50],
-      ['--el-color-primary-light-7', 70],
-      ['--el-color-primary-light-8', 80],
-      ['--el-color-primary-light-9', 90],
-    ]
-    for (const [token, pct] of mixRamp) {
-      expect(MAIN_CSS, `${token} 应为 ${pct}% 白 + --accent`).toMatch(
-        new RegExp(`${token}:\\s*color-mix\\(in srgb,\\s*#fff\\s+${pct}%,\\s*var\\(--accent\\)\\)\\s*;`),
+  })
+
+  it.each(['light', 'dark'] as const)(
+    '%s 模式: Element Plus primary 六阶 + dark-2 全部就位, 且都从 --accent 派生',
+    (mode) => {
+      // EP 色阶已不再手写 hex, 而是从 --accent 派生: 主色直接引用 token,
+      // light-N = 混入 (N*10)% 白, dark-2 = 混入 20% 黑。
+      // 这样换印色只需改 --accent 一处, 6 档自动跟随(见 main.css :root 注释)。
+      // 基准色由上面「印色七件套」那条按模式锁定, 这里只锁"派生关系还在"。
+      const css = scopeText(MAIN_CSS, mode)
+      expect(css, `${mode} --el-color-primary 应引用 --accent`).toMatch(
+        /--el-color-primary:\s*var\(--accent\)\s*;/,
       )
-    }
-    expect(MAIN_CSS, '--el-color-primary-dark-2 应为 20% 黑 + --accent').toMatch(
-      /--el-color-primary-dark-2:\s*color-mix\(in srgb,\s*#000\s+20%,\s*var\(--accent\)\)\s*;/,
-    )
-  })
+      const mixRamp: [string, number][] = [
+        ['--el-color-primary-light-3', 30],
+        ['--el-color-primary-light-5', 50],
+        ['--el-color-primary-light-7', 70],
+        ['--el-color-primary-light-8', 80],
+        ['--el-color-primary-light-9', 90],
+      ]
+      for (const [token, pct] of mixRamp) {
+        expect(css, `${mode} ${token} 应为 ${pct}% 白 + --accent`).toMatch(
+          new RegExp(`${token}:\\s*color-mix\\(in srgb,\\s*#fff\\s+${pct}%,\\s*var\\(--accent\\)\\)\\s*;`),
+        )
+      }
+      expect(css, `${mode} --el-color-primary-dark-2 应为 20% 黑 + --accent`).toMatch(
+        /--el-color-primary-dark-2:\s*color-mix\(in srgb,\s*#000\s+20%,\s*var\(--accent\)\)\s*;/,
+      )
+    },
+  )
 
-  it('全站只有一个强调色 —— 侧边栏深靛蓝是结构底色, 不许再加第二个印色', () => {
-    // :root 里只允许一套 --accent 家族, 不得出现第二套品牌色
-    const rootBlock = MAIN_CSS.split(/\.app-main\.is-admin/)[0]
-    const accentDecls = rootBlock.match(/^\s*--accent[a-z-]*\s*:/gm) ?? []
-    // 家族成员 7 条: --accent / hover / press / wash / stamp / rgb / disabled。
-    // --accent-disabled(#a7bfe8) 是主按钮 disabled 态的同族浅色 tint, 2026-10-12 认定
-    // 为「同一印色家族」而非新品牌色, 故计入。再多一条即说明真加了第二套印色, 需人工裁决。
-    expect(accentDecls.length).toBe(7)
-    expect(accentDecls.some((d) => d.includes('--accent-disabled'))).toBe(true)
-  })
+  it.each(['light', 'dark'] as const)(
+    '%s 模式恰好 7 个 --accent* token —— 不许加第二套全局印色',
+    (mode) => {
+      // 家族成员 7 条: --accent / hover / press / wash / stamp / rgb / disabled。
+      // --accent-disabled 是主按钮 disabled 态的同族浅色 tint, 认定为「同一印色家族」
+      // 而非新品牌色, 故计入。再多一条即说明真加了第二套印色, 需人工裁决。
+      // ⚠️ 双主题后按**作用域**统计 —— 旧实现是对整份文件做裸文本扫描,
+      //    暗色块一进来两套数就混在一起, 断言既测不准也不表达任何契约。
+      const tokens = EFFECTIVE[mode]
+      const accentTokens = [...tokens.keys()].filter((k) => k.startsWith('--accent')).sort()
+      expect(accentTokens).toEqual([
+        '--accent',
+        '--accent-disabled',
+        '--accent-hover',
+        '--accent-press',
+        '--accent-rgb',
+        '--accent-stamp',
+        '--accent-wash',
+      ])
+    },
+  )
 
-  it('管理端侧边栏是深靛蓝底, 且不再复用浅色纸面', () => {
+  it('管理端侧边栏引用暗场家族(亮色 --hall / 暗色 --hall-deep), 不复用纸面', () => {
     const admin = readSrc('views/admin/AdminHome.vue')
     const asideBlock = admin.match(/\.aside\s*\{([^}]*)\}/)?.[1] ?? ''
     expect(asideBlock, '.aside 块没匹配到').not.toBe('')
@@ -205,6 +375,15 @@ describe('主题契约 · 主色与侧边栏', () => {
     expect(asideBlock).toContain('--aside-bg: var(--hall)')
     expect(asideBlock).toContain('background: var(--aside-bg)')
     expect(asideBlock).not.toContain('var(--paper-raised)')
+    // 2026-10-20 双主题: 暗色下侧栏下沉一档到 --hall-deep, 保住「午夜侧栏」身份。
+    // 锁的是「侧栏属于暗场家族」这条语义, 不是某一个变量名。
+    const darkAside =
+      MAIN_CSS.match(/^html\[data-theme='dark'\]\s*\.aside\s*\{([^}]*)\}/m)?.[1] ?? ''
+    expect(darkAside, 'main.css 里没有暗色侧栏覆盖块').toContain('--aside-bg: var(--hall-deep)')
+    // 两个模式都不许拿纸面变量当侧栏底色
+    for (const [where, css] of [['AdminHome.vue .aside', asideBlock], ['main.css 暗色 .aside', darkAside]]) {
+      expect(css, `${where} 引用了纸面变量`).not.toMatch(/var\(--paper/)
+    }
   })
 
   it('侧边栏激活态用 tint + 左亮条, 不是深底上糊成一团的实心块', () => {
@@ -215,13 +394,28 @@ describe('主题契约 · 主色与侧边栏', () => {
     expect(active).toContain('inset 3px 0 0 var(--accent)')
   })
 
-  it('管理端纸面覆盖已同步换冷调, 不留旧暖灰', () => {
-    const block = MAIN_CSS.match(/\.app-main\.is-admin\s*\{([^}]*)\}/)?.[1] ?? ''
-    expect(block).not.toBe('')
+  it('管理端纸面覆盖: 亮色不留旧暖灰, 暗色是暗场家族三档', () => {
+    // 亮色: 冷调报表变体
+    expect(ADMIN_LIGHT.size, '管理端亮色覆盖块没解析到').toBeGreaterThan(0)
     for (const stale of ['#eef0f1', '#f7f8f9', '#e4e8ea', '#d0d5d8', '#b3bcc2']) {
-      expect(block, `管理端覆盖块残留旧值 ${stale}`).not.toContain(stale)
+      expect(MAIN_CSS.match(/^\.app-main\.is-admin\s*\{([^}]*)\}/m)?.[1] ?? '', `管理端覆盖块残留旧值 ${stale}`).not.toContain(stale)
     }
-    expect(block).toContain('--paper: #e9edf3')
+    expect(ADMIN_LIGHT.get('--paper')).toBe('#e9edf3')
+    expect(ADMIN_LIGHT.get('--rule')).toBe(LIGHT.get('--rule'))
+
+    // 暗色: 侧栏最暗(--hall-deep) < 页面(--hall) < 卡片(--hall-raised)
+    expect(ADMIN_DARK.size, '管理端暗色覆盖块没解析到').toBeGreaterThan(0)
+    expect(ADMIN_DARK.get('--paper')).toBe('#0f172a')
+    expect(ADMIN_DARK.get('--paper-raised')).toBe('#16203a')
+    expect(ADMIN_DARK.get('--paper-sunk')).toBe('#0b1220')
+    expect(ADMIN_DARK.get('--rule')).toBe(DARK.get('--rule'))
+    expect(ADMIN_DARK.get('--rule-strong')).toBe(DARK.get('--rule-strong'))
+  })
+
+  it('--hall-deep 是暗场家族最深一档, 模式无关(只声明在 :root)', () => {
+    expect(LIGHT.get('--hall-deep')).toBe('#0a0f1a')
+    // 模式无关 token 不该在暗色作用域里重复声明 —— 重复声明同值是复制粘贴的温床
+    expect(DARK.has('--hall-deep'), '--hall-deep 是模式无关 token, 不该在暗色作用域重复声明').toBe(false)
   })
 })
 
@@ -234,8 +428,11 @@ describe('主题契约 · 座位图 5 态转灰度仍可分辨', () => {
    *
    * 实测: 换肤前的暖色方案最小相邻间隔仅 1 级, 换肤后为 2 级。
    */
-  function seatGrayscaleLevels(): Record<string, number> {
+  function seatGrayscaleLevels(mode: 'light' | 'dark' = 'light'): Record<string, number> {
     const tokens = parseRootTokens(MAIN_CSS)
+    // --seat-sel-bg: var(--accent) —— 选中座的底色跟着**当前模式**的印色走,
+    // 所以 5 态的可分辨性必须按模式各算一遍。
+    tokens.set('--accent', resolveToken('--accent', EFFECTIVE[mode]))
     const seatSrc = readSrc('views/SeatSelect.vue')
 
     // ⚠️ 文件里有**两个** `.seat-select {}` 块: 第一个是布局容器(display:flex...),
@@ -263,26 +460,26 @@ describe('主题契约 · 座位图 5 态转灰度仍可分辨', () => {
     return out
   }
 
-  it('5 态都能解析出合法 hex（token 引用链没断）', () => {
-    for (const [k, v] of Object.entries(seatGrayscaleLevels())) {
-      expect(Number.isFinite(v), `${k} 灰度值不是数字: ${v}`).toBe(true)
+  it.each(['light', 'dark'] as const)('%s 模式: 5 态都能解析出合法 hex（token 引用链没断）', (mode) => {
+    for (const [k, v] of Object.entries(seatGrayscaleLevels(mode))) {
+      expect(Number.isFinite(v), `${mode} ${k} 灰度值不是数字: ${v}`).toBe(true)
     }
   })
 
-  it('相邻灰度差 ≥ 2, 5 态去色后仍可分辨', () => {
-    const levels = seatGrayscaleLevels()
+  it.each(['light', 'dark'] as const)('%s 模式: 相邻灰度差 ≥ 2, 5 态去色后仍可分辨', (mode) => {
+    const levels = seatGrayscaleLevels(mode)
     const sorted = Object.entries(levels).sort((a, b) => a[1] - b[1])
     const gaps = sorted.slice(1).map(([, v], i) => v - sorted[i][1])
 
     const report = sorted.map(([k, v]) => `${k}:${v}`).join(' < ')
     expect(
       Math.min(...gaps),
-      `相邻灰度间隔过小 —— 去色后会糊: ${report}`,
+      `${mode} 相邻灰度间隔过小 —— 去色后会糊: ${report}`,
     ).toBeGreaterThanOrEqual(2)
   })
 
-  it('我锁座位保持墨绿: 动这个值会把间隔压回 1 级', () => {
-    const levels = seatGrayscaleLevels()
+  it.each(['light', 'dark'] as const)('%s 模式: 我锁座位保持墨绿, 动这个值会把间隔压回 1 级', (mode) => {
+    const levels = seatGrayscaleLevels(mode)
     // mine 必须在 available 之上、selected 之下, 否则 3 个"实心"态会挤在一起
     expect(levels.mine).toBeGreaterThan(levels.available)
     expect(levels.selected).toBeGreaterThan(levels.mine)
@@ -355,8 +552,6 @@ describe('主题契约 · 票根签名装置与表格修复未被误删', () => 
 //      防止后续换肤/调色又把它调回不可读。
 // =====================================================================
 describe('主题契约 · 文字对比度达 WCAG AA', () => {
-  const tokens = parseRootTokens(MAIN_CSS)
-
   /** WCAG 2.x 对比度 = (L1+0.05)/(L2+0.05) */
   function contrastRatio(fg: string, bg: string): number {
     const a = relativeLuminance(fg)
@@ -365,67 +560,80 @@ describe('主题契约 · 文字对比度达 WCAG AA', () => {
     return (hi + 0.05) / (lo + 0.05)
   }
 
-  function hexToken(name: string): string {
-    return resolveToken(name, tokens)
+  /**
+   * 每个模式的 token 表 / 管理端纸面表。
+   * 双主题后对比度必须按模式各算一遍 —— 亮底的 4.5:1 结论在暗底上不成立。
+   */
+  const BY_MODE = {
+    light: { tokens: EFFECTIVE.light, admin: ADMIN_LIGHT },
+    dark: { tokens: EFFECTIVE.dark, admin: ADMIN_DARK },
+  } as const
+
+  /**
+   * 各模式的对比度基线(防回归式变暗)。
+   * ⚠️ 基线一律向下取整到 2 位: 直接抄打印出的 15.77 会因为浮点尾数
+   *    (真值 15.7683) 把当前值自己判为不达标 —— 断言必须能被现状满足。
+   */
+  const BASELINES: Record<'light' | 'dark', [string, number][]> = {
+    light: [['--ink-2', 6.6], ['--ink', 15.7], ['--accent', 4.5]],
+    dark: [['--ink-2', 6.6], ['--ink', 15.0], ['--accent', 4.5]],
   }
 
-  /** 管理端纸面覆盖块里的 token(与 :root 同名但不同值) */
-  function adminToken(name: string): string {
-    const block = MAIN_CSS.match(/\.app-main\.is-admin\s*\{([^}]*)\}/)?.[1] ?? ''
-    const m = block.match(new RegExp(`${name}:\\s*(#[0-9a-fA-F]{3,8})`))
-    if (!m) throw new Error(`.app-main.is-admin 里找不到 ${name}`)
-    return m[1]
-  }
+  it.each(['light', 'dark'] as const)(
+    '%s 模式: --ink-3 在三种纸面 + 管理端纸面上均达 4.5:1 (AA 正文线)',
+    (mode) => {
+      const { tokens, admin } = BY_MODE[mode]
+      const hexToken = (name: string) => resolveToken(name, tokens)
+      const ink3 = hexToken('--ink-3')
+      const surfaces: [string, string][] = [
+        ['--paper', hexToken('--paper')],
+        ['--paper-raised', hexToken('--paper-raised')],
+        ['--paper-sunk', hexToken('--paper-sunk')],
+        ['admin --paper', admin.get('--paper') as string],
+        ['admin --paper-raised', admin.get('--paper-raised') as string],
+        ['admin --paper-sunk', admin.get('--paper-sunk') as string],
+      ]
+      for (const [name, bg] of surfaces) {
+        const r = contrastRatio(ink3, bg)
+        expect(r, `${mode} --ink-3 (${ink3}) on ${name} (${bg}) 只有 ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5)
+      }
+    },
+  )
 
-  it('--ink-3 在三种纸面上均达 4.5:1 (AA 正文线)', () => {
-    const ink3 = hexToken('--ink-3')
-    const surfaces: [string, string][] = [
-      ['--paper', hexToken('--paper')],
-      ['--paper-raised', hexToken('--paper-raised')],
-      ['--paper-sunk', hexToken('--paper-sunk')],
-    ]
-    for (const [name, bg] of surfaces) {
-      const r = contrastRatio(ink3, bg)
-      expect(r, `--ink-3 (${ink3}) on ${name} (${bg}) 只有 ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5)
-    }
-  })
+  it.each(['light', 'dark'] as const)(
+    '%s 模式: --ink-2 / --ink / --accent 不低于各自基线 (防回归式变暗)',
+    (mode) => {
+      const { tokens } = BY_MODE[mode]
+      for (const [name, floor] of BASELINES[mode]) {
+        const r = contrastRatio(resolveToken(name, tokens), resolveToken('--paper', tokens))
+        expect(r, `${mode} ${name} on --paper 降到 ${r.toFixed(2)}:1, 低于基线 ${floor}`).toBeGreaterThanOrEqual(floor)
+      }
+    },
+  )
 
-  it('--ink-3 在管理端纸面上同样达 4.5:1', () => {
-    const ink3 = hexToken('--ink-3')
-    for (const name of ['--paper', '--paper-raised', '--paper-sunk']) {
-      const r = contrastRatio(ink3, adminToken(name))
-      expect(r, `--ink-3 (${ink3}) on admin ${name} 只有 ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5)
-    }
-  })
+  it.each(['light', 'dark'] as const)(
+    '%s 模式: 卡片描边可见, 且 --rule 与 --rule-strong 的层级不倒置',
+    (mode) => {
+      const { tokens } = BY_MODE[mode]
+      const rule = resolveToken('--rule', tokens)
+      const strong = resolveToken('--rule-strong', tokens)
+      expect(contrastRatio(rule, resolveToken('--paper', tokens)), `${mode} 描边太淡, 卡片边界会糊`).toBeGreaterThan(1.4)
+      // 相对亮度越高 = 颜色越浅。
+      // 亮底: --rule 必须比 --rule-strong 浅(强线才强得过弱线);
+      // 暗底: 方向相反 —— 越亮越显眼, 所以 --rule-strong 必须更亮。
+      const ruleL = relativeLuminance(rule)
+      const strongL = relativeLuminance(strong)
+      if (mode === 'light') {
+        expect(ruleL, `亮色 --rule (${rule}) 应浅于 --rule-strong (${strong})`).toBeGreaterThan(strongL)
+      } else {
+        expect(strongL, `暗色 --rule-strong (${strong}) 应亮于 --rule (${rule})`).toBeGreaterThan(ruleL)
+      }
+    },
+  )
 
-  it('--ink-2 / --ink / --accent 不低于各自基线 (防回归式变暗)', () => {
-    // 基线取 2026-10-12 换肤后的实测值; 允许变亮, 不允许明显变暗。
-    // ⚠️ 基线一律向下取整到 2 位: 直接抄打印出的 15.77 会因为浮点尾数
-    //    (真值 15.7683) 把当前值自己判为不达标 —— 断言必须能被现状满足。
-    const baselines: [string, number][] = [
-      ['--ink-2', 6.6],
-      ['--ink', 15.7],
-      ['--accent', 4.5],
-    ]
-    for (const [name, floor] of baselines) {
-      const r = contrastRatio(hexToken(name), hexToken('--paper'))
-      expect(r, `${name} on --paper 降到 ${r.toFixed(2)}:1, 低于基线 ${floor}`).toBeGreaterThanOrEqual(floor)
-    }
-  })
-
-  it('卡片描边可见, 且 --rule 仍浅于 --rule-strong (层级不倒置)', () => {
-    const rule = hexToken('--rule')
-    const strong = hexToken('--rule-strong')
-    expect(contrastRatio(rule, hexToken('--paper')), '描边太淡, 卡片边界会糊').toBeGreaterThan(1.4)
-    // 相对亮度越高 = 颜色越浅; --rule 必须比 --rule-strong 浅, 强线才强得过弱线
-    expect(
-      relativeLuminance(rule),
-      `--rule (${rule}) 应浅于 --rule-strong (${strong}), 线层级倒置了`,
-    ).toBeGreaterThan(relativeLuminance(strong))
-  })
-
-  it('管理端 --rule 与 :root 同步 (防残留旧描边)', () => {
-    expect(adminToken('--rule')).toBe(hexToken('--rule'))
+  it.each(['light', 'dark'] as const)('%s 模式: 管理端 --rule 与全局同步 (防残留旧描边)', (mode) => {
+    const { tokens, admin } = BY_MODE[mode]
+    expect(admin.get('--rule')).toBe(resolveToken('--rule', tokens))
   })
 })
 
@@ -437,6 +645,8 @@ describe('主题契约 · favicon 跟随主题', () => {
    */
   // SRC = cinema-web/src, 故 index.html 在其同级上一层的 cinema-web/ 下
   const HTML = readFileSync(resolve(SRC, '../index.html'), 'utf8')
+  /** 主题模块持有两份 favicon data-URI(浅/暗), 由 applyTheme() 切换 href */
+  const APPLY = readFileSync(resolve(SRC, 'theme/apply.ts'), 'utf8')
 
   it('favicon 不含已下线的暖色值', () => {
     for (const retired of ['%23f2ece1', '%23b8352a']) {
@@ -444,12 +654,20 @@ describe('主题契约 · favicon 跟随主题', () => {
     }
   })
 
-  it('favicon 使用当前主题的 --paper / --accent', () => {
-    const tokens = parseRootTokens(MAIN_CSS)
-    const paper = resolveToken('--paper', tokens).replace('#', '%23').toLowerCase()
-    const accent = resolveToken('--accent', tokens).replace('#', '%23').toLowerCase()
-    expect(HTML).toContain(paper)
+  it('浅色 favicon 用浅色模式的 --paper / --accent', () => {
+    const paper = resolveToken('--paper', LIGHT).replace('#', '%23').toLowerCase()
+    const accent = resolveToken('--accent', LIGHT).replace('#', '%23').toLowerCase()
+    expect(HTML, 'index.html 的静态 favicon 不是浅色模式的值').toContain(paper)
     expect(HTML).toContain(accent)
+    expect(APPLY, '主题模块的浅色 favicon 与 index.html 不一致').toContain(paper)
+    expect(APPLY).toContain(accent)
+  })
+
+  it('暗色 favicon 用暗色模式的 --paper / --accent', () => {
+    const paper = resolveToken('--paper', DARK).replace('#', '%23').toLowerCase()
+    const accent = resolveToken('--accent', DARK).replace('#', '%23').toLowerCase()
+    expect(APPLY, '主题模块缺暗色 favicon').toContain(paper)
+    expect(APPLY).toContain(accent)
   })
 })
 // =====================================================================
@@ -611,104 +829,130 @@ function contrastRatioOf(fg: string, bg: string): number {
 }
 
 describe('主题契约 · 场景身份色家族', () => {
-  const tokens = parseRootTokens(MAIN_CSS)
+  const BY_MODE = {
+    light: { tokens: EFFECTIVE.light, admin: ADMIN_LIGHT },
+    dark: { tokens: EFFECTIVE.dark, admin: ADMIN_DARK },
+  } as const
 
-  it('只有四族(browse / seat / order / payment), 每族恰好 base / ink / rgb 三个成员', () => {
-    const sceneDecls = [...tokens.keys()].filter((k) => k.startsWith('--scene-')).sort()
-    expect(sceneDecls).toEqual([
-      '--scene-browse',
-      '--scene-browse-ink',
-      '--scene-browse-rgb',
-      '--scene-order',
-      '--scene-order-ink',
-      '--scene-order-rgb',
-      '--scene-payment',
-      '--scene-payment-ink',
-      '--scene-payment-rgb',
-      '--scene-seat',
-      '--scene-seat-ink',
-      '--scene-seat-rgb',
-    ])
-  })
+  it.each(['light', 'dark'] as const)(
+    '%s 模式: 只有四族(browse / seat / order / payment), 每族恰好 base / ink / rgb 三个成员',
+    (mode) => {
+      const tokens = BY_MODE[mode].tokens
+      const sceneDecls = [...tokens.keys()].filter((k) => k.startsWith('--scene-')).sort()
+      expect(sceneDecls).toEqual([
+        '--scene-browse',
+        '--scene-browse-ink',
+        '--scene-browse-rgb',
+        '--scene-order',
+        '--scene-order-ink',
+        '--scene-order-rgb',
+        '--scene-payment',
+        '--scene-payment-ink',
+        '--scene-payment-rgb',
+        '--scene-seat',
+        '--scene-seat-ink',
+        '--scene-seat-rgb',
+      ])
+    },
+  )
 
-  it('每族的 base / ink / rgb 都存在且值合法', () => {
+  it.each(['light', 'dark'] as const)('%s 模式: 每族的 base / ink / rgb 都存在且值合法', (mode) => {
+    const tokens = BY_MODE[mode].tokens
     for (const family of SCENE_FAMILIES) {
-      expect(resolveToken(`--scene-${family}`, tokens), `${family} base 缺失`).toMatch(/^#[0-9a-fA-F]{6}$/)
-      expect(resolveToken(`--scene-${family}-ink`, tokens), `${family} ink 缺失`).toMatch(/^#[0-9a-fA-F]{6}$/)
-      expect(tokens.get(`--scene-${family}-rgb`), `${family} rgb 缺失`).toMatch(/^\d+\s+\d+\s+\d+$/)
+      expect(resolveToken(`--scene-${family}`, tokens), `${mode} ${family} base 缺失`).toMatch(/^#[0-9a-fA-F]{6}$/)
+      expect(resolveToken(`--scene-${family}-ink`, tokens), `${mode} ${family} ink 缺失`).toMatch(/^#[0-9a-fA-F]{6}$/)
+      expect(tokens.get(`--scene-${family}-rgb`), `${mode} ${family} rgb 缺失`).toMatch(/^\d+\s+\d+\s+\d+$/)
     }
   })
 
-  it('ink 在三种纸面 + 管理端纸面上均达 4.5:1 (AA 正文线)', () => {
-    const adminBlock = MAIN_CSS.match(/\.app-main\.is-admin\s*\{([^}]*)\}/)?.[1] ?? ''
-    const adminPaper = adminBlock.match(/--paper:\s*(#[0-9a-fA-F]{6})/)?.[1]
-    expect(adminPaper, '管理端 --paper 取不到').toBeTruthy()
-    const surfaces: [string, string][] = [
-      ['--paper', resolveToken('--paper', tokens)],
-      ['--paper-raised', resolveToken('--paper-raised', tokens)],
-      ['--paper-sunk', resolveToken('--paper-sunk', tokens)],
-      ['admin --paper', adminPaper as string],
-    ]
-    for (const family of SCENE_FAMILIES) {
-      const ink = resolveToken(`--scene-${family}-ink`, tokens)
-      for (const [name, bg] of surfaces) {
-        const r = contrastRatioOf(ink, bg)
-        expect(r, `${family} ink (${ink}) on ${name} (${bg}) 只有 ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5)
+  it.each(['light', 'dark'] as const)(
+    '%s 模式: ink 在三种纸面 + 管理端纸面上均达 4.5:1 (AA 正文线)',
+    (mode) => {
+      const { tokens, admin } = BY_MODE[mode]
+      const surfaces: [string, string][] = [
+        ['--paper', resolveToken('--paper', tokens)],
+        ['--paper-raised', resolveToken('--paper-raised', tokens)],
+        ['--paper-sunk', resolveToken('--paper-sunk', tokens)],
+        ['admin --paper', admin.get('--paper') as string],
+      ]
+      // 暗底额外验「座位面板底」—— 暗色下身份色的 ink 是亮的那一支,
+      // 落在暗色票面上仍然要读得清。亮色模式的 ink 是深色那一支,
+      // 本来就不该出现在深色面板上(面板上只用亮 base), 故不在亮色模式里验。
+      if (mode === 'dark') {
+        surfaces.push(['座位面板底 --hall', resolveToken('--hall', tokens)])
       }
-    }
-  })
+      for (const family of SCENE_FAMILIES) {
+        const ink = resolveToken(`--scene-${family}-ink`, tokens)
+        for (const [name, bg] of surfaces) {
+          const r = contrastRatioOf(ink, bg)
+          expect(r, `${mode} ${family} ink (${ink}) on ${name} (${bg}) 只有 ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5)
+        }
+      }
+    },
+  )
 
-  it('base 与全局强调色 --accent 的色相差 ≥ 25° (同屏必须可分辨)', () => {
-    const accent = resolveToken('--accent', tokens)
-    for (const family of SCENE_FAMILIES) {
-      const base = resolveToken(`--scene-${family}`, tokens)
-      const d = hueDistance(base, accent)
-      expect(
-        d,
-        `${family} base (${base}) 与 --accent (${accent}) 色相只差 ${d.toFixed(1)}° —— 同屏会读混`,
-      ).toBeGreaterThanOrEqual(25)
-    }
-  })
+  it.each(['light', 'dark'] as const)(
+    '%s 模式: base 与全局强调色 --accent 的色相差 ≥ 25° (同屏必须可分辨)',
+    (mode) => {
+      const { tokens } = BY_MODE[mode]
+      const accent = resolveToken('--accent', tokens)
+      for (const family of SCENE_FAMILIES) {
+        const base = resolveToken(`--scene-${family}`, tokens)
+        const d = hueDistance(base, accent)
+        expect(
+          d,
+          `${mode} ${family} base (${base}) 与 --accent (${accent}) 色相只差 ${d.toFixed(1)}° —— 同屏会读混`,
+        ).toBeGreaterThanOrEqual(25)
+      }
+    },
+  )
 
 })
 
 describe('主题契约 · 场景身份色与语义色的可分辨性', () => {
-  const tokens = parseRootTokens(MAIN_CSS)
-
-  it('同域语义色与身份色 base 可分辨: 色相差 ≥25 或 灰阶差 ≥25 或 饱和度差 ≥0.25', () => {
-    // 三个通道任一成立即可 —— 色相是最强的可分辨信号, 而低饱和深色的语义色
-    // (墨绿 / 暗金 / 暗红) 与任何饱和中调色的灰阶差和饱和度差都 <25/<0.25,
-    // 只认后两个通道的话, 品红/紫这类色永远过不了(实测: 灰阶差 5~20, 饱和度差 0.00~0.11)。
-    for (const family of SCENE_FAMILIES) {
-      const base = resolveToken(`--scene-${family}`, tokens)
-      for (const peer of effectiveSemanticPeers(family)) {
-        const peerHex = resolveToken(peer, tokens)
-        const hueGap = hueDistance(base, peerHex)
-        const grayGap = Math.abs(grayscaleLevel(base) - grayscaleLevel(peerHex))
-        const satGap = satDistance(base, peerHex)
-        expect(
-          hueGap >= 25 || grayGap >= 25 || satGap >= 0.25,
-          `${family} base (${base}) 与 ${peer} (${peerHex}) 分不开: `
-            + `色相差 ${hueGap.toFixed(1)}°, 灰阶差 ${grayGap}, 饱和度差 ${satGap.toFixed(3)}`,
-        ).toBe(true)
+  it.each(['light', 'dark'] as const)(
+    '%s 模式: 同域语义色与身份色 base 可分辨: 色相差 ≥25 或 灰阶差 ≥25 或 饱和度差 ≥0.25',
+    (mode) => {
+      const tokens = EFFECTIVE[mode]
+      // 三个通道任一成立即可 —— 色相是最强的可分辨信号, 而低饱和深色的语义色
+      // (墨绿 / 暗金 / 暗红) 与任何饱和中调色的灰阶差和饱和度差都 <25/<0.25,
+      // 只认后两个通道的话, 品红/紫这类色永远过不了(实测: 灰阶差 5~20, 饱和度差 0.00~0.11)。
+      for (const family of SCENE_FAMILIES) {
+        const base = resolveToken(`--scene-${family}`, tokens)
+        for (const peer of effectiveSemanticPeers(family)) {
+          const peerHex = resolveToken(peer, tokens)
+          const hueGap = hueDistance(base, peerHex)
+          const grayGap = Math.abs(grayscaleLevel(base) - grayscaleLevel(peerHex))
+          const satGap = satDistance(base, peerHex)
+          expect(
+            hueGap >= 25 || grayGap >= 25 || satGap >= 0.25,
+            `${mode} ${family} base (${base}) 与 ${peer} (${peerHex}) 分不开: `
+              + `色相差 ${hueGap.toFixed(1)}°, 灰阶差 ${grayGap}, 饱和度差 ${satGap.toFixed(3)}`,
+          ).toBe(true)
+        }
       }
-    }
-  })
+    },
+  )
 
-  it('base 底上的文字可读: --ink 与 --ink-inverse 至少一个达 4.5:1', () => {
-    // base 都是高饱和色, 反色字未必读得清 —— 所以规定「用对比度更高的那支墨色」,
-    // 而不是固定用某一支。浅 base 走 --ink, 深 base 走 --ink-inverse。
-    for (const family of SCENE_FAMILIES) {
-      const base = resolveToken(`--scene-${family}`, tokens)
-      const onInk = contrastRatioOf(resolveToken('--ink', tokens), base)
-      const onInverse = contrastRatioOf(resolveToken('--ink-inverse', tokens), base)
-      expect(
-        Math.max(onInk, onInverse),
-        `${family} base (${base}) 上两种墨色都读不清: `
-          + `--ink ${onInk.toFixed(2)}:1 / --ink-inverse ${onInverse.toFixed(2)}:1`,
-      ).toBeGreaterThanOrEqual(4.5)
-    }
-  })
+  it.each(['light', 'dark'] as const)(
+    '%s 模式: base 底上的文字可读: --ink 与 --ink-inverse 至少一个达 4.5:1',
+    (mode) => {
+      const tokens = EFFECTIVE[mode]
+      // base 都是高饱和色, 反色字未必读得清 —— 所以规定「用对比度更高的那支墨色」,
+      // 而不是固定用某一支。浅 base 走 --ink, 深 base 走 --ink-inverse。
+      // 暗底下两支墨色的明暗关系是反的, 但「取更高对比度那支」的规则不变。
+      for (const family of SCENE_FAMILIES) {
+        const base = resolveToken(`--scene-${family}`, tokens)
+        const onInk = contrastRatioOf(resolveToken('--ink', tokens), base)
+        const onInverse = contrastRatioOf(resolveToken('--ink-inverse', tokens), base)
+        expect(
+          Math.max(onInk, onInverse),
+          `${mode} ${family} base (${base}) 上两种墨色都读不清: `
+            + `--ink ${onInk.toFixed(2)}:1 / --ink-inverse ${onInverse.toFixed(2)}:1`,
+        ).toBeGreaterThanOrEqual(4.5)
+      }
+    },
+  )
 
   it('域内语义色集合确实扫到了东西(防扫描逻辑失效导致假绿)', () => {
     // seat 域的 WS 状态条直接引用了 ok / warn / danger 三色
@@ -788,7 +1032,7 @@ describe('主题契约 · 场景身份色禁入全局强调面', () => {
     { label: '链接 a', match: (s) => s.trim() === 'a' },
     { label: ':focus-visible 焦点环', match: (s) => s.trim() === ':focus-visible' },
     { label: '::selection 选中态', match: (s) => s.trim() === '::selection' },
-    { label: '.section-title::before 章节墨条', match: (s) => s.trim() === '.section-title::before' },
+    { label: '.section-title::before 章节墨条(全局默认)', match: (s) => s.trim() === '.section-title::before' },
     { label: '.el-button--primary 主按钮', match: (s) => s.trim().startsWith('.el-button--primary') },
     { label: '.chip-primary 主 chip', match: (s) => s.includes('.chip-primary') },
     { label: '.chip-login 登录 chip', match: (s) => s.includes('.chip-login') },
@@ -811,5 +1055,131 @@ describe('主题契约 · 场景身份色禁入全局强调面', () => {
       }
     }
     expect(offenders, `场景身份色侵入了全局强调面:\n${offenders.join('\n')}`).toEqual([])
+  })
+})
+
+// =====================================================================
+// 章节墨条按所属域的身份色 (2026-10-20 批次二)
+// =====================================================================
+/**
+ * R4 放宽后, 章节墨条不再守全局印色, 改守**所属域**的身份色。
+ *
+ * <p>理由: 章节墨条是「这一屏属于哪个业务域」的标记。满屏的蓝墨条正是
+ * 「一片蓝」的来源之一 —— 蓝不再只是「主 CTA / 链接」的角色, 它还被拿来
+ * 当结构色, 于是它在每一屏都出现, 也就等于没出现。
+ *
+ * <p>约束仍然很硬: **只能用自己域的身份色**。browse 域的页面不许用 order 的紫,
+ * 管理端更不许有墨条(它是控制台, 层级靠结构)。
+ */
+describe('主题契约 · 章节墨条按所属域的身份色', () => {
+  /** 期望的 (文件, 该域身份色) 组合 */
+  const DOMAIN_SECTION_BAR: [string, string][] = [
+    ['views/Home.vue', '--scene-browse-ink'],
+    ['views/MovieDetail.vue', '--scene-browse-ink'],
+    ['views/OrderList.vue', '--scene-order-ink'],
+  ]
+
+  it.each(DOMAIN_SECTION_BAR)('%s 的章节墨条用 %s', (rel, expected) => {
+    const src = readSrc(rel)
+    const block = src.match(/\.section-title::before\s*\{([^}]*)\}/)?.[1] ?? ''
+    expect(block, `${rel} 里找不到 .section-title::before 规则`).not.toBe('')
+    expect(block, `${rel} 的章节墨条没有用 ${expected}`).toContain(`var(${expected})`)
+    // 不许顺手用别的域的身份色
+    for (const family of SCENE_FAMILIES) {
+      const other = `--scene-${family}-ink`
+      if (other === expected) continue
+      expect(block, `${rel} 的章节墨条越域用了 ${other}`).not.toContain(`var(${other})`)
+    }
+  })
+
+  it('全局默认(没有域身份的页面)仍然是 --accent', () => {
+    // main.css 里那条是兜底: Login / NotFound 等不属于任何业务域的页面用它
+    expect(MAIN_CSS).toMatch(/\.section-title::before\s*\{[^}]*background:\s*var\(--accent\)/)
+  })
+
+  it('管理端不用章节墨条 —— 控制台的层级靠结构', () => {
+    for (const rel of [
+      'views/admin/AdminHome.vue',
+      'views/admin/Dashboard.vue',
+      'views/admin/LiveDashboard.vue',
+      'views/admin/MovieManage.vue',
+      'views/admin/HallManage.vue',
+      'views/admin/SessionManage.vue',
+    ]) {
+      expect(readSrc(rel), `${rel} 不该用 .section-title::before`).not.toContain('.section-title::before')
+    }
+  })
+})
+
+// =====================================================================
+// 双主题 token 覆盖完整性 —— 暗底漏配即红
+// =====================================================================
+/**
+ * 2026-10-20 双主题。
+ *
+ * <p><b>为什么不是「两套 token 名集合完全相同」</b>: 暗色作用域只声明「会变」的那些 token
+ * (同名覆盖), 模式无关的 token(字体 / 圆角 / 暗场家族)只在 :root 声明一次。
+ * 强行让两套名字集合相同 = 把 20 多个模式无关 token 复制进暗色块, 纯噪音, 而且
+ * 复制出来的同值声明本来就是漂移的温床。
+ *
+ * <p>真正要防的是**漏配**: 某个该换值的 token 忘了在暗色作用域里覆盖, 它就留着
+ * 亮色值落在暗底上 —— 墨色读不清、身份色撞色、印色对比度不足。所以改成四条
+ * 更有针对性的断言:
+ * <ol>
+ *   <li>暗色作用域里的每个 token 名都必须在亮色作用域里存在(无孤儿);</li>
+ *   <li>{@link MUST_SWITCH} 清单里的每个 token 必须两处都有、且取值**不同**;</li>
+ *   <li>两处都声明了、且取值为字面量的 token, 取值必须不同(防止复制亮色值);</li>
+ *   <li>只在 :root 声明一次的 token, 暗色作用域不得重复声明。</li>
+ * </ol>
+ */
+describe('主题契约 · 双主题 token 覆盖完整性', () => {
+  it('暗色作用域的每个 token 都在亮色作用域里有同名项(无孤儿)', () => {
+    const orphans = [...DARK.keys()].filter((k) => !LIGHT.has(k)).sort()
+    expect(orphans, `暗色作用域多出这些 token, 亮色没有: ${orphans.join(', ')}`).toEqual([])
+  })
+
+  it('必须换值的 token 清单: 两处都有, 且取值不同(漏配即红)', () => {
+    const problems: string[] = []
+    for (const name of MUST_SWITCH) {
+      if (!LIGHT.has(name)) {
+        problems.push(`${name} 亮色作用域缺失`)
+        continue
+      }
+      if (!DARK.has(name)) {
+        problems.push(`${name} 暗色作用域漏配 —— 它会留着亮色值落在暗底上`)
+        continue
+      }
+      if (LIGHT.get(name) === DARK.get(name)) {
+        problems.push(`${name} 两模式取值相同 —— 暗色块里没真正换值`)
+      }
+    }
+    expect(problems, problems.join('\n')).toEqual([])
+  })
+
+  it('两处都声明的 token, 字面量取值必须不同(防止把亮色值复制进暗色块)', () => {
+    // var() / color-mix() 的声明在两处字面相同, 但计算值不同(跟着 --accent 走),
+    // 那不是复制粘贴, 是派生关系 —— 这类不参与本条。
+    const isLiteral = (v: string) => !v.includes('var(') && !v.includes('color-mix')
+    const same: string[] = []
+    for (const [name, value] of DARK) {
+      if (!LIGHT.has(name)) continue
+      const lightValue = LIGHT.get(name) as string
+      if (!isLiteral(value) || !isLiteral(lightValue)) continue
+      if (lightValue === value) same.push(name)
+    }
+    expect(same, `这些 token 在两个作用域里字面量相同, 应删掉暗色里的重复声明: ${same.join(', ')}`).toEqual([])
+  })
+
+  it('只在 :root 声明一次的 token, 暗色作用域不得重复声明', () => {
+    const duplicated = MODE_INDEPENDENT.filter((n) => DARK.has(n))
+    expect(duplicated, `这些 token 不该在暗色作用域重复声明: ${duplicated.join(', ')}`).toEqual([])
+    for (const n of MODE_INDEPENDENT) {
+      expect(LIGHT.has(n), `${n} 应在 :root 声明`).toBe(true)
+    }
+  })
+
+  it('两个作用域都非空(防选择器写错导致整套断言空转)', () => {
+    expect(DARK.size, '暗色作用域没解析到任何 token —— 选择器写错了?').toBeGreaterThan(40)
+    expect(LIGHT.size, '亮色作用域没解析到任何 token').toBeGreaterThan(40)
   })
 })

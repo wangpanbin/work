@@ -397,10 +397,18 @@ onMounted(load)
 
 /* 反馈层: 卡片悬停只提亮描边, 不位移 —— 控制台不做抬升 */
 .card {
-  transition: border-color var(--transition-normal);
+  transition:
+    border-color var(--transition-normal),
+    box-shadow var(--transition-normal),
+    transform var(--transition-normal);
 }
+/* 控制台的悬停: 只抬升 + 描边变强, **不改色** ——
+   管理端的颜色纪律是「层级靠结构不靠颜色」, 场景色一律不许进来。
+   抬 2px 是结构层面的回应, 不动墨色, 所以不违反那条纪律。 */
 .card:hover {
   border-color: var(--rule-strong);
+  box-shadow: var(--shadow-paper-hover);
+  transform: translateY(-2px);
 }
 
 .panel {

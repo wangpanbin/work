@@ -81,7 +81,9 @@ onMounted(() => {
 </script>
 
 <template>
-  <div v-loading="loading" class="home">
+  <!-- 加载态不用 Element Plus 的整页蒙层: 骨架屏本身就是加载反馈,
+       再叠一层蒙层会把骨架压暗, 反而看不清。蒙层留给没有骨架的页面。 -->
+  <div class="home">
     <!-- Hero: 一张横向票根。主券是品牌主张, 副券是票面数据, 中间齿孔撕口分隔。
          原稿这里是金色渐变 + 双 radial 光斑 + 两个旋转胶片盘, 已整体删除。 -->
     <section class="hero">
@@ -146,7 +148,17 @@ onMounted(() => {
         <span class="filter-meta">{{ t('home.filterMeta', { count: movies.length }) }}</span>
       </div>
 
-      <el-empty v-if="!loading && movies.length === 0" :description="t('home.empty')" />
+      <!-- 加载中: 骨架屏占位。用 grid 撑住同样的版面, 卡片进场时不会「长出来」跳版。
+           骨架屏只用 main.css 的 shimmer 关键帧(此前定义了却没人用)。 -->
+      <div v-if="loading" class="movie-grid skeleton-grid" aria-hidden="true">
+        <div v-for="n in 6" :key="`skeleton-${n}`" class="skeleton-card">
+          <div class="skeleton-poster"></div>
+          <div class="skeleton-line"></div>
+          <div class="skeleton-line short"></div>
+        </div>
+      </div>
+
+      <el-empty v-else-if="movies.length === 0" :description="t('home.empty')" />
 
       <div v-else class="movie-grid">
         <router-link
@@ -344,6 +356,53 @@ onMounted(() => {
 
 .section-header .section-title {
   margin-bottom: 0;
+}
+
+/* --- 骨架屏 ---
+   灰底 + 一道扫过的高光, 表达「正在取」而不是「这里有内容」。
+   高光用暗场文字的 RGB 分量拼 10% 透明度, 两个模式通用。 */
+.skeleton-grid {
+  pointer-events: none;
+}
+.skeleton-card {
+  grid-column: span 3;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  background: var(--paper-raised);
+  overflow: hidden;
+}
+.skeleton-poster {
+  height: 300px;
+  background-color: var(--paper-sunk);
+}
+.skeleton-line {
+  height: 14px;
+  margin: 16px 16px 0;
+  background-color: var(--paper-sunk);
+  border-radius: 2px;
+}
+.skeleton-line.short {
+  width: 40%;
+  margin-bottom: 20px;
+}
+.skeleton-poster,
+.skeleton-line {
+  background-image: linear-gradient(
+    90deg,
+    transparent,
+    rgb(var(--hall-ink-rgb) / 0.12),
+    transparent
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: shimmer 1.6s linear infinite;
+}
+
+/* 章节墨条取浏览域身份色, 不再是全局印色 —— 见 DESIGN.md The Scene Ink Rule 第 1 条。
+   用 ink 档(文字安全档)而不是 base 档: 3px 的细条在纸面上要能读出来,
+   base 档的亮橙在冷灰白上只有 2.5:1, ink 档是 6.3:1。 */
+.section-title::before {
+  background: var(--scene-browse-ink);
 }
 
 .section-decoration {

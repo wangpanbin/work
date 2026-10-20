@@ -64,6 +64,29 @@ async function refresh(preserveSelection = false): Promise<number> {
 const dragAnchor = ref<number | null>(null)
 const dragPreview = ref<Set<number>>(new Set())
 
+/**
+ * 悬停预演 —— 不按鼠标, 光是划过也能看见「从这一排的起点划到这儿, 会连选哪几个」。
+ *
+ * <p><b>与拖拽的关系</b>: 用的是同一个纯函数(utils/seatDragRange.ts)、同一套语义
+ * (同行连续可选、撞不可选即截断、受 maxSelect 预算限制)。区别只在锚点:
+ * 拖拽的锚点是**按下的那个座位**, 悬停的锚点是**本轮划过这一排时的第一个座位**。
+ * 指针换行即换锚点, 指针离开座位图即清空。
+ *
+ * <p><b>为什么只画 ≥2 座的区间</b>: 单座的区间不需要预演 —— 鼠标停在哪儿,
+ * 点的就是哪儿。只有当「这儿能连着拿走一串」时, 预演环才有信息量;
+ * 否则指针每动一下就闪一个圈, 变成噪声。
+ *
+ * <p><b>不落座</b>: 预演只改组件本地的 ref, 不碰 seatStore —— 上限、冲突、
+ * 乐观更新仍由 store 说了算(同拖拽连选的做法)。
+ */
+const hoverAnchor = ref<number | null>(null)
+const hoverPreview = ref<Set<number>>(new Set())
+
+function resetHoverPreview() {
+  hoverAnchor.value = null
+  hoverPreview.value = new Set()
+}
+
 function onSeatPointerDown(index: number) {
   // 锚点必须当前可选: 锚在已售/他人锁定/已选上的拖拽不成立
   if (seatStore.statusAt(index) !== 'AVAILABLE') return
@@ -74,11 +97,26 @@ function onSeatPointerDown(index: number) {
 }
 
 function onSeatPointerEnter(index: number) {
-  const anchor = dragAnchor.value
-  if (anchor === null) return
   const cols = seatStore.map?.cols || 1
   // 还能再选几个 = 上限 - 已选
   const budget = Math.max(0, seatStore.maxSelect - seatStore.selected.size)
+  const anchor = dragAnchor.value
+  if (anchor === null) {
+    // 未拖拽: 走悬停预演。锚点 = 本轮划过这一排时的第一个座位(换行即换锚点)。
+    const sameRow =
+      hoverAnchor.value !== null &&
+      Math.floor(hoverAnchor.value / cols) === Math.floor(index / cols)
+    if (!sameRow) hoverAnchor.value = index
+    const r = computeDragRange(
+      hoverAnchor.value as number,
+      index,
+      cols,
+      (i) => seatStore.statusAt(i),
+      budget,
+    )
+    hoverPreview.value = r.indexes.length >= 2 ? new Set(r.indexes) : new Set()
+    return
+  }
   const r = computeDragRange(anchor, index, cols, (i) => seatStore.statusAt(i), budget)
   dragPreview.value = new Set(r.indexes)
 }
@@ -368,7 +406,11 @@ async function onConfirm() {
 
       <!-- Seats Grid (Phase D-⑬: 抽 SeatItem 子组件, 父级只传 :index)
            行/列标签: 左侧行号 + 顶部列号, 统一挂在 seats-container 上设 --cols/--rows -->
-      <div class="seats-container" :style="{ '--cols': seatStore.map.cols, '--rows': seatStore.map.rows }">
+      <div
+        class="seats-container"
+        :style="{ '--cols': seatStore.map.cols, '--rows': seatStore.map.rows }"
+        @pointerleave="resetHoverPreview"
+      >
         <div class="seats-grid" v-if="seatStore.map.cols <= 16">
           <!-- 列号表头: 占 1 格给左侧行号标签 -->
           <div class="corner-spacer"></div>
@@ -379,7 +421,7 @@ async function onConfirm() {
             <template v-for="(_, idx) in seatStore.map.cols" :key="`c-${r}-${idx}`">
               <SeatItem
                 :index="(r - 1) * seatStore.map.cols + idx"
-                :preview="dragPreview.has((r - 1) * seatStore.map.cols + idx)"
+                :preview="dragPreview.has((r - 1) * seatStore.map.cols + idx) || hoverPreview.has((r - 1) * seatStore.map.cols + idx)"
                 @pointerdown="onSeatPointerDown"
                 @pointerenter="onSeatPointerEnter"
               />
@@ -398,7 +440,7 @@ async function onConfirm() {
               v-for="i in seatStore.map.seatCount"
               :key="i - 1"
               :index="i - 1"
-              :preview="dragPreview.has(i - 1)"
+              :preview="dragPreview.has(i - 1) || hoverPreview.has(i - 1)"
               @pointerdown="onSeatPointerDown"
               @pointerenter="onSeatPointerEnter"
             />

@@ -36,6 +36,11 @@ const messages: SameShape<typeof zhCN> = {
     localeSwitchTo: '中文',
     mobileMenuLocale: '中文',
     localeSwitchAria: 'Switch language',
+    // Theme chip: three-state cycle (auto → light → dark)
+    themeToggleAria: 'Switch theme',
+    themeAuto: 'System',
+    themeLight: 'Light',
+    themeDark: 'Dark',
     menuAria: 'User menu',
     logoutTitle: 'Sign out',
     logoutConfirm: 'Sign out of your current account?',

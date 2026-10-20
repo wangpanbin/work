@@ -362,6 +362,11 @@ onMounted(async () => {
   margin-bottom: 0;
 }
 
+/* 章节墨条取浏览域身份色(与 Home 同一套语言)—— 见 DESIGN.md The Scene Ink Rule 第 1 条。 */
+.section-title::before {
+  background: var(--scene-browse-ink);
+}
+
 /* 日期票签: 三张并列的小票, 底边虚线当撕口 */
 .date-picker {
   flex-shrink: 0;
@@ -402,17 +407,26 @@ onMounted(async () => {
   align-items: center;
   gap: 24px;
   padding: 20px 28px;
-  background: var(--paper-raised);
+  /* 浏览域底纹: 纸面里掺一点浏览域身份色(4%), 悬停加深到 9%。
+     与订单卡同一套悬停揭示语言 —— 见 DESIGN.md The Flat-By-Default Rule。 */
+  background-color: color-mix(in srgb, var(--scene-browse-ink) 4%, var(--paper-raised));
   border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-paper);
-  transition: border-color var(--transition-normal);
+  transition:
+    background-color var(--transition-normal),
+    border-color var(--transition-normal),
+    box-shadow var(--transition-normal),
+    transform var(--transition-normal);
   animation: fadeInUp 0.4s ease both;
 }
-/* 整卡本身不可点(只有内部"选座"按钮可点), 因此不设 pointer、不做 hover 浮起/按下位移,
-   只提亮边框 —— 与全站 .el-card:hover 同一套 hover 语言, 不假装整卡可点。 */
+/* 整卡本身不可点(只有内部"选座"按钮可点), 因此不设 pointer、不假装整卡可点;
+   抬 2px + 底纹加深是「被注意到」, 不是「可点」。 */
 .session-card:hover {
+  background-color: color-mix(in srgb, var(--scene-browse-ink) 9%, var(--paper-raised));
   border-color: var(--rule-strong);
+  box-shadow: var(--shadow-paper-hover);
+  transform: translateY(-2px);
 }
 
 .session-time {
