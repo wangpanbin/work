@@ -157,7 +157,7 @@ const ADMIN_DARK = blockDecls(
  * 印色对比度不足)。漏配一个 → 下面那条断言立刻红。
  */
 const MUST_SWITCH: string[] = [
-  '--paper', '--paper-raised', '--paper-sunk', '--rule', '--rule-strong',
+  '--paper', '--paper-raised', '--paper-sunk', '--paper-overlay', '--rule', '--rule-strong',
   '--ink', '--ink-2', '--ink-3', '--ink-inverse',
   '--accent', '--accent-hover', '--accent-press', '--accent-wash', '--accent-stamp', '--accent-disabled', '--accent-rgb',
   '--scene-browse', '--scene-browse-ink', '--scene-browse-rgb',
@@ -635,6 +635,24 @@ describe('主题契约 · 文字对比度达 WCAG AA', () => {
     const { tokens, admin } = BY_MODE[mode]
     expect(admin.get('--rule')).toBe(resolveToken('--rule', tokens))
   })
+
+  it.each(['light', 'dark'] as const)(
+    '%s 模式: 管理端图表墨色 --accent 在管理端纸面与卡面上均 ≥3:1 (WCAG 非文本对比度)',
+    (mode) => {
+      // 折线 / 面积 / 排行条 / 占比条是图形元素, 走 WCAG 的 3:1 而非 4.5:1。
+      // 图表墨色就是 --accent, 所以它必须在自己的画布和卡面上都读得出来。
+      const { tokens, admin } = BY_MODE[mode]
+      const accent = resolveToken('--accent', tokens)
+      const surfaces: [string, string][] = [
+        ['admin --paper', admin.get('--paper') as string],
+        ['admin --paper-raised', admin.get('--paper-raised') as string],
+      ]
+      for (const [name, bg] of surfaces) {
+        const r = contrastRatio(accent, bg)
+        expect(r, `${mode} 图表墨色 ${accent} on ${name} (${bg}) 只有 ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(3)
+      }
+    },
+  )
 })
 
 // =====================================================================
@@ -646,7 +664,7 @@ describe('主题契约 · favicon 跟随主题', () => {
   // SRC = cinema-web/src, 故 index.html 在其同级上一层的 cinema-web/ 下
   const HTML = readFileSync(resolve(SRC, '../index.html'), 'utf8')
   /** 主题模块持有两份 favicon data-URI(浅/暗), 由 applyTheme() 切换 href */
-  const APPLY = readFileSync(resolve(SRC, 'theme/apply.ts'), 'utf8')
+  const APPLY = readFileSync(resolve(SRC, 'theme/favicon.ts'), 'utf8')
 
   it('favicon 不含已下线的暖色值', () => {
     for (const retired of ['%23f2ece1', '%23b8352a']) {

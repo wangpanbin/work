@@ -270,7 +270,8 @@ onUnmounted(() => {
     /* 兜底色: 将来新增事件类型忘了配 --ev-color 时, 这一步仍然有合法颜色,
        而不是整条 background-color 变成 invalid 被丢掉(那样等于没动画)。 */
     background-color: color-mix(in srgb, var(--ev-color, var(--ink-2)) 22%, transparent);
-    transform: translateX(-6px);
+    /* 位移幅度 2px —— Flat-By-Default Rule 的上限, 再多就成了「飞进来」而不是「到了」。 */
+    transform: translateX(-2px);
   }
   100% {
     background-color: transparent;

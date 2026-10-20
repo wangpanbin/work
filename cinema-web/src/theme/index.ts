@@ -52,27 +52,48 @@ function sync(): void {
 export function initTheme(): void {
   pref.value = readStoredPref()
   sync()
-  subscribeSystemTheme()
+  subscribeSystemTheme(() => {
+    if (pref.value === 'auto') sync()
+  })
+}
+
+/**
+ * matchMedia 查询对象的最小接口。
+ * 只声明本模块用到的两个能力, 便于单测注入替身(本仓 vitest 是 node 环境, 没有 matchMedia)。
+ */
+export interface MediaQueryLike {
+  matches: boolean
+  addEventListener?: (type: string, cb: () => void) => void
+  addListener?: (cb: () => void) => void
 }
 
 /**
  * 订阅系统主题变化。
  *
  * 只在偏好为「跟随系统」时才需要响应 —— 用户显式选了亮/暗时,
- * 系统变化不应推翻他的选择。
+ * 系统变化不应推翻他的选择(调用方负责这个判断)。
+ *
+ * @param onChange 系统主题变了
+ * @param mq       注入的 matchMedia 替身; **显式传 null 表示「没有 matchMedia」**,
+ *                 省略( undefined)则取真实的 window.matchMedia
  */
-function subscribeSystemTheme(): void {
+export function subscribeSystemTheme(
+  onChange: () => void,
+  mq?: MediaQueryLike | null,
+): void {
   try {
-    const mq = window.matchMedia?.('(prefers-color-scheme: dark)')
-    if (!mq) return
-    const handler = () => {
-      if (pref.value === 'auto') sync()
-    }
-    if (typeof mq.addEventListener === 'function') {
-      mq.addEventListener('change', handler)
-    } else if (typeof mq.addListener === 'function') {
+    const query =
+      mq === undefined
+        ? typeof window !== 'undefined'
+          ? window.matchMedia?.('(prefers-color-scheme: dark)')
+          : undefined
+        : mq
+    if (!query) return
+    if (typeof query.addEventListener === 'function') {
+      query.addEventListener('change', onChange)
+    } else if (typeof query.addListener === 'function') {
       // Safari < 14 的老 API
-      mq.addListener(handler)
+      query.addListener(onChange)
     }
   } catch {
     // 订阅失败只影响「系统主题实时跟随」,不影响手动切换

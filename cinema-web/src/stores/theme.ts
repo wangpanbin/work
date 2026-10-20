@@ -12,20 +12,19 @@
  */
 
 import { defineStore } from 'pinia'
-import { cycleThemePref, setThemePref, themeState } from '../theme'
-import type { ThemePref } from '../theme/resolve'
+import { cycleThemePref, themeState } from '../theme'
 
 export const useThemeStore = defineStore('theme', () => {
   const { pref, resolved } = themeState()
 
-  function switchTheme(next: ThemePref) {
-    setThemePref(next)
-  }
-
-  /** 三态循环:跟随系统 → 亮 → 暗 → 跟随系统 */
+  /**
+   * 三态循环: 跟随系统 → 亮 → 暗 → 跟随系统。
+   * 芯片只要这一个动作 —— 设成某一态的能力留在 theme 模块的 setThemePref(),
+   * 组件不必拿到一个当前没有调用方的公开 API。
+   */
   function cycle() {
     cycleThemePref()
   }
 
-  return { pref, resolved, switchTheme, cycle }
+  return { pref, resolved, cycle }
 })

@@ -12,7 +12,9 @@ import {
   THEME_PREFS,
   THEME_STORAGE_KEY,
 } from '../../src/theme/resolve'
-import { applyFavicon, applyTheme, FAVICON_DARK, FAVICON_LIGHT, FAVICON_LINK_ID } from '../../src/theme/apply'
+import { applyTheme } from '../../src/theme/apply'
+import { applyFavicon, FAVICON_DARK, FAVICON_LIGHT, FAVICON_LINK_ID } from '../../src/theme/favicon'
+import { subscribeSystemTheme } from '../../src/theme'
 
 /**
  * themeSwitch.test.ts — 主题切换的纯函数契约
@@ -169,6 +171,59 @@ function fakeDoc() {
     _links: links,
   }
 }
+
+describe('系统主题变化(跟随系统)', () => {
+  it('auto 模式下系统变深色 → 解析成暗色; 系统变亮 → 解析成亮色', () => {
+    // 解析本身由纯函数负责, 这里锁住「跟随系统」这一态的两个方向
+    expect(resolveTheme('auto', false)).toBe('light')
+    expect(resolveTheme('auto', true)).toBe('dark')
+  })
+
+  it('注册了 change 监听, 且回调确实被调到', () => {
+    const events: string[] = []
+    let fired = 0
+    const mq = {
+      matches: false,
+      addEventListener: (type: string, cb: () => void) => {
+        events.push(type)
+        cb()
+      },
+    }
+    subscribeSystemTheme(() => {
+      fired += 1
+    }, mq)
+    expect(events).toEqual(['change'])
+    expect(fired).toBe(1)
+  })
+
+  it('老浏览器(只有 addListener)也能订阅', () => {
+    let fired = 0
+    subscribeSystemTheme(
+      () => {
+        fired += 1
+      },
+      {
+        matches: false,
+        addListener: (cb: () => void) => {
+          cb()
+        },
+      },
+    )
+    expect(fired).toBe(1)
+  })
+
+  it('没有 matchMedia(显式传 null)或订阅抛错时: 静默降级, 不抛错', () => {
+    expect(() => subscribeSystemTheme(() => {}, null)).not.toThrow()
+    expect(() =>
+      subscribeSystemTheme(() => {}, {
+        matches: false,
+        addEventListener: () => {
+          throw new Error('boom')
+        },
+      }),
+    ).not.toThrow()
+  })
+})
 
 describe('主题落到 DOM', () => {
   it('暗色: data-theme=dark + dark 类名 + 暗色 favicon', () => {

@@ -7,6 +7,7 @@ colors:
     paper: "#eef1f6"
     paper-raised: "#f8fafc"
     paper-sunk: "#e2e8f0"
+    paper-overlay: "#f8fafc"
     rule: "#bac5d7"
     rule-strong: "#a8b5c9"
     ink: "#0f172a"
@@ -46,6 +47,7 @@ colors:
     paper: "#0a0f1a"
     paper-raised: "#0f172a"
     paper-sunk: "#070b14"
+    paper-overlay: "#1a2438"
     rule: "#253148"
     rule-strong: "#33415c"
     ink: "#e2e8f0"
@@ -219,7 +221,7 @@ A cold, restrained palette: one high-chroma royal blue against a five-step cool 
 
 ### Primary
 
-- **Royal Stamp Blue** (#2563eb): the only **global** ink on the sheet. Primary buttons, links, active nav, focus rings, the section-title bar, `::selection`, the brand mark, and the single "highlighted" stat card. Its rarity is deliberate — it is used on well under a tenth of any screen, and it never changes hue between domains.
+- **Royal Stamp Blue** (#2563eb): the only **global** ink on the sheet. Primary buttons, links, active nav, focus rings, the section-title bar of a page that belongs to no domain, `::selection`, the brand mark, and the single "highlighted" stat card. Its rarity is deliberate — it is used on well under a tenth of any screen, and it never changes hue between domains.
 - **Royal Stamp Blue, pressed** (#1d4ed8 / #1e40af): hover and active steps. Depth comes from darkening the ink, never from lifting the element.
 - **Stamp wash** (rgba(37, 99, 235, 0.08) / 0.14): the tint used for the highlighted card background and the stamped badge. Tints are always built with `rgb(var(--accent-rgb) / a)`, never `rgba(var(--accent-rgb), a)` — the comma form is invalid CSS and the browser silently drops the whole declaration.
 - **Ink, disabled** (#a7bfe8): the disabled primary, lightened so "unavailable" reads as a separate state rather than a dimmed active one.
@@ -318,7 +320,7 @@ The KPI row reads the same way on every console page: **one headline card, wider
    - A scene ink may also reach a **price figure**, a **card wash** (a few percent of the domain hue mixed into the sheet), and a **ticket stamp**. These name a role; they never carry interaction.
    - Where a scene ink lands on a hairline surface, use the **ink** member, not the base member: a 3px mark has to read on paper, and the base members of the lighter families do not (measured: the browse base clears only 2.5:1 on the sheet, the browse ink clears 6.3:1).
 2. **Three members, no more.** Every scene family is exactly `base` / `ink` / `rgb`. `base` is a graphic colour and is never used for body text. `ink` is the text-safe member and must clear 4.5:1 on every paper tone.
-3. **Type on a base fill picks the ink that reads.** Not a fixed member: the text on a `base` fill uses whichever of `--ink` / `--ink-inverse` clears 4.5:1 against that base. Light bases (browse orange, seat cyan) take `--ink`; dark bases (order violet, payment magenta) take `--ink-inverse`. The first version of this rule hard-coded `--ink` and was simply wrong for the two dark families.
+3. **Type on a base fill picks the ink that reads.** Not a fixed member: the text on a `base` fill uses whichever of `--ink` / `--ink-inverse` clears 4.5:1 against that base. **Which member that is depends on the mode**, because the two ink members swap their lightness between the light sheet and the dark ground — in the light mode a light base (browse orange, seat cyan) takes `--ink` and a dark base (order violet, payment magenta) takes `--ink-inverse`; in the dark mode the pair is reversed. The first version of this rule hard-coded `--ink` and was simply wrong for the two dark families; a second version hard-coded it per base and was wrong in the dark mode. The rule is the *contrast*, never the member — and on a dark surface (the payment ticket face, the auditorium) the bright base is usually the readable one, so it is the base that carries the figure there.
 4. **Never leaves its domain, and never reads as a semantic colour.** A scene ink used outside its own domain is a bug, not a style choice; `themeTokens.test.ts` asserts the domain boundary file by file. Inside its domain it must stay clear of every semantic colour that appears on the same screen — **hue distance ≥25° OR grey-level gap ≥25 OR saturation gap ≥0.25**. The hue channel is not optional: the semantic colours are low-chroma and dark, so *any* saturated mid-tone magenta or violet shares their lightness band and their saturation band, and grey/saturation alone cannot separate them (measured: magenta vs `--danger` gives grey gap 5–20 and saturation gap 0.00–0.11). Which semantic colours a domain inherits is **derived from the code** — every `var(--ok)` / `var(--warn)` / `var(--danger)` in the domain's files, plus the ones implied by `el-tag type="success|warning|danger"` — so a domain that grows a new semantic colour cannot slip past the gate.
 
 **The Inverted Family Rule.** Dark surfaces are the ink colour inverted, never a new palette. The sidebar and the auditorium must stay the same value, because it is one family.
@@ -395,7 +397,7 @@ This system is **flat by default and tonal everywhere**. Depth is conveyed almos
 
 - **Where.** Any **non-primary** interactive surface may move — a card, a row, a poster, a seat. The primary action is the exception: it answers with a darker ink, never with a raise. (2026-10-20: the old precondition — the surface must sit on a dark ground, carry a strong edge, or be a scene-ink element — is gone. What made the old rule restrictive was that it only let the already-emphasised dark surfaces move, which is why most of the interface read as inert.)
 - **How much.** Displacement ≤ 2px, bloom ≤ 8px. Anything larger reads as a different design language.
-- **When.** Motion answers a state; it never loops. A primary button still answers with a *darker ink*, never with a raise. `prefers-reduced-motion: reduce` collapses all of it, globally.
+- **When.** Motion answers a state; it never loops. A primary button still answers with a *darker ink*, never with a raise. `prefers-reduced-motion: reduce` collapses all of it, globally. (Waiting is the one exception: a loading skeleton sweeping, a dropped connection pulsing, a countdown turning urgent — those are not saying "something changed", they are saying "still waiting".)
 
 **Shadows state elevation; they do not decorate** (2026-10-20). A resting surface carries at most one paper-lift step, a shadow may deepen on hover, and a stack of shadows is a rejection. Where the ground is dark the elevation is stated by the luminance ramp and the hairline instead, because a shadow there would be invisible anyway.
 
@@ -504,7 +506,7 @@ The perforation, the mono ticket number, the ink-bar section title, and the hand
 - **Don't** hard-code a colour in a `.vue` file. The only permitted literals are the payment QR code's white and `#111827` and the token declarations themselves.
 - **Don't** add a second **global** brand colour. Exactly seven `--accent*` declarations exist in each mode's scope; an eighth fails the test suite.
 - **Don't** introduce a new hue in the dark mode. The dark scope re-values the roles the light scope already has — same hue family, different lightness. A dark-mode colour that does not have a light-mode counterpart is a second palette by the back door, and the completeness assertions will catch it.
-- **Don't** put a scene ink on a global emphasis surface — primary CTA, link, focus ring, section title bar, hairline border, or nav active state. Those stay `--accent`.
+- **Don't** put a scene ink on a global emphasis surface — primary CTA, link, focus ring, hairline border, or nav active state. Those stay `--accent`. (The section-title bar is the one documented exception: it takes its own domain's scene ink.)
 - **Don't** use a scene ink outside its own domain.
 - **Don't** set body text in a scene `base`; use the `ink` member, and use `--ink` (not `--ink-inverse`) for type sitting on a base fill.
 - **Don't** lift, translate, glow, or gradient a primary action on hover. Darken the ink instead.

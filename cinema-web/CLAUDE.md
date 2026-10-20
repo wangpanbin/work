@@ -28,7 +28,13 @@ src/
 ├── stores/                # Pinia stores
 │   ├── user.ts            # 同步从 localStorage 初始化(守卫需要), login/logout/fetchMe
 │   ├── seat.ts            # 座位图核心 store: 位图 + O(1) 查表 + 选中/冲突闪烁
+│   ├── theme.ts           # 主题偏好(跟随系统/亮/暗) + 实际生效主题
 │   └── movieCache.ts      # 5 分钟 TTL 路由级缓存(Home/MovieDetail 命中,Admin CRUD 不主动失效)
+├── theme/                 # 双主题模块: 浅色「票根」/ 暗色「影院」
+│   ├── resolve.ts         # 纯函数: 偏好 + 系统偏好 → 实际主题, localStorage 读写
+│   ├── apply.ts           # 写 DOM: data-theme 属性 + dark 类名(Element Plus 暗色变量表)
+│   ├── favicon.ts         # 两套内联 SVG data-URI(浅/暗), 随主题切换
+│   └── index.ts           # 运行时单例: 初始化 / 三态循环 / 跟随系统变化
 ├── utils/
 │   ├── ws.ts              # 座位 WebSocket 客户端(自动重连 + 指数退避 + 15s 心跳 + 状态 ref)
 │   └── bitmap.ts          # 后端 Base64 Big-Endianian 位图 → Uint8Array(每位 = 一个座位)

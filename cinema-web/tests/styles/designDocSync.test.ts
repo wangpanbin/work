@@ -148,7 +148,7 @@ function knownTokenValues(): Set<string> {
  * 必须在 light / dark 两段都登记的 token —— 即「会随模式变」的那批。
  */
 const REQUIRED_COLORFUL = [
-  'paper', 'paper-raised', 'paper-sunk', 'rule', 'rule-strong',
+  'paper', 'paper-raised', 'paper-sunk', 'paper-overlay', 'rule', 'rule-strong',
   'ink', 'ink-2', 'ink-3', 'ink-inverse',
   'accent', 'accent-hover', 'accent-press', 'accent-wash', 'accent-stamp', 'accent-disabled', 'accent-rgb',
   'scene-browse', 'scene-browse-ink', 'scene-browse-rgb',

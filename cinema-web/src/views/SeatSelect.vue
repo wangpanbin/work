@@ -92,6 +92,9 @@ function onSeatPointerDown(index: number) {
   if (seatStore.statusAt(index) !== 'AVAILABLE') return
   dragAnchor.value = index
   dragPreview.value = new Set([index])
+  // 按下即接管预演: 悬停那一轮的锚点与描边要清掉 ——
+  // 否则拖拽结束后上一轮的圈还留在屏幕上, 下一轮悬停还会从那个陈旧锚点起算。
+  resetHoverPreview()
   window.addEventListener('pointerup', onDragEnd)
   window.addEventListener('pointercancel', onDragCancel)
 }
@@ -128,6 +131,9 @@ function onDragEnd() {
   window.removeEventListener('pointercancel', onDragCancel)
   dragAnchor.value = null
   dragPreview.value = new Set()
+  // 悬停预演也一并清掉: 松手后指针还停在那个座位上, 但预演环属于「上一轮划过」,
+  // 留着会让人以为那几座已经被框住了。
+  resetHoverPreview()
   if (preview.size <= 1) return
   for (const idx of preview) {
     // 落座前再核一次: 拖拽期间 WS 可能已经改了这张座位的状态
@@ -142,6 +148,7 @@ function onDragCancel() {
   window.removeEventListener('pointercancel', onDragCancel)
   dragAnchor.value = null
   dragPreview.value = new Set()
+  resetHoverPreview()
 }
 
 /**

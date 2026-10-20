@@ -13,6 +13,9 @@
   --paper: #eef1f6; /* 页面底 */
   --paper-raised: #f8fafc; /* 卡片 / 票面 (比底更亮 = 浮起) */
   --paper-sunk: #e2e8f0; /* 凹陷面 / 表头 / 表格底 */
+  /* 浮起面: 真正离开页面的那一层(弹层 / 下拉 / toast 底)。
+     亮色下它与卡片同值 —— 亮色模式靠投影与纸面区分, 暗色模式靠明度阶。 */
+  --paper-overlay: #f8fafc;
   --rule: #bac5d7; /* 1px 发丝线 (#ccd5e2 只有 1.31:1, 卡片边界过淡) */
   --rule-strong: #a8b5c9; /* 强线: 撕口 / 表格框 */
 }
@@ -44,10 +47,11 @@
    三档成员: base(图形/填充/图表系列) · ink(文字安全, 纸面 ≥4.5:1) · rgb(拼 alpha 用)。
    使用面(严格):
      ✓ 只上小面积局部元素 —— 徽标 / 圆点 / 进度条 / 图表系列 / 票面印章 / 图标底色
-     ✗ 禁入全局强调面 —— 主 CTA / 链接 / 焦点环 / 章节墨条 / 卡片与表格描边 / 导航激活态
+     ✗ 禁入全局强调面 —— 主 CTA / 链接 / 焦点环 / 卡片与表格描边 / 导航激活态
+       (例外: 章节墨条取所属域的身份色 —— 各域在自己的 .vue 里覆盖这里的 --accent 默认)
      ✗ 禁出本域 —— 身份色只在它自己的域里出现
-   base 底上的文字一律用 --ink(墨色), 不用 --ink-inverse ——
-   base 都是高明度高饱和色, 墨色在它上面永远可读, 反色字则读不清。 */
+   base 底上的文字取「与它对比度更高的那支墨色」(--ink 或 --ink-inverse),
+   不固定用某一支 —— 暗色模式下两支墨色的明暗关系是反的, 固定用一支必有一半读不清。 */
 :root {
   --scene-browse: #f97316; /* 橙红 · marquee 暖光 · 浏览域(Home / MovieDetail) */
   --scene-browse-ink: #9a3412; /* 文字安全: 纸面 6.45:1 / 凹陷面 5.93:1 */
@@ -174,7 +178,7 @@
 
   --el-bg-color: var(--paper-raised);
   --el-bg-color-page: var(--paper);
-  --el-bg-color-overlay: var(--paper-raised);
+  --el-bg-color-overlay: var(--paper-overlay);
   --el-fill-color-light: #e6ecf5;
   --el-fill-color-lighter: #eef1f6;
   --el-fill-color-blank: var(--paper-raised);
@@ -199,6 +203,8 @@ html[data-theme='dark'] {
   --paper: #0a0f1a;
   --paper-raised: #0f172a;
   --paper-sunk: #070b14;
+  /* 浮起面: 暗底的第三级台阶, 只给真正离开页面的浮层(弹层/下拉/toast 底) */
+  --paper-overlay: #1a2438;
   --rule: #253148;
   --rule-strong: #33415c;
 
@@ -247,9 +253,12 @@ html[data-theme='dark'] {
   --warn-rgb: 251 191 36;
   --danger-rgb: 248 113 113;
 
-  /* --- 层次: 暗底上阴影几乎不可见, 改用「明度阶 + 亮边」 --- */
-  --shadow-paper: 0 1px 0 rgba(0, 0, 0, 0.4), 0 6px 16px rgba(0, 0, 0, 0.28);
-  --shadow-paper-hover: 0 1px 0 rgba(0, 0, 0, 0.45), 0 8px 20px rgba(0, 0, 0, 0.38);
+  /* --- 层次: 暗底上不用投影, 用「明度阶 + 1px 亮边」 ---
+     休息态的阴影在暗底上降级成一道极淡的亮边(不是黑色投影):
+     投影落在近黑底上根本看不见, 亮边既可见又不会把画面弄脏。
+     真正的浮层(弹窗/下拉/toast)仍然用投影 —— 它们是离开页面的东西。 */
+  --shadow-paper: 0 0 0 1px rgb(var(--hall-ink-rgb) / 0.06);
+  --shadow-paper-hover: 0 0 0 1px rgb(var(--hall-ink-rgb) / 0.13);
   --shadow-modal: 0 12px 32px rgba(0, 0, 0, 0.6);
   --shadow-hall: 0 1px 0 rgba(0, 0, 0, 0.45);
   --shadow-tooltip: 0 2px 8px rgba(0, 0, 0, 0.55);
@@ -281,7 +290,7 @@ html[data-theme='dark'] {
 
   --el-bg-color: var(--paper-raised);
   --el-bg-color-page: var(--paper);
-  --el-bg-color-overlay: var(--paper-raised);
+  --el-bg-color-overlay: var(--paper-overlay);
   --el-fill-color-light: #1b2637;
   --el-fill-color-lighter: #161f2e;
   --el-fill-color-blank: var(--paper-raised);
