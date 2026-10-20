@@ -181,6 +181,8 @@ const MODE_INDEPENDENT: string[] = [
   '--font-display', '--font-body', '--font-mono',
   '--radius-sm', '--radius-md', '--radius-lg', '--radius-xl',
   '--transition-fast', '--transition-normal',
+  // Element Plus 的基础圆角与字体(与主题无关, 两种模式同值)
+  '--el-border-radius-base', '--el-font-family',
 ]
 
 /**
@@ -1151,9 +1153,31 @@ describe('主题契约 · 章节墨条按所属域的身份色', () => {
  * </ol>
  */
 describe('主题契约 · 双主题 token 覆盖完整性', () => {
-  it('暗色作用域的每个 token 都在亮色作用域里有同名项(无孤儿)', () => {
-    const orphans = [...DARK.keys()].filter((k) => !LIGHT.has(k)).sort()
-    expect(orphans, `暗色作用域多出这些 token, 亮色没有: ${orphans.join(', ')}`).toEqual([])
+  it('两套作用域的 token 名差异, 必须全部落在模式无关白名单里', () => {
+    // 计划 §3.10 #3 的原话是「两套 token 名集合必须完全一致」。字面做到它, 得把
+    // 字体/圆角/过渡/暗场家族这 21 个模式无关 token 复制进暗色块 —— 纯噪音, 而且
+    // 与 §3.10 #14「--hall-deep 是模式无关 token, 不进暗色作用域」自相矛盾。
+    //
+    // 所以这里把契约写成可执行且不自相矛盾的版本:
+    //   **差异集合必须恰好等于模式无关白名单** ——
+    //   白名单外出现任何差异(漏配了某个该换值的 token, 或多出一个只有一边有的
+    //   token), 都说明两套作用域对「谁负责哪些 token」的理解已经分叉。
+    const lightNames = new Set(LIGHT.keys())
+    const darkNames = new Set(DARK.keys())
+    const onlyLight = [...lightNames].filter((n) => !darkNames.has(n)).sort()
+    const onlyDark = [...darkNames].filter((n) => !lightNames.has(n)).sort()
+
+    const unexpected = [
+      ...onlyLight.filter((n) => !MODE_INDEPENDENT.includes(n)),
+      ...onlyDark,
+    ]
+    expect(
+      unexpected,
+      `两套作用域的 token 名差异超出模式无关白名单(漏配或多配): ${unexpected.join(', ')}`,
+    ).toEqual([])
+
+    // 白名单也不能虚列: 列了却没真的只在亮色出现, 说明白名单该更新或 token 该删
+    expect(onlyLight, '模式无关白名单与实际差异集合对不上').toEqual([...MODE_INDEPENDENT].sort())
   })
 
   it('必须换值的 token 清单: 两处都有, 且取值不同(漏配即红)', () => {

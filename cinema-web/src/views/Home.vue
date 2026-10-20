@@ -448,7 +448,7 @@ onMounted(() => {
   background: var(--paper-raised);
   border: 1px solid var(--rule);
   box-shadow: var(--shadow-paper);
-  animation: fadeInUp 0.5s ease both;
+  animation: fadeInUp 0.5s ease backwards;
 }
 
 /* 特征卡: 首片占双倍宽, 海报换成更宽的银幕比例 */

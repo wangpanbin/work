@@ -153,7 +153,7 @@ onMounted(async () => {
         <el-empty v-if="!loading && sessions.length === 0" :description="t('movie.noSessions')" />
 
         <div class="session-list">
-          <div v-for="(s, idx) in sessions" :key="s.id" class="session-card" :style="{ animationDelay: `${idx * 0.06}s` }">
+          <div v-for="(s, idx) in sessions" :key="s.id" class="session-card card-reveal" :style="{ animationDelay: `${idx * 0.06}s` }">
             <div class="session-time">
               <div class="start-time">{{ fmt(s.startTime) }}</div>
               <div class="end-time">{{ fmt(s.endTime) }} {{ t('movie.endTime') }}</div>
@@ -346,7 +346,7 @@ onMounted(async () => {
 
 /* --- Sessions Section --- */
 .sessions-section {
-  animation: fadeInUp 0.6s ease 0.2s both;
+  animation: fadeInUp 0.6s ease 0.2s backwards;
 }
 
 .sessions-header {
@@ -407,26 +407,11 @@ onMounted(async () => {
   align-items: center;
   gap: 24px;
   padding: 20px 28px;
-  /* 浏览域底纹: 纸面里掺一点浏览域身份色(4%), 悬停加深到 9%。
-     与订单卡同一套悬停揭示语言 —— 见 DESIGN.md The Flat-By-Default Rule。 */
-  background-color: color-mix(in srgb, var(--scene-browse-ink) 4%, var(--paper-raised));
+  /* 悬停揭示走 main.css 的 .card-reveal, 域色在这里给 —— 浏览域用浏览域的身份色。 */
+  --card-ink: var(--scene-browse-ink);
   border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-paper);
-  transition:
-    background-color var(--transition-normal),
-    border-color var(--transition-normal),
-    box-shadow var(--transition-normal),
-    transform var(--transition-normal);
-  animation: fadeInUp 0.4s ease both;
-}
-/* 整卡本身不可点(只有内部"选座"按钮可点), 因此不设 pointer、不假装整卡可点;
-   抬 2px + 底纹加深是「被注意到」, 不是「可点」。 */
-.session-card:hover {
-  background-color: color-mix(in srgb, var(--scene-browse-ink) 9%, var(--paper-raised));
-  border-color: var(--rule-strong);
-  box-shadow: var(--shadow-paper-hover);
-  transform: translateY(-2px);
+  animation: fadeInUp 0.4s ease backwards;
 }
 
 .session-time {

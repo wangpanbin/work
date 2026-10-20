@@ -642,6 +642,49 @@ img {
 }
 
 /* ============================================
+   容器卡的悬停揭示 (The Hover Language)
+   ------------------------------------------------------------
+   「订单卡」与「场次卡」是同一套语言, 只是域色不同 —— 两处各写一遍,
+   改一个百分比要记得改另一个。这里抽成一处, 域色由各视图自己给, 例如:
+     --card-ink: var(--scene-order-ink);    ← 订单域
+     --card-ink: var(--scene-browse-ink);   ← 浏览域
+
+   变体 --card-reveal--plain 是管理端那一套: 只抬升 + 描边变强, 不上任何颜色
+   —— 管理端的颜色纪律是「层级靠结构不靠颜色」, 它没有域色可上。
+   ============================================ */
+.card-reveal {
+  background-color: color-mix(in srgb, var(--card-ink, var(--accent)) 4%, var(--paper-raised));
+  /* 休息态的纸面浮起也归这里管: 组件里的 scoped 规则特异性更高(0,2,0)且晚于本文件注入,
+     如果组件里再写一次 box-shadow, 就会把 .card-reveal:hover 的浮起阴影压掉。 */
+  box-shadow: var(--shadow-paper);
+  transition:
+    background-color var(--transition-normal),
+    border-color var(--transition-normal),
+    box-shadow var(--transition-normal),
+    transform var(--transition-normal);
+}
+/* 整卡本身不可点(只有内部按钮可点), 所以**不**加 cursor: pointer ——
+   抬起来是「这一格被注意到了」, 不是「这一格可以点」。 */
+.card-reveal:hover {
+  background-color: color-mix(in srgb, var(--card-ink, var(--accent)) 9%, var(--paper-raised));
+  border-color: var(--rule-strong);
+  box-shadow: var(--shadow-paper-hover);
+  transform: translateY(-2px);
+}
+.card-reveal--plain {
+  background-color: var(--paper-raised);
+  /* 控制端的卡片本来就没有休息态投影(密集报表, 投影是干扰), 这里显式清掉,
+     只在悬停时给一层 —— 层级靠结构, 不靠常驻的投影。 */
+  box-shadow: none;
+}
+.card-reveal--plain:hover {
+  background-color: var(--paper-raised);
+  border-color: var(--rule-strong);
+  box-shadow: var(--shadow-paper-hover);
+  transform: translateY(-2px);
+}
+
+/* ============================================
    Main 内容区
    ============================================ */
 .app-main {

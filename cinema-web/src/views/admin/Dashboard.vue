@@ -145,20 +145,20 @@ onMounted(load)
     <template v-if="data">
       <!-- 4 卡片 -->
       <div class="cards">
-        <div class="card gold">
+        <div class="card card-reveal card-reveal--plain gold">
           <div class="card-label">{{ t('admin.cardTodayRevenue') }}</div>
           <div class="card-value">¥{{ fmtAmount(data.todayRevenue) }}</div>
         </div>
-        <div class="card">
+        <div class="card card-reveal card-reveal--plain">
           <div class="card-label">{{ t('admin.cardTodayOrders') }}</div>
           <div class="card-value">{{ data.todayOrders ?? 0 }}</div>
           <div class="card-sub">{{ t('admin.cardTodaySub', { paid: data.todayPaid ?? 0, seats: data.todayPendingSeats ?? 0 }) }}</div>
         </div>
-        <div class="card">
+        <div class="card card-reveal card-reveal--plain">
           <div class="card-label">{{ t('admin.cardCancelled') }}</div>
           <div class="card-value">{{ data.todayCancelled ?? 0 }}</div>
         </div>
-        <div class="card">
+        <div class="card card-reveal card-reveal--plain">
           <div class="card-label">{{ t('admin.cardRefunded') }}</div>
           <div class="card-value">{{ data.todayRefunded ?? 0 }}</div>
         </div>
@@ -396,20 +396,9 @@ onMounted(load)
 }
 
 /* 反馈层: 卡片悬停只提亮描边, 不位移 —— 控制台不做抬升 */
-.card {
-  transition:
-    border-color var(--transition-normal),
-    box-shadow var(--transition-normal),
-    transform var(--transition-normal);
-}
-/* 控制台的悬停: 只抬升 + 描边变强, **不改色** ——
+/* 控制台的悬停(抬 2px + 描边变强, **不改色**)走 main.css 的 .card-reveal--plain ——
    管理端的颜色纪律是「层级靠结构不靠颜色」, 场景色一律不许进来。
    抬 2px 是结构层面的回应, 不动墨色, 所以不违反那条纪律。 */
-.card:hover {
-  border-color: var(--rule-strong);
-  box-shadow: var(--shadow-paper-hover);
-  transform: translateY(-2px);
-}
 
 .panel {
   background: var(--paper-raised);

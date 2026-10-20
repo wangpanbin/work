@@ -276,6 +276,8 @@ The KPI row reads the same way on every console page: **one headline card, wider
 
 **The console follows the theme switch, but its role discipline does not move** (2026-10-20). The admin console is part of the same two-mode system: it has a dark mode, its paper becomes the auditorium family, and its sidebar sinks one step further so the "midnight sidebar" survives on a dark canvas. What does not change is the table above — the console still owns no identity ink, and it still separates its roles by structure. Switching the theme re-values the four roles; it never adds a fifth, and it never lets a scene ink in.
 
+The one place the console flashes — the live dashboard's newest event row — flashes in **that row's own existing type colour**, the same colour its left bar already carries. A new arrival, not a new colour: the console's vocabulary is unchanged, and nothing a viewer has not already seen appears in the room.
+
 **Why payment is a deep magenta and not a pink.** The first pink candidate was measured and rejected: it fails the same-domain separation against `--danger` (grey gap 20, saturation gap 0.009) *and* neither ink colour clears 4.5:1 on it. The deep magenta clears `--danger` by 54° and carries white type at 5.66:1, which is also what the dark ticket face needs.
 
 ### Neutral
@@ -441,6 +443,8 @@ Two things the language deliberately refuses:
 
 - A container card never gets `cursor: pointer`. It lifts because it is *noticed*, not because it is clickable — the button inside it is the clickable thing, and pretending otherwise is a lie the user pays for when the click misses.
 - A primary action never moves. It answers a press with a darker ink; movement belongs to everything that is not the global ink.
+
+The two container tiers are one implementation: `main.css` carries `.card-reveal` (the domain-tinted version, driven by a `--card-ink` that each view sets to its own domain's ink) and `.card-reveal--plain` (the console's colourless version). One place to tune, and the console's colour discipline is enforced by the modifier rather than by remembering to leave a colour out.
 
 ### Cards / Containers
 

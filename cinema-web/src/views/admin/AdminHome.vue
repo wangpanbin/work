@@ -89,19 +89,19 @@ function logout() {
           </div>
 
           <div v-if="summary" class="welcome-cards">
-            <div class="card gold">
+            <div class="card card-reveal card-reveal--plain gold">
               <div class="label">{{ t('admin.cardTodayRevenue') }}</div>
               <div class="value">¥{{ Number(summary.todayRevenue || 0).toFixed(2) }}</div>
             </div>
-            <div class="card">
+            <div class="card card-reveal card-reveal--plain">
               <div class="label">{{ t('admin.cardTodayOrders') }}</div>
               <div class="value">{{ summary.todayOrders || 0 }}</div>
             </div>
-            <div class="card">
+            <div class="card card-reveal card-reveal--plain">
               <div class="label">{{ t('admin.welcomePaidLocked') }}</div>
               <div class="value">{{ summary.todayPaid || 0 }} <small>/ {{ summary.todayPendingSeats || 0 }} {{ t('admin.welcomeSeats') }}</small></div>
             </div>
-            <div class="card">
+            <div class="card card-reveal card-reveal--plain">
               <div class="label">{{ t('admin.cardRefunded') }}</div>
               <div class="value">{{ summary.todayRefunded || 0 }}</div>
             </div>
@@ -374,19 +374,7 @@ function logout() {
   flex-wrap: wrap;
 }
 
-/* 反馈层: 欢迎卡悬停提亮描边 */
-.welcome-cards .card {
-  transition:
-    border-color var(--transition-normal),
-    box-shadow var(--transition-normal),
-    transform var(--transition-normal);
-}
-/* 控制台的悬停: 只抬升 + 描边变强, 不改色(见 Dashboard.vue 同一处注释)。 */
-.welcome-cards .card:hover {
-  border-color: var(--rule-strong);
-  box-shadow: var(--shadow-paper-hover);
-  transform: translateY(-2px);
-}
+/* 控制台的悬停(抬 2px + 描边变强, 不改色)走 main.css 的 .card-reveal--plain。 */
 
 @media (max-width: 768px) {
   .welcome-cards { grid-template-columns: repeat(2, 1fr); }

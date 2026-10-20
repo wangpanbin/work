@@ -149,7 +149,7 @@ onMounted(() => {
       <div
         v-for="(o, idx) in orders"
         :key="o.orderNo"
-        class="order-card stub-perf-x"
+        class="order-card stub-perf-x card-reveal"
         :class="'status-' + o.status"
         :style="{ animationDelay: `${idx * 0.06}s` }"
       >
@@ -281,30 +281,13 @@ onMounted(() => {
 /* 订单卡 = 一张票根: 上缘齿孔(主.css 的 .stub-perf-x)+ 底部票号条 */
 .order-card {
   position: relative;
-  /* 订单域底纹: 纸面里掺一点订单域身份色(4%), 卡片不再是「一块冷白」。
-     用 color-mix 而不是叠一层渐变 —— background-color 本身可过渡,
-     悬停时底纹加深到 9% 才有「颜色在回应你」的感觉, 且不产生任何跳版。 */
-  background-color: color-mix(in srgb, var(--scene-order-ink) 4%, var(--paper-raised));
+  /* 悬停揭示(抬 2px + 底纹加深)走 main.css 的 .card-reveal;
+     域色在这里给 —— 订单域用订单域的身份色。 */
+  --card-ink: var(--scene-order-ink);
   border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
   overflow: hidden;
-  box-shadow: var(--shadow-paper);
-  transition:
-    background-color var(--transition-normal),
-    border-color var(--transition-normal),
-    box-shadow var(--transition-normal),
-    transform var(--transition-normal);
-  animation: fadeInUp 0.4s ease both;
-}
-
-/* 悬停揭示: 抬 2px + 阴影加深 + 底纹加深(见 DESIGN.md The Flat-By-Default Rule)。
-   整卡本身不可点(只有内部按钮可点), 所以**不**加 cursor: pointer ——
-   抬起来是「这一格被注意到了」, 不是「这一格可以点」。 */
-.order-card:hover {
-  background-color: color-mix(in srgb, var(--scene-order-ink) 9%, var(--paper-raised));
-  border-color: var(--rule-strong);
-  box-shadow: var(--shadow-paper-hover);
-  transform: translateY(-2px);
+  animation: fadeInUp 0.4s ease backwards;
 }
 
 .order-card.status-2 {

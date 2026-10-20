@@ -117,19 +117,19 @@ onUnmounted(() => {
     </div>
 
     <div v-if="data" class="cards">
-      <div class="card gold">
+      <div class="card card-reveal card-reveal--plain gold">
         <div class="card-label">{{ t('admin.cardTodayRevenue') }}</div>
         <div class="card-value">¥{{ fmtMoney(data.todayRevenue) }}</div>
       </div>
-      <div class="card">
+      <div class="card card-reveal card-reveal--plain">
         <div class="card-label">{{ t('admin.cardTodayOrders') }}</div>
         <div class="card-value">{{ fmt(data.todayOrders) }}</div>
       </div>
-      <div class="card">
+      <div class="card card-reveal card-reveal--plain">
         <div class="card-label">{{ t('admin.cardTodayPaid') }}</div>
         <div class="card-value">{{ fmt(data.todayPaid) }}</div>
       </div>
-      <div class="card">
+      <div class="card card-reveal card-reveal--plain">
         <div class="card-label">{{ t('admin.cardTodayLocked') }}</div>
         <div class="card-value">{{ fmt(data.todayPendingSeats) }}</div>
       </div>
@@ -210,18 +210,7 @@ onUnmounted(() => {
 }
 .panel h3 { margin: 0 0 12px 0; font-family: var(--font-display); font-size: 16px; }
 /* 反馈层: 卡片悬停提亮描边, 事件行悬停淡底 —— 控制台不做抬升 */
-.card {
-  transition:
-    border-color var(--transition-normal),
-    box-shadow var(--transition-normal),
-    transform var(--transition-normal);
-}
-/* 控制台的悬停: 只抬升 + 描边变强, 不改色(见 Dashboard.vue 同一处注释)。 */
-.card:hover {
-  border-color: var(--rule-strong);
-  box-shadow: var(--shadow-paper-hover);
-  transform: translateY(-2px);
-}
+/* 控制台的悬停(抬 2px + 描边变强, 不改色)走 main.css 的 .card-reveal--plain。 */
 .event-row {
   transition: background-color var(--transition-normal);
 }
