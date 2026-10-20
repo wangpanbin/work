@@ -165,7 +165,7 @@ onMounted(load)
       </div>
 
       <!-- 7 日票房趋势(折线)。0 值照实连线 —— 0 是真实业务事实,隐藏等于对数据撒谎 -->
-      <div class="panel">
+      <div class="panel panel-trend">
         <h3>{{ t('admin.trendTitle') }}</h3>
         <div v-if="!chart.empty" class="trend-chart">
           <svg
@@ -228,7 +228,7 @@ onMounted(load)
       </div>
 
       <!-- TOP 5 影片 -->
-      <div class="panel">
+      <div class="panel panel-rank">
         <h3>{{ t('admin.topMoviesTitle') }}</h3>
         <div v-if="!data.topMovies.length" class="empty">{{ t('admin.emptyMovies') }}</div>
         <div v-else class="movie-bar">
@@ -244,7 +244,7 @@ onMounted(load)
       </div>
 
       <!-- 上座率 TOP 10 场次 -->
-      <div class="panel">
+      <div class="panel panel-rate">
         <h3>{{ t('admin.topSessionsTitle') }}</h3>
         <el-table v-if="data.topSessions.length" :data="data.topSessions" stripe size="small">
           <el-table-column prop="movieTitle" :label="t('admin.colMovie')" />
@@ -325,11 +325,36 @@ onMounted(load)
   .page-header h2 { font-size: 18px; }
 }
 
+/* 看板根容器改 12 列栅格: 趋势图与影片排行并排, 上座率表通栏。
+   控制台该有的密度 —— 三块面板竖着排会把首屏拉成一整屏图表。 */
+.dashboard {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.dashboard > .page-header,
+.dashboard > .cards,
+.dashboard > .panel-rate {
+  grid-column: span 12;
+}
+.dashboard > .panel-trend {
+  grid-column: span 8;
+}
+.dashboard > .panel-rank {
+  grid-column: span 4;
+}
+/* 栅格自带 gap, 面板与卡片不再各自留外边距 */
+.dashboard > .cards,
+.dashboard > .panel {
+  margin-bottom: 0;
+}
+
 .cards {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* 头条卡(今日票房)更宽: 层级靠布局, 不靠颜色 */
+  grid-template-columns: 1.5fr 1fr 1fr 1fr;
   gap: 12px;
-  margin-bottom: 16px;
 }
 .card {
   background: var(--paper-raised);
@@ -339,9 +364,11 @@ onMounted(load)
   position: relative;
   overflow: hidden;
 }
+/* 头条卡: 去掉蓝底, 改用一道左侧印色条 —— 层级由**结构**承担,
+   印色留给「可交互 + 图表」, 数字一律用墨色(数据墨)。 */
 .card.gold {
-  background: var(--accent-wash);
   border-color: var(--rule-strong);
+  border-left: 3px solid var(--accent);
 }
 .card-label {
   font-size: 13px;
@@ -357,11 +384,23 @@ onMounted(load)
   font-variant-numeric: tabular-nums;
   color: var(--ink);
 }
-.card.gold .card-value { color: var(--accent); }
+/* 头条卡的数字同样用墨色 —— 字号与印色条已经把它标成头条, 数字再上蓝就成了双重强调 */
+.card.gold .card-value {
+  color: var(--ink);
+  font-size: 34px;
+}
 .card-sub {
   font-size: 12px;
   color: var(--ink-3);
   margin-top: 8px;
+}
+
+/* 反馈层: 卡片悬停只提亮描边, 不位移 —— 控制台不做抬升 */
+.card {
+  transition: border-color var(--transition-normal);
+}
+.card:hover {
+  border-color: var(--rule-strong);
 }
 
 .panel {
@@ -449,12 +488,28 @@ onMounted(load)
 }
 
 .movie-bar { display: flex; flex-direction: column; gap: 12px; }
+/* 排行行: 两行式 —— 第一行「名 + 营收」, 第二行是通栏的占比条。
+   原来的 4 列一行式在窄栏(趋势图并排后只剩 4/12 宽)里会把条挤没。 */
 .movie-row {
   display: grid;
-  grid-template-columns: 32px 140px 1fr 180px;
+  grid-template-columns: 28px 1fr auto;
+  grid-template-areas:
+    "rank name rev"
+    "rank bar  bar";
   align-items: center;
-  gap: 12px;
+  gap: 4px 12px;
+  padding: 6px 8px;
+  margin: 0 -8px;
+  border-radius: var(--radius-sm);
+  transition: background-color var(--transition-normal);
 }
+.movie-row:hover {
+  background: var(--paper-sunk);
+}
+.rank { grid-area: rank; }
+.movie-name { grid-area: name; }
+.movie-bar-wrap { grid-area: bar; }
+.movie-rev { grid-area: rev; }
 .rank {
   width: 28px; height: 28px; border-radius: 50%;
   background: var(--paper-sunk); color: var(--ink-3);
@@ -474,7 +529,7 @@ onMounted(load)
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-size: 13px;
-  color: var(--ink-3);
+  color: var(--ink-2);
 }
 
 .rate-bar { position: relative; height: 18px; background: var(--paper-sunk); border-radius: 4px; overflow: hidden; }
@@ -510,9 +565,19 @@ onMounted(load)
   border-radius: var(--radius-sm);
 }
 
+/* 窄屏: 面板回落竖排, 统计卡两列 */
+@media (max-width: 1279px) {
+  .dashboard > .panel-trend,
+  .dashboard > .panel-rank {
+    grid-column: span 12;
+  }
+}
+
 @media (max-width: 768px) {
   .cards { grid-template-columns: repeat(2, 1fr); }
-  .movie-row { grid-template-columns: 24px 80px 1fr 100px; font-size: 12px; }
+  /* 排行行已是三列 areas 布局, 窄屏只缩字号 —— 不要再改列数,
+     否则 area 名与列定义对不上, 片名会被挤进 80px 的窄列。 */
+  .movie-row { font-size: 12px; }
   /* tooltip 是 HTML 固定 px 宽,窄屏下缩小以缓解出血 */
   .trend-tip { padding: 4px 6px; }
   .tip-amount { font-size: 12px; }

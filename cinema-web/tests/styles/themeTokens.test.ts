@@ -739,6 +739,31 @@ describe('主题契约 · 场景身份色域隔离', () => {
     expect(offenders, `场景身份色越域:\n${offenders.join('\n')}`).toEqual([])
   })
 
+  it('管理端不设页面身份色 —— 一个 --scene-* 都不许出现', () => {
+    // 管理端是密集报表控制台, 不是用户端的载体页。它只借用户端的**方法论**
+    // (颜色按角色分工), 不借票根符号, 也不设自己的身份色:
+    // 色轮已被「全局印色 + 4 族身份色 + 3 支语义色」占满, 再加第五支必然撞色。
+    // 这条断言让「管理端不碰 --scene-*」变成可执行的契约, 而不是口头约定。
+    const adminFiles = [
+      'views/admin/AdminHome.vue',
+      'views/admin/Dashboard.vue',
+      'views/admin/LiveDashboard.vue',
+      'views/admin/MovieManage.vue',
+      'views/admin/HallManage.vue',
+      'views/admin/SessionManage.vue',
+      'views/admin/constants.ts',
+      'views/admin/trendChart.ts',
+    ]
+    const offenders: string[] = []
+    for (const rel of adminFiles) {
+      const text = stripComments(readSrc(rel))
+      for (const m of text.matchAll(/var\(\s*(--scene-[\w-]+)/g)) {
+        offenders.push(`${rel}  用了 ${m[1]}`)
+      }
+    }
+    expect(offenders, `管理端不设页面身份色:\n${offenders.join('\n')}`).toEqual([])
+  })
+
   it('每一族都真的被用上了 —— 不做投机性 token', () => {
     for (const family of SCENE_FAMILIES) {
       const used = listSourceFiles(SRC).some((file) =>

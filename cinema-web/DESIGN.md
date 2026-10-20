@@ -187,6 +187,24 @@ Each family has exactly three members: **base** (graphic, fill, chart series), *
 
 **Why order is violet and not green.** The order domain's own semantic colours already include `--ok` (the PAID status tag) and `--warn` (PENDING_PAY / REFUNDING), plus a `--danger` pulse dot. A green identity ink would sit one hue away from the "已支付" green tag on the same card, and green in this product already *means* paid. Violet clears `--ok` by 105°, `--warn` by 142° and `--danger` by 103°.
 
+### The Console Rule (admin, 2026-10-20)
+
+The admin console is not a ticket. It is a dense report surface, and it keeps its own language: the midnight sidebar, the cool paper sheets, tabular figures. It borrows the *method* of the scene inks — a colour earns its place by naming a role — but none of the ticket symbolism.
+
+**It has no identity ink of its own.** The wheel is already spoken for: one global ink, four scene inks, three semantic colours. A fifth identity hue would either collide with one of them or need a separation margin the palette cannot spare. So the console re-assigns the colours it already has:
+
+| Role | Colour | Where |
+| --- | --- | --- |
+| **Data ink** | `--ink` / `--ink-2` | KPI figures, table figures, IDs, axis labels — the numbers you scan |
+| **Interaction ink** | `--accent` | Buttons, links, focus rings, nav active state — the things you can act on |
+| **Chart ink** | `--accent` | Trend line and area, ranking bars, occupancy bars — the shapes you look at |
+| **Status** | `--ok` / `--warn` / `--danger` | Connection state, event types, validation errors |
+| **Structure** | `--hall` family, `--rule` | Sidebar, hairlines, sunken surfaces |
+
+The KPI row reads the same way on every console page: **one headline card, wider than the rest** (1.5fr against 1fr), marked by a 3px ink bar down its left edge — hierarchy by *structure*, not by colour. Every KPI figure is ink, the headline's included; the headline differs by size and by that bar. When a colour would have to name two roles at once, the figure gives it up and the shape keeps it.
+
+`themeTokens.test.ts` asserts the console never reaches for a `--scene-*` family, so this cannot drift.
+
 **Why payment is a deep magenta and not a pink.** The first pink candidate was measured and rejected: it fails the same-domain separation against `--danger` (grey gap 20, saturation gap 0.009) *and* neither ink colour clears 4.5:1 on it. The deep magenta clears `--danger` by 54° and carries white type at 5.66:1, which is also what the dark ticket face needs.
 
 ### Neutral

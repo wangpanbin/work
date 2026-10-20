@@ -327,7 +327,8 @@ function logout() {
 
 .welcome-cards {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* 头条卡(今日票房)更宽 —— 层级靠布局, 不靠颜色 */
+  grid-template-columns: 1.5fr 1fr 1fr 1fr;
   gap: 12px;
   margin-bottom: 16px;
 }
@@ -337,9 +338,10 @@ function logout() {
   border-radius: var(--radius-lg);
   padding: 16px;
 }
+/* 头条卡: 去蓝底, 改左侧印色条(与经营看板/实时大屏同语言) */
 .welcome-cards .card.gold {
-  background: var(--accent-wash);
   border-color: var(--rule-strong);
+  border-left: 3px solid var(--accent);
 }
 .welcome-cards .label {
   font-size: 13px;
@@ -356,7 +358,8 @@ function logout() {
   color: var(--ink);
 }
 .welcome-cards .card.gold .value {
-  color: var(--accent);
+  color: var(--ink);
+  font-size: 28px;
 }
 .welcome-cards .value small {
   font-size: 12px;
@@ -369,6 +372,14 @@ function logout() {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+/* 反馈层: 欢迎卡悬停提亮描边 */
+.welcome-cards .card {
+  transition: border-color var(--transition-normal);
+}
+.welcome-cards .card:hover {
+  border-color: var(--rule-strong);
 }
 
 @media (max-width: 768px) {

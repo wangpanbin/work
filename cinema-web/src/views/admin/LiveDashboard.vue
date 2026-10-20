@@ -167,7 +167,10 @@ onUnmounted(() => {
 }
 
 .cards {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px;
+  display: grid;
+  /* 与经营看板同一套: 头条卡更宽, 层级靠布局 */
+  grid-template-columns: 1.5fr 1fr 1fr 1fr;
+  gap: 12px; margin-bottom: 16px;
 }
 .card {
   background: var(--paper-raised);
@@ -175,9 +178,10 @@ onUnmounted(() => {
   border-radius: var(--radius-lg);
   padding: 16px;
 }
+/* 头条卡: 去蓝底, 改左侧印色条(与经营看板同语言) */
 .card.gold {
-  background: var(--accent-wash);
   border-color: var(--rule-strong);
+  border-left: 3px solid var(--accent);
 }
 .card-label { font-size: 13px; color: var(--ink-3); margin-bottom: 8px; }
 /* 实时数值: 等宽 + tabular-nums, 5s 轮询刷新时数字不左右跳 */
@@ -186,7 +190,10 @@ onUnmounted(() => {
   font-variant-numeric: tabular-nums;
   font-size: 30px; font-weight: 700; color: var(--ink);
 }
-.card.gold .card-value { color: var(--accent); }
+.card.gold .card-value {
+  color: var(--ink);
+  font-size: 34px;
+}
 
 .panel {
   background: var(--paper-raised);
@@ -195,6 +202,19 @@ onUnmounted(() => {
   padding: 16px;
 }
 .panel h3 { margin: 0 0 12px 0; font-family: var(--font-display); font-size: 16px; }
+/* 反馈层: 卡片悬停提亮描边, 事件行悬停淡底 —— 控制台不做抬升 */
+.card {
+  transition: border-color var(--transition-normal);
+}
+.card:hover {
+  border-color: var(--rule-strong);
+}
+.event-row {
+  transition: background-color var(--transition-normal);
+}
+.event-row:hover {
+  background: var(--paper-sunk);
+}
 .event-list {
   max-height: 480px; overflow-y: auto;
   background: var(--paper-sunk);

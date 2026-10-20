@@ -99,11 +99,19 @@ onMounted(async () => {
 
 <template>
   <div>
-    <h2>{{ t('admin.sessionsTitle') }}</h2>
-    <el-button type="primary" @click="openCreate">{{ t('admin.sessionsAdd') }}</el-button>
+    <div class="page-header">
+      <h2>{{ t('admin.sessionsTitle') }}</h2>
+      <div class="header-actions">
+        <el-button type="primary" @click="openCreate">{{ t('admin.sessionsAdd') }}</el-button>
+      </div>
+    </div>
 
     <el-table :data="list" stripe style="margin-top: 12px">
-      <el-table-column prop="id" label="ID" width="80" />
+      <el-table-column label="ID" width="80">
+        <template #default="{ row }">
+          <span class="id-cell" :title="String(row.id)">#{{ row.id }}</span>
+        </template>
+      </el-table-column>
       <el-table-column :label="t('admin.sessionsMovieCol')">
         <template #default="{ row }">{{ movieMap[row.movieId]?.title || row.movieId }}</template>
       </el-table-column>
@@ -185,5 +193,35 @@ h2 {
   text-overflow: ellipsis;
   white-space: nowrap;
   vertical-align: middle;
+}
+
+/* 统一页头: 标题在左, 操作在右 —— 与经营看板同一套骨架 */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.page-header h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 22px;
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+/* 表格里的 ID 是票据数据 → 等宽墨色, 数字列能对齐 */
+.id-cell {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+@media (max-width: 768px) {
+  .page-header h2 { font-size: 18px; }
 }
 </style>
