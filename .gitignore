@@ -25,6 +25,7 @@ logs/
 # 本地工具配置
 .claude/
 .zcode/
+.workbuddy/
 # ZCode 自动生成的忽略文件(其内容是 .gitignore 的同步快照, 随工具重写, 不入库)
 .zcodeignore
 
