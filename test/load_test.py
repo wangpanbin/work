@@ -23,12 +23,16 @@ def login(username, password):
         headers={"Content-Type": "application/json"})
     return json.load(urllib.request.urlopen(req, timeout=10))["data"]["token"]
 
-def ensure_users(n, prefix="pt"):
+#: 池名与 `test/concurrency_strict.py` **共用** —— 注册按 IP 限流 120 次/小时,
+#: 两批独立用户的话一轮演示就要注册 150 个, 单轮就超额度。共用 50 人的池:
+#: 冷启动注册一次(50 ≤ 120), 之后每次跑直接登录复用。
+def ensure_users(n, prefix="tuser"):
     """确保有 n 个测试用户(密码统一为 123456)"""
     tokens = []
-    suffix = str(int(time.time()))
+    # ⚠️ 2026-10-25: 用户名**稳定**(原来带时间戳后缀) —— 注册按 IP 限流 120 次/小时,
+    # 每次跑都新建一批用户会把额度吃光, 第二次跑就注册被拒。稳定用户名只建一次。
     for i in range(n):
-        uname = f"{prefix}{i}_{suffix}"
+        uname = f"{prefix}{i}"
         try:
             req = urllib.request.Request(
                 f"{BASE}/api/auth/register",
@@ -195,7 +199,7 @@ def main():
     parser.add_argument("--session", type=int, default=1, help="场次ID")
     parser.add_argument("--concurrency", type=int, default=200)
     parser.add_argument("--duration", type=int, default=30, help="持续秒数")
-    parser.add_argument("--users", type=int, default=100, help="场景B/C 预备用户数")
+    parser.add_argument("--users", type=int, default=50, help="场景B/C 预备用户数(与并发脚本共用一个池)")
     args = parser.parse_args()
 
     if args.scenario in ("b", "c", "all"):
