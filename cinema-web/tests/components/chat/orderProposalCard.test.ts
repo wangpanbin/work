@@ -1,13 +1,16 @@
 import { describe, it, expect } from 'vitest'
 import {
+  CARD_TYPE_ORDER_GUIDE,
   CARD_TYPE_ORDER_PROPOSAL,
   CARD_TYPE_PENDING_ORDER,
   CONFIRM_ERROR_KEYS,
   buildConfirmRequest,
+  buildGuideRoute,
   buildPayRoute,
   buildRepickRequest,
   confirmErrorKey,
   formatCountdown,
+  isOrderGuideCard,
   isOrderProposalCard,
   isPendingOrderCard,
   isProposalExpiredCode,
@@ -206,5 +209,30 @@ describe('confirmErrorKey / isProposalExpiredCode', () => {
     }
     expect(missingZh, `zh-CN ，缺失: ${missingZh.join(', ')}`).toEqual([])
     expect(missingEn, `en-US ，缺失: ${missingEn.join(', ')}`).toEqual([])
+  })
+})
+
+describe('引导卡(取消/退票)—— 只引导, 助手不执行(ADR-0002)', () => {
+  const base: ActionCardVO = { type: CARD_TYPE_ORDER_GUIDE, sessionId: '1001' }
+
+  it('识别引导卡', () => {
+    expect(isOrderGuideCard(base)).toBe(true)
+    expect(isOrderGuideCard({ ...base, type: CARD_TYPE_ORDER_PROPOSAL })).toBe(false)
+    expect(isOrderGuideCard(null)).toBe(false)
+  })
+
+  it('目标路由固定是订单页', () => {
+    expect(buildGuideRoute(base)).toBe('/orders')
+    expect(buildGuideRoute({ ...base, guideRoute: '/orders' })).toBe('/orders')
+  })
+
+  it('路由必须是站内相对路径(防外链注入)', () => {
+    expect(buildGuideRoute({ ...base, guideRoute: 'https://evil.example' })).toBe('/orders')
+    expect(buildGuideRoute({ ...base, guideRoute: '//evil.example' })).toBe('/orders')
+  })
+
+  it('非引导卡一律退回订单页', () => {
+    expect(buildGuideRoute({ ...base, type: CARD_TYPE_ORDER_PROPOSAL })).toBe('/orders')
+    expect(buildGuideRoute(null)).toBe('/orders')
   })
 })

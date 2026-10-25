@@ -251,8 +251,28 @@ export default {
   },
 
   admin: {
+    chatStats: {
+      title: '对话助手用量与成本',
+      days1: '近 1 天',
+      days7: '近 7 天',
+      days30: '近 30 天',
+      refresh: '刷新',
+      calls: '调用量',
+      sessions: '会话数',
+      failureRate: '失败率',
+      failedCalls: '失败次数',
+      p95: 'P95 耗时',
+      tokens: '输入/输出 token',
+      cost: '估算成本',
+      costUnknown: '未配置单价',
+      costDisclaimer: '估算值,单价需人工维护 —— 不是财务口径',
+      redline: '红线指标:未经用户确认的写操作数',
+      redlineHint: '必须恒为 0 —— 非 0 即助手发生了越权写',
+      writeStats: '确认下单成功/尝试',
+    },
     homeSidebar: {
       dashboard: '经营看板',
+      chatStats: '助手用量',
       live: '实时监控',
       movies: '影片管理',
       halls: '影厅管理',
@@ -345,6 +365,7 @@ export default {
     mobileNavMovies: '影片',
     mobileNavHalls: '影厅',
     mobileNavSessions: '场次',
+    mobileNavChatStats: '助手用量',
     welcomeTitle: '欢迎回来, {name}',
     welcomeSubtitle: '从左侧导航开始管理影院运营 · 今日经营概况如下',
     welcomePaidLocked: '已支付 / 锁座',
@@ -423,6 +444,7 @@ export default {
     cardTypeSeatSuggestion: '座位建议',
     cardTypeOrderProposal: '下单提案',
     cardTypePendingOrder: '待支付订单',
+    cardTypeOrderGuide: '订单操作指引',
     orderProposal: {
       title: '确认下单',
       seatsLabel: '座位',
@@ -446,6 +468,12 @@ export default {
       rateLimited: '操作过于频繁，请稍后再试',
       repickFailed: '换个座位失败，请稍后重试',
       loginRequired: '请先登录后再下单',
+    },
+    orderGuide: {
+      cancelBtn: '去订单页取消',
+      refundBtn: '去订单页申请退票',
+      cancelHint: '助手不会替你取消订单 —— 点下面的按钮到订单页自己操作。',
+      refundHint: '助手不会替你退票 —— 点下面的按钮到订单页自己操作。',
     },
     pendingOrder: {
       reply: '已为你锁好座位，订单进入待支付，请在支付窗口内完成付款。',

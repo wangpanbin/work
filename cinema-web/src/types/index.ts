@@ -94,6 +94,15 @@ export interface ActionCardVO {
   /** 卡片按钮文案,如 "去选座确认" */
   actionLabel?: string
 
+  // ============ v0.4.0 IT-06: 取消/退票引导卡字段(其它卡型一律为 undefined)============
+
+  /** 引导动作:CANCEL / REFUND。助手不执行, 只引导用户去订单页自己操作。 */
+  guideAction?: 'CANCEL' | 'REFUND'
+  /** 引导卡的目标路由(固定 /orders)。 */
+  guideRoute?: string
+  /** 引导卡的补充说明(展示用,非载荷)。 */
+  guideHint?: string
+
   // ============ ADR-0004:一键下单确认卡专用字段(既有卡型一律为 undefined)============
 
   /**

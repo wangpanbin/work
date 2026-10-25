@@ -148,6 +148,22 @@ public final class ReplyCardParser {
         }
 
         Integer count = null;
+        if (ActionCardVO.TYPE_ORDER_GUIDE.equals(type)) {
+            // 引导卡(v0.4.0 IT-06): 只要 type + action, **不需要** sessionId / seatIndexes ——
+            // 它不带任何可提交载荷, 只带「去订单页做什么」的跳转信息。
+            String action = textOrNull(cn, "action");
+            if (!ActionCardVO.GUIDE_CANCEL.equals(action)
+                    && !ActionCardVO.GUIDE_REFUND.equals(action)) {
+                return null;
+            }
+            return ActionCardVO.builder()
+                    .type(type)
+                    .guideAction(action)
+                    .guideRoute("/orders")
+                    .guideHint(textOrNull(cn, "hint"))
+                    .actionLabel(textOrNull(cn, "actionLabel"))
+                    .build();
+        }
         if (ActionCardVO.TYPE_ORDER_PROPOSAL.equals(type)) {
             // 一键下单卡: count 必填且在 [1,4]; seatIndexes 只是提示, 可空
             count = intOrNull(cn, "count");

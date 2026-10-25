@@ -244,8 +244,28 @@ const messages: SameShape<typeof zhCN> = {
   },
 
   admin: {
+    chatStats: {
+      title: 'Assistant usage & cost',
+      days1: 'Last 1 day',
+      days7: 'Last 7 days',
+      days30: 'Last 30 days',
+      refresh: 'Refresh',
+      calls: 'Calls',
+      sessions: 'Sessions',
+      failureRate: 'Failure rate',
+      failedCalls: 'Failed calls',
+      p95: 'P95 latency',
+      tokens: 'Input/output tokens',
+      cost: 'Estimated cost',
+      costUnknown: 'No unit price configured',
+      costDisclaimer: 'Estimate — unit price is maintained manually, not a billing figure',
+      redline: 'Red line: writes not confirmed by the user',
+      redlineHint: 'Must always be 0 — anything else means the assistant wrote on its own',
+      writeStats: 'Confirmed orders / attempts',
+    },
     homeSidebar: {
       dashboard: 'Dashboard',
+      chatStats: 'Assistant usage',
       live: 'Live monitor',
       movies: 'Movies',
       halls: 'Halls',
@@ -338,6 +358,7 @@ const messages: SameShape<typeof zhCN> = {
     mobileNavMovies: 'Movies',
     mobileNavHalls: 'Halls',
     mobileNavSessions: 'Sessions',
+    mobileNavChatStats: 'Assistant usage',
     welcomeTitle: 'Welcome back, {name}',
     welcomeSubtitle: 'Start managing from the sidebar · here is today at a glance',
     welcomePaidLocked: 'Paid / Locked',
@@ -416,6 +437,7 @@ const messages: SameShape<typeof zhCN> = {
     cardTypeSeatSuggestion: 'Seat suggestion',
     cardTypeOrderProposal: 'Order proposal',
     cardTypePendingOrder: 'Pending order',
+    cardTypeOrderGuide: 'Order actions',
     orderProposal: {
       title: 'Confirm order',
       seatsLabel: 'Seats',
@@ -439,6 +461,12 @@ const messages: SameShape<typeof zhCN> = {
       rateLimited: 'Too many attempts, please try again later',
       repickFailed: 'Could not find other seats, please retry later',
       loginRequired: 'Please sign in before ordering',
+    },
+    orderGuide: {
+      cancelBtn: 'Cancel from your orders',
+      refundBtn: 'Request a refund from your orders',
+      cancelHint: 'The assistant never cancels for you — jump to your orders and do it yourself.',
+      refundHint: 'The assistant never refunds for you — jump to your orders and do it yourself.',
     },
     pendingOrder: {
       reply: 'Seats are locked and your order is pending payment. Please pay before the window closes.',

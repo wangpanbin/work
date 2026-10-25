@@ -5,6 +5,7 @@ import { renderMarkdown } from '../../utils/markdown'
 import ActionCard from './ActionCard.vue'
 import OrderProposalCard from './OrderProposalCard.vue'
 import PendingOrderCard from './PendingOrderCard.vue'
+import OrderGuideCard from './OrderGuideCard.vue'
 import { cardKey, cardKindOf } from './cardRegistry'
 
 const props = defineProps<{
@@ -58,6 +59,7 @@ const renderedReply = computed(() => renderMarkdown(props.response?.reply))
             @confirmed="onConfirmed"
           />
           <PendingOrderCard v-else-if="cardKindOf(card) === 'pendingOrder'" :card="card" />
+          <OrderGuideCard v-else-if="cardKindOf(card) === 'orderGuide'" :card="card" />
           <ActionCard v-else :card="card" />
         </template>
       </div>

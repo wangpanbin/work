@@ -1,5 +1,5 @@
 import type { ActionCardVO } from '../../types'
-import { isOrderProposalCard, isPendingOrderCard } from './orderProposalCard'
+import { isOrderGuideCard, isOrderProposalCard, isPendingOrderCard } from './orderProposalCard'
 
 /**
  * 聊天卡片登记表 —— 「这张卡是什么」与「这张卡的稳定 key」的唯一答案。
@@ -18,15 +18,16 @@ import { isOrderProposalCard, isPendingOrderCard } from './orderProposalCard'
  */
 
 /** 卡型。 */
-export type CardKind = 'orderProposal' | 'pendingOrder' | 'action'
+export type CardKind = 'orderProposal' | 'pendingOrder' | 'orderGuide' | 'action'
 
 /** 全部卡型 —— 渲染顺序与模板的 v-if 链一致。 */
-export const CARD_KINDS: readonly CardKind[] = ['orderProposal', 'pendingOrder', 'action']
+export const CARD_KINDS: readonly CardKind[] = ['orderProposal', 'pendingOrder', 'orderGuide', 'action']
 
 /** 这张卡是哪一种。未知卡型一律按 {@link CardKind} 的 'action' 兜底(通用建议卡)。 */
 export function cardKindOf(card: ActionCardVO | null | undefined): CardKind {
   if (isOrderProposalCard(card)) return 'orderProposal'
   if (isPendingOrderCard(card)) return 'pendingOrder'
+  if (isOrderGuideCard(card)) return 'orderGuide'
   return 'action'
 }
 
@@ -57,6 +58,7 @@ const CARD_TYPE_LABEL_KEYS: Readonly<Record<string, string>> = {
   SEAT_SUGGESTION: 'chat.cardTypeSeatSuggestion',
   ORDER_PROPOSAL: 'chat.cardTypeOrderProposal',
   PENDING_ORDER: 'chat.cardTypePendingOrder',
+  ORDER_GUIDE: 'chat.cardTypeOrderGuide',
 }
 
 /** 卡型枚举对应的 i18n key; 未知卡型返回 null。 */

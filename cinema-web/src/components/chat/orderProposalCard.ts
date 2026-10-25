@@ -26,6 +26,9 @@ export const CARD_TYPE_ORDER_PROPOSAL = 'ORDER_PROPOSAL'
 /** 卡型: 锁座成功后的「待支付卡」(前端本地生成, 不来自模型) */
 export const CARD_TYPE_PENDING_ORDER = 'PENDING_ORDER'
 
+/** 卡型: 取消/退票引导卡 (v0.4.0 IT-06) —— 只带跳转信息, 助手不执行 */
+export const CARD_TYPE_ORDER_GUIDE = 'ORDER_GUIDE'
+
 /** 提案状态: 有效 / 已过期 / 不可用(缺 proposalId 或 expiresAt) */
 export type ProposalState = 'active' | 'expired' | 'missing'
 
@@ -37,6 +40,27 @@ export function isOrderProposalCard(card: ActionCardVO | null | undefined): bool
 /** 是否是待支付卡 */
 export function isPendingOrderCard(card: ActionCardVO | null | undefined): boolean {
   return !!card && card.type === CARD_TYPE_PENDING_ORDER
+}
+
+/** 是否是取消/退票引导卡 */
+export function isOrderGuideCard(card: ActionCardVO | null | undefined): boolean {
+  return !!card && card.type === CARD_TYPE_ORDER_GUIDE
+}
+
+/**
+ * 引导卡的目标路由 —— 固定跳订单页。
+ *
+ * <p>**助手不执行取消/退票**: 卡片只把用户带到订单页, 让他自己点。
+ * 这条路径上没有任何可提交的载荷(没有 orderNo 之外的东西, 更没有座位)。
+ */
+export function buildGuideRoute(card: ActionCardVO | null | undefined): string {
+  if (!isOrderGuideCard(card)) return '/orders'
+  const route = (card as ActionCardVO).guideRoute
+  // 必须是**站内相对路径**: 以单个 '/' 开头。
+  // ⚠️ 只判 startsWith('/') 是不够的 —— '//evil.example' 也以 '/' 开头,
+  // 但它是 protocol-relative URL, 会把用户带去外站。
+  if (!route || !route.startsWith('/') || route.startsWith('//')) return '/orders'
+  return route
 }
 
 /**

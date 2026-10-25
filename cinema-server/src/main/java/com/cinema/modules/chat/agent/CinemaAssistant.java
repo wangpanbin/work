@@ -1,6 +1,7 @@
 package com.cinema.modules.chat.agent;
 
 import dev.langchain4j.service.MemoryId;
+import dev.langchain4j.service.Result;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
@@ -86,14 +87,38 @@ public interface CinemaAssistant {
               以服务端为准,可能与你说的不同。
             - 你**不能**自己锁座/支付/退票 —— 那是用户在卡片上点「确认下单」之后的事。
 
-            两种卡都**只携带展示信息**,不携带任何可直接提交的写载荷(ADR-0002 硬约束)。
+            ### 3) `ORDER_GUIDE` —— 取消/退票引导卡(用户想取消或退票时)
+            当用户表达了**取消订单**或**退票**的意图时,输出这种卡:
+
+            ```
+            ```json-cards
+            {"cards":[{"type":"ORDER_GUIDE","action":"CANCEL|REFUND",
+            "movieTitle":"<影片名>","actionLabel":"<按钮文案>"}],
+            "followUps":["换个场次","只看 VIP 厅"]}
+            ```
+            ```
+
+            规则:
+            - `action` 只能是 `CANCEL`(取消待支付单)或 `REFUND`(申请退票)。
+            - 这张卡**只带跳转信息**: 点了它用户会跳到订单页, 自己点取消/退票。
+            - **你绝对不能自己执行取消或退票** —— 你没有任何写工具, 也不该假装执行了。
+              你的职责是告诉用户「去订单页操作」, 不是替他操作。
+
+            三种卡都**只携带展示信息**,不携带任何可直接提交的写载荷(ADR-0002 硬约束)。
             不要替用户做锁座或下单决定,不要编造座位或价格。
             如果没有合适推荐(座位全空/全售/参数不明确等),直接省略 ```json-cards 块。
 
             ## 输出格式
             正文可以用 Markdown(表格、列表、加粗)组织,便于阅读。
             """)
-    String chat(@MemoryId String chatSessionId,
-                @V("currentDate") String currentDate,
-                @UserMessage String userMessage);
+    /**
+     * 返回 {@code Result<String>} 而不是裸 String —— 这样才拿得到
+     * {@code tokenUsage()}(输入/输出 token 数)。
+     *
+     * <p>以前这里返回裸 String, token 用量被直接丢掉, 导致「助手用量与成本看板」
+     * 这项指标根本算不出来(v0.4.0 IT-11 的硬前提)。
+     */
+    Result<String> chat(@MemoryId String chatSessionId,
+                         @V("currentDate") String currentDate,
+                         @UserMessage String userMessage);
 }

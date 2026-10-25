@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { CARD_KINDS, cardKey, cardKindOf, cardTypeLabelKey } from '../../../src/components/chat/cardRegistry'
 import {
+  CARD_TYPE_ORDER_GUIDE,
   CARD_TYPE_ORDER_PROPOSAL,
   CARD_TYPE_PENDING_ORDER,
 } from '../../../src/components/chat/orderProposalCard'
@@ -28,6 +29,10 @@ describe('cardKindOf — 卡型识别', () => {
     expect(cardKindOf({ ...base, type: CARD_TYPE_PENDING_ORDER })).toBe('pendingOrder')
   })
 
+  it('取消/退票引导卡', () => {
+    expect(cardKindOf({ ...base, type: CARD_TYPE_ORDER_GUIDE })).toBe('orderGuide')
+  })
+
   it('其余一律按通用建议卡兜底', () => {
     expect(cardKindOf({ ...base, type: 'SOMETHING_ELSE' })).toBe('action')
     expect(cardKindOf(base)).toBe('action')
@@ -39,7 +44,7 @@ describe('cardKindOf — 卡型识别', () => {
   })
 
   it('卡型清单与渲染顺序一致', () => {
-    expect(CARD_KINDS).toEqual(['orderProposal', 'pendingOrder', 'action'])
+    expect(CARD_KINDS).toEqual(['orderProposal', 'pendingOrder', 'orderGuide', 'action'])
   })
 })
 

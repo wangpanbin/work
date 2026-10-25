@@ -34,6 +34,20 @@ public class ActionCardVO {
     /** 卡型: 一键下单确认卡(ADR-0004)。带 proposalId, 可在对话内触发一次锁座。 */
     public static final String TYPE_ORDER_PROPOSAL = "ORDER_PROPOSAL";
 
+    /**
+     * 卡型: 取消/退票**引导卡**(v0.4.0 IT-06)。
+     *
+     * <p>它只带「去哪儿做什么」的跳转信息 —— 助手**不执行**取消或退票,
+     * 用户点了卡跳到订单页, 自己操作。既有的取消/退票端点与 ADR-0002 都不受影响。
+     */
+    public static final String TYPE_ORDER_GUIDE = "ORDER_GUIDE";
+
+    /** 引导动作: 去订单页取消待支付单。 */
+    public static final String GUIDE_CANCEL = "CANCEL";
+
+    /** 引导动作: 去订单页申请退票。 */
+    public static final String GUIDE_REFUND = "REFUND";
+
     /** SEAT_SUGGESTION 等(预留枚举空间,cycle 3 用 String 占位) */
     private String type;
     /** 雪花 ID 字符串,前端 URL 用 */
@@ -80,6 +94,17 @@ public class ActionCardVO {
     private String cardId;
 
     // ============ 锁座成功后的「待支付卡」字段(前端本地生成, 不来自模型)============
+
+    // ============ v0.4.0 IT-06: 取消/退票引导卡字段(其它卡型一律为 null)============
+
+    /** 引导动作:CANCEL / REFUND。 */
+    private String guideAction;
+
+    /** 引导卡的目标路由(固定 /orders)。 */
+    private String guideRoute;
+
+    /** 引导卡的补充说明(展示用,非载荷)。 */
+    private String guideHint;
 
     /** 已创建的订单号。 */
     private String orderNo;
