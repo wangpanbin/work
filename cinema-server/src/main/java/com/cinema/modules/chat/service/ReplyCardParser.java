@@ -162,6 +162,13 @@ public final class ReplyCardParser {
                     .guideRoute("/orders")
                     .guideHint(textOrNull(cn, "hint"))
                     .actionLabel(textOrNull(cn, "actionLabel"))
+                    // 展示信息: 系统提示词让模型输出影片名/影厅/场次时间,
+                    // 这里必须带过去 —— 丢掉的话引导卡只能显示通用兜底标题,
+                    // 用户看到的是「订单操作指引」而不是「哪部电影的订单」。
+                    .movieTitle(textOrNull(cn, "movieTitle"))
+                    .hallName(textOrNull(cn, "hallName"))
+                    .startTime(textOrNull(cn, "startTime"))
+                    .seatDesc(textOrNull(cn, "seatDesc"))
                     .build();
         }
         if (ActionCardVO.TYPE_ORDER_PROPOSAL.equals(type)) {

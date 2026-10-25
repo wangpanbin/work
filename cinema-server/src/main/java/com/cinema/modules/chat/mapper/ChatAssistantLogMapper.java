@@ -42,7 +42,10 @@ public interface ChatAssistantLogMapper extends BaseMapper<ChatAssistantLog> {
             + "SUM(CASE WHEN kind = 'WRITE_CONFIRM' AND result = 'OK' THEN 1 ELSE 0 END) AS write_success, "
             + "SUM(COALESCE(prompt_tokens, 0)) AS prompt_tokens, "
             + "SUM(COALESCE(completion_tokens, 0)) AS completion_tokens, "
-            + "SUM(COALESCE(cost_cents, 0)) AS cost_cents, "
+            // ⚠️ 这里**不能** COALESCE: 单价未配置时每行的 cost_cents 是 null,
+            // COALESCE 会把「未知」压成 0 → 看板永远显示 $0.0000,
+            // 而「未配置单价」那个状态就再也显示不出来了。
+            + "SUM(cost_cents) AS cost_cents, "
             + "COUNT(DISTINCT NULLIF(chat_session_id, '')) AS sessions, "
             + "COUNT(DISTINCT user_id) AS users "
             + "FROM chat_assistant_log WHERE created_at >= #{since}")

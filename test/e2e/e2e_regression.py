@@ -735,6 +735,25 @@ def s19_locale_switch(page):
     return f"lang {lang_before} → {lang_after}; 英文界面无中文残留 ✓"
 
 
+def s21_admin_usage_dashboard(page_c):
+    """管理端「助手用量」看板: 四项指标 + 红线指标都渲染出来(AC-19)
+
+    2026-10-25 补: 此前**没有任何场景打开过 /admin/chat-stats** ——
+    IT-11 的验收标准 AC-19 正是「打开看板看到四项指标」, 却没有浏览器覆盖。
+    """
+    page_c.goto(FRONT + "/admin/chat-stats")
+    page_c.wait_for_load_state("networkidle")
+    page_c.wait_for_selector(".stat-card", timeout=10000)
+    for label in ("调用量", "失败率", "P95 耗时", "估算成本"):
+        assert page_c.locator(".stat-label", has_text=label).count() >= 1, (
+            f"看板上没有「{label}」这一项")
+    # 红线指标也要在 —— 让「助手没越权写」在管理端是**看得见**的
+    assert page_c.locator(".stat-label", has_text="红线指标").count() >= 1, (
+        "看板上没有红线指标")
+    shot(page_c, "s21-usage-dashboard")
+    return "四项指标(调用量/失败率/P95/估算成本) + 红线指标都在看板上 ✓"
+
+
 def s20_rebuild_keeps_lock(page, page_c):
     """位图合并语义(v0.4.0 超卖修复): 重建位图**不清掉**已锁座位"""
     goto_seat_map(page)
@@ -754,7 +773,12 @@ def s20_rebuild_keeps_lock(page, page_c):
     # 关键: 那个座位**仍然**是锁着的 —— 不能被重建抹掉
     bits = lock_bits(S["token1"])
     assert bits[keep] == 1, f"重建后座位 {keep} 的锁位被抹掉了(lockBit={bits[keep]}) —— 这就是超卖窗口"
-    return f"重建后座位 {keep} 仍被锁定(lockBit=1) ✓ —— 合并语义生效, 没有超卖窗口"
+    # ⚠️ 本场景**不区分**「合并」与旧的「替换」实现: 锁座走公开 API, DB 里有
+    # PENDING_PAY 单, 快照里就有那个座位, 旧实现同样会把它锁上。
+    # 真正能区分新旧实现的是那条 JUnit 回归用例
+    # (SeatLuaServiceBitmapRoundTripTest#mergeSeats_doesNotWipeLockCreatedAfterSnapshot:
+    #  它直接在位图上锁一个**DB 里没有单**的座位, 合并后必须还在)。
+    return f"重建后座位 {keep} 仍被锁定(lockBit=1) ✓ —— DB 有单的座位不会被重建抹掉"
 
 # ---------------- 主流程 ----------------
 
@@ -796,6 +820,7 @@ def run():
             ("S18 暗色主题切换", lambda: s18_dark_theme(page)),
             ("S19 中英双语切换", lambda: s19_locale_switch(page)),
             ("S20 位图合并不抹掉已锁座位", lambda: s20_rebuild_keeps_lock(page, page_c)),
+            ("S21 管理端助手用量看板", lambda: s21_admin_usage_dashboard(page_c)),
             # ⚠️ 登出**必须排最后** —— 它会清掉 user1 的 token,
             # 排在前面会让后面所有需要登录的场景被路由守卫踢回 /login。
             ("S07 登出+路由守卫", lambda: s07_logout(page)),

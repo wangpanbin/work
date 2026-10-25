@@ -96,11 +96,12 @@ opennlp/
 # v0.4.0: deck/ 的**生成器源码**入库(约 80KB), 让「怎么重新生成」有据可查;
 # 产物(2.3MB 的 PPTX / PDF / 33 张 PNG)继续忽略 —— 它们可由源码重新生成,
 # 入库只会永久撑大仓库。同样是「排除内容而非排除目录」, 才能重新包含子项。
+# ⚠️ 源码实际在 deck/slides/ 下(不是 deck/ 根目录) —— 否定规则必须写对路径,
+#    写错了会**静默不生效**(2026-10-25 实测踩到: 规则写成 deck/compile.js,
+#    结果 deck/slides/compile.js 仍被 /deck/* 挡住, 源码根本没入库,
+#    而发布说明却声称「生成器源码入库」—— 文档说有、代码没有)。
 /deck/*
 !deck/README.md
-!deck/compile.js
-!deck/lib.js
-!deck/theme.js
-!deck/mavis-ppt-map.cjs
-!deck/slide-*.js
+!deck/slides/
+/deck/slides/output/
 /video/

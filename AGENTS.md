@@ -25,7 +25,7 @@ Test accounts seeded by backend on startup: `user1/123456`, `user2/123456`, `adm
 - There is no linter configured in either module. **build 要单独验**:`pnpm build` 与 `pnpm type-check` 查出的问题不重叠(SCSS 变量/模板编译错误只有 build 报)。
 - Python 工具: `python -m unittest discover -s tools -p "test_*.py"`(**81 个用例**,2026-10-25 实测;对账脚本的纯逻辑 + 真实 Redis 往返 + 临时 MySQL 库的集成测试 + 文档一致性闸门)。
 - **一键闸门**:`python tools/run_all_gates.py` —— 后端 / 前端类型 / 前端构建 / 前端用例 / Python 工具 / 审计红线,逐项 PASS/FAIL + 汇总,任一失败非零退出(`--only` / `--skip` 可挑闸门,`--json` 机器可读)。**它不碰 CI/CD 配置,也不装 git 钩子。**
-- **浏览器回归**:`python test/e2e/e2e_regression.py` —— 20 个场景的 Python Playwright 套件(**已入库**)。前置:后端 8080 + 前端 5173 在跑,且跑过 `sql/05_refresh_sessions_for_demo.sql`(场次过期会 404)。报告写 `test/e2e/RESULTS.md`,截图写 `test/e2e/screenshots/`(不入库)。
+- **浏览器回归**:`python test/e2e/e2e_regression.py` —— 21 个场景的 Python Playwright 套件(**已入库**)。前置:后端 8080 + 前端 5173 在跑,且跑过 `sql/05_refresh_sessions_for_demo.sql`(场次过期会 404)。报告写 `test/e2e/RESULTS.md`,截图写 `test/e2e/screenshots/`(不入库)。
 - **一键演示**:`python tools/demo_run.py` —— 幂等补种 → 全链路冒烟 → 250 并发防超卖 → 三场景压测 → 出报告。默认**不重置**数据;`--reset` 默认 dry-run,还要 `--yes` 才真删(只删演示范围,不碰 `movie`/`hall`)。
 - **数字以实测为准**:README/AGENTS 里的用例数会随测试增长漂移,别照抄文档 —— 跑一次 `mvn test`(或聚合 `target/surefire-reports/TEST-*.xml`)、`pnpm test` 和上面的 unittest 取真值再更新。**而且有闸门兜着**:`tools/test_docs_consistency.py` 核对五件事 —— 文档指向的仓库内路径必须真实存在;**文档引用的仓库内文件必须已入库**(`git ls-files` 能命中,2026-10-25 新增:「本机有」不等于「仓库里有」,`/test/` 被 ignore 时就是死引用);后端用例数/测试类数必须等于 surefire 实测;前端与 Python 的数字必须跨文档一致;列表项不能被粘在上一行末尾。改完测试数**别只改一个文档**(2026-10-25 那轮后端从 309 变 312,一次要改 8 个地方,漏一处就是一轮「文档说有、代码没有」)。反过来,文档里**不要重复写数字** —— 重复的数字就是缓存,缓存必然过期;要引用就指向 `AGENTS.md`。
 

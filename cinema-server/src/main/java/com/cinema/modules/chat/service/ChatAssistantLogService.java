@@ -123,7 +123,8 @@ public class ChatAssistantLogService {
         vo.setUsers(asLong(row, "users"));
         vo.setPromptTokens(asLong(row, "prompt_tokens"));
         vo.setCompletionTokens(asLong(row, "completion_tokens"));
-        vo.setCostCents(asLong(row, "cost_cents"));
+        // 成本要保留 null(SUM 在全为 null 时返 null)—— 看板据此显示「未配置单价」
+        vo.setCostCents(asNullableLong(row, "cost_cents"));
         vo.setWriteAttempts(writeAttempts);
         vo.setWriteSuccess(writeSuccess);
         vo.setUnconfirmedWrites(unconfirmed);
@@ -202,6 +203,25 @@ public class ChatAssistantLogService {
             return 0L;
         }
         return (tokens.longValue() * pricePerMillionCents + 500_000L) / 1_000_000L;
+    }
+
+    /** 取 long, 但**保留 null**(区别于 asLong: 后者把 null 当 0)。 */
+    private static Long asNullableLong(Map<String, Object> row, String key) {
+        if (row == null) {
+            return null;
+        }
+        Object v = row.get(key);
+        if (v == null) {
+            return null;
+        }
+        if (v instanceof Number n) {
+            return n.longValue();
+        }
+        try {
+            return Long.parseLong(String.valueOf(v));
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private static long asLong(Map<String, Object> row, String key) {
