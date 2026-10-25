@@ -85,6 +85,20 @@ rm -- "相对路径"        # Windows: runtime 路由到受信任的 launcher
 
 **只改本次安装命令的参数**,不执行 `npm config set registry` / `pip config set` / `conda config --set`,也不写用户级环境变量。
 
+## 对话助手本机跑的是 **stub**,不是真 LLM
+
+本机已把 `CINEMA_CHAT_PROVIDER` 设成**用户级** `stub`(2026-10-25),所以:
+
+- `mvn spring-boot:run` 起的助手**不接 DeepSeek**,用确定性夹具回话 —— 演示与回归可重复,
+  S22(对话浮窗 → 下单卡 → 确认下单)必定 PASS。
+- **别把它当成「模型今天不想出卡」**:stub 是代码,行为固定。它出什么卡、什么措辞都能预期。
+- 想临时切回真模型(只影响当前 shell):`$env:CINEMA_CHAT_PROVIDER='deepseek'`。
+  想永久切回:`setx CINEMA_CHAT_PROVIDER deepseek`。
+- 当前 provider 随时可查:`GET /api/chat/status` → `{"provider":"stub"|"deepseek","enabled":bool}`。
+
+⚠️ `setx` 只对**新开的**进程生效 —— 已经开着的 cmd / PowerShell 窗口不会继承,
+所以改完要重开终端(或在当前窗口手动 `$env:...` 覆盖)。
+
 ## 本机环境基线
 
 Windows 11 · JDK 21 · Maven 3.9.15 · Node 24 · MySQL 8.0.42(`127.0.0.1:3306`)· Redis 8.8.0(`127.0.0.1:6379`)· 无 Docker / 无 RabbitMQ(延迟关单用 Redis ZSet)。
