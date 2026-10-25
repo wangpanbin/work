@@ -544,7 +544,7 @@ async function onConfirm() {
 
 <style scoped>
 /* 首拉失败态(2026-10-24): 居中的错误提示 + 重试, 不再是一整页空白。
-   样式已抽到 main.css 的共享 `.load-error` —— 三个视图共用同一份, 不再各抄一份。 */
+   样式已抽到 main.css 的共享 `.load-error` —— 五个视图共用同一份, 不再各抄一份。 */
 
 .seat-select {
   display: flex;

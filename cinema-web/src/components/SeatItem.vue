@@ -72,6 +72,13 @@ const a11yLabel = computed(() => {
  * 键盘可达性: 座位是 role="button" 的 div, 必须有 tabindex 才能被 Tab 聚焦,
  * 且 Enter / Space 要能触发点击(role=button 的预期键)。
  * 已售 / 他人锁定不可选 → tabindex="-1" 从 Tab 顺序里摘掉, 不制造无意义的焦点停靠。
+ *
+ * ⚠️ 2026-10-25: `aria-disabled` 必须跟 `focusable` 用同一套判据 ——
+ * **提醒模式下被占用的座位是可以点的**(点了就是切换关注,见 onClick),
+ * 但 aria-disabled 仍按 `unavailable` 报 true → 读屏用户被告知「这个按钮不可用」,
+ * 而它其实能用。`focusable` 早就考虑了 watchable,`aria-disabled` 漏了。
+ * 这条是浏览器回归套件 S17 撞出来的: Playwright 看到 aria-disabled="true"
+ * 就拒绝点击(它把 aria-disabled 当作「不可交互」)。
  */
 const unavailable = computed(() => status.value === 'SOLD' || status.value === 'LOCKED_OTHER')
 
@@ -120,7 +127,7 @@ function onClick() {
     }]"
     :title="a11yLabel"
     :aria-label="a11yLabel"
-    :aria-disabled="unavailable"
+    :aria-disabled="unavailable && !watchable"
     :aria-pressed="watchable ? isWatched : undefined"
     :tabindex="focusable ? 0 : -1"
     role="button"

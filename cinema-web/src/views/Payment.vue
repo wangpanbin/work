@@ -419,7 +419,7 @@ const barcodeBars = [2, 1, 3, 1, 2, 1, 1, 3, 2, 1, 2, 3, 1, 2, 1, 3]
 
 <style scoped>
 /* 加载失败态(2026-10-24): 居中的错误提示 + 重试, 不再是一整页空白。
-   样式已抽到 main.css 的共享 `.load-error` —— 三个视图共用同一份, 不再各抄一份。 */
+   样式已抽到 main.css 的共享 `.load-error` —— 五个视图共用同一份, 不再各抄一份。 */
 
 .payment {
   max-width: 600px;

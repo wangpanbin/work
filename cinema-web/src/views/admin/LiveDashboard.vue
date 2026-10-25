@@ -125,8 +125,8 @@ onUnmounted(() => {
     <!-- 统计拉取失败: 明确提示 + 重试(2026-10-24)。原先 catch 里只有一句 ignore,
          卡片整片消失, 管理员看到的是「今天没开张」而不是「请求失败了」;
          而 5 秒一次的轮询会把同一个失败反复重放。 -->
-    <div v-if="loadError" class="live-error" role="alert">
-      <span class="live-error-text">{{ loadError }}</span>
+    <div v-if="loadError" class="load-error" role="alert">
+      <p class="load-error-text">{{ loadError }}</p>
       <el-button size="small" @click="loadSummary">{{ t('common.retry') }}</el-button>
     </div>
 
