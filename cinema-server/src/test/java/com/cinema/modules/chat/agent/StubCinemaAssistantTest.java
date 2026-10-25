@@ -21,6 +21,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -140,6 +142,96 @@ class StubCinemaAssistantTest {
         assertThat(r.tokenUsage()).isNotNull();
         assertThat(r.tokenUsage().inputTokenCount()).isNotNull();
         assertThat(r.tokenUsage().outputTokenCount()).isNotNull();
+    }
+
+    // ============ 座位建议分支(SEAT_SUGGESTION)============
+
+    @Test
+    @DisplayName("给了场次 ID 且在问座位 → 出 SEAT_SUGGESTION 卡, 且带 seatIndexes")
+    void seat_question_with_explicit_session_id_yields_seat_suggestion() {
+        when(chatTools.getSeatSummary(1130202502L)).thenReturn(summary(1130202502L, 240, 8));
+        when(chatTools.findContiguousSeats(1130202502L, 2, null)).thenReturn(List.of(24, 25));
+
+        ActionCardVO card = onlyCard(
+                assistant.chat("s1", TODAY, "场次 1130202502 的座位还有连座吗").content());
+
+        assertThat(card.getType()).isEqualTo(ActionCardVO.TYPE_SEAT_SUGGESTION);
+        assertThat(card.getSessionId()).isEqualTo("1130202502");
+        assertThat(card.getSeatIndexes())
+                .as("座位建议卡必须带座位索引 —— 前端靠它拼 preselect 预选")
+                .containsExactly(24, 25);
+        assertThat(card.getMovieTitle()).isEqualTo("哪吒之魔童闹海");
+        assertThat(card.getHallName()).isEqualTo("1号激光厅");
+    }
+
+    @Test
+    @DisplayName("问座位时明说张数 → 连座按那个张数找")
+    void seat_question_honours_explicit_count() {
+        when(chatTools.getSeatSummary(1130202502L)).thenReturn(summary(1130202502L, 240, 8));
+        when(chatTools.findContiguousSeats(1130202502L, 3, null)).thenReturn(List.of(30, 31, 32));
+
+        ActionCardVO card = onlyCard(
+                assistant.chat("s1", TODAY, "场次 1130202502 的 3 个座位给我挑一下").content());
+
+        assertThat(card.getType()).isEqualTo(ActionCardVO.TYPE_SEAT_SUGGESTION);
+        assertThat(card.getSeatIndexes()).containsExactly(30, 31, 32);
+    }
+
+    @Test
+    @DisplayName("问座位但那个场次没有连座 → 不出卡(宁可回一句话, 也不给一张跳过去没座的卡)")
+    void seat_question_without_contiguous_seats_yields_no_card() {
+        when(chatTools.getSeatSummary(1130202502L)).thenReturn(summary(1130202502L, 240, 8));
+        when(chatTools.findContiguousSeats(1130202502L, 2, null)).thenReturn(List.of());
+
+        String reply = assistant.chat("s1", TODAY, "场次 1130202502 的座位还有连座吗").content();
+        assertThat(reply).doesNotContain("```json-cards");
+        assertThat(ReplyCardParser.parse(reply).cards()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("S22 那句「帮我推荐今晚的场次,要两个连座」→ 仍是 ORDER_PROPOSAL, 不被座位建议分支吸走")
+    void s22_style_message_still_yields_order_proposal() {
+        Movie movie = mock(Movie.class);
+        when(movie.getId()).thenReturn(7L);
+        Page<Movie> page = new Page<>(1, 10);
+        page.setRecords(List.of(movie));
+        when(chatTools.searchMovies(null, null, null)).thenReturn(page);
+
+        SessionVO s = new SessionVO();
+        s.setId(2200302502L);
+        when(chatTools.listSessions(eq(7L), any(LocalDate.class))).thenReturn(List.of(s));
+        when(chatTools.getSeatSummary(2200302502L)).thenReturn(summary(2200302502L, 140, 6));
+
+        ActionCardVO card = onlyCard(
+                assistant.chat("s1", TODAY, "帮我推荐今晚的场次,要两个连座").content());
+
+        assertThat(card.getType())
+                .as("S22 必须拿到 ORDER_PROPOSAL —— 点「确认下单」才建得出订单")
+                .isEqualTo(ActionCardVO.TYPE_ORDER_PROPOSAL);
+        // 「连座」不是「座位」: 座位建议分支的触发词不能把 S22 那句话吸走。
+        verify(chatTools, never()).findContiguousSeats(any(), any(Integer.class), any());
+    }
+
+    @Test
+    @DisplayName("只问座位但没给场次 ID → 不出座位建议卡(不能凭空挑一个场次)")
+    void seat_question_without_explicit_session_id_yields_no_seat_card() {
+        Movie movie = mock(Movie.class);
+        when(movie.getId()).thenReturn(7L);
+        Page<Movie> page = new Page<>(1, 10);
+        page.setRecords(List.of(movie));
+        when(chatTools.searchMovies(null, null, null)).thenReturn(page);
+
+        SessionVO s = new SessionVO();
+        s.setId(2200302502L);
+        when(chatTools.listSessions(eq(7L), any(LocalDate.class))).thenReturn(List.of(s));
+        when(chatTools.getSeatSummary(2200302502L)).thenReturn(summary(2200302502L, 140, 6));
+
+        ActionCardVO card = onlyCard(
+                assistant.chat("s1", TODAY, "今晚的座位有连座吗").content());
+
+        assertThat(card.getType())
+                .as("没有显式场次 ID 时不该出座位建议卡")
+                .isNotEqualTo(ActionCardVO.TYPE_SEAT_SUGGESTION);
     }
 
     private static ActionCardVO onlyCard(String reply) {
