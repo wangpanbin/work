@@ -13,7 +13,10 @@ spring:
   application:
     name: cinema-server
   profiles:
-    active: dev
+    # 2026-10-24: 原先硬编码 dev —— 任何未显式覆盖 profile 的部署(容器 / 他人机器)
+    # 都会以 dev 启动, 从而触发 DataInitializer 自动播种 role=1 的 admin/123456。
+    # 改成环境变量可切换: 生产部署设 SPRING_PROFILES_ACTIVE=prod 即可。
+    active: ${SPRING_PROFILES_ACTIVE:dev}
   jackson:
     time-zone: Asia/Shanghai
 
@@ -27,8 +30,18 @@ mybatis-plus:
 cinema:
   jwt:
     # 生产环境务必更换(至少32字节)并从环境变量注入
-    secret: cinema-dev-secret-key-change-me-32bytes-min!!
+    # 2026-10-24: 补上 ${JWT_SECRET:...} 回退 —— 原先写死在文件里, 改法只能靠改文件,
+    # 密钥随仓库分发, 拿到源码就能伪造任意 userId + role=1 的 token。
+    secret: ${JWT_SECRET:cinema-dev-secret-key-change-me-32bytes-min!!}
     expire-hours: 72
+  cors:
+    # 2026-10-24: 原先 allowedOriginPatterns("*") 全开 —— 任意站点的网页都能读 API 响应,
+    # 配合登录端点无限流, 撞库可以直接在浏览器里完成。收敛成白名单, 逗号分隔。
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:4173}
+  seed:
+    # 2026-10-24: dev profile 下播种测试账号(admin 默认 role=1)。
+    # 生产部署必须显式设为 false(或改用 SPRING_PROFILES_ACTIVE 切到非 dev profile)。
+    admin-enabled: ${CINEMA_SEED_ADMIN_ENABLED:true}
   chat:
     # 对话助手 LLM 配置(env 驱动;ChatConfig @ConditionalOnExpression 仅在 key 非空时注册 ChatModel Bean)
     # 设置 `DEEPSEEK_API_KEY` 环境变量后,/api/chat/message 才会接通 LLM(否则 50000 + "对话功能未配置" 短路)

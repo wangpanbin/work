@@ -76,4 +76,20 @@ class ChatControllerTest {
         assertThat(annotation.window()).isEqualTo(1);
         assertThat(annotation.unit()).isEqualTo(TimeUnit.MINUTES);
     }
+
+    /**
+     * 2026-10-24: {@code @Valid} 必须就位。
+     *
+     * <p>{@code ChatRequestDTO.message} 上的 {@code @NotBlank} 只有参数被校验时才生效。
+     * 原先漏了 {@code @Valid} → 空消息一路穿透到 LangChain4j → 抛错 →
+     * 返 {@code 50000 系统繁忙} —— 客户端输入错误被上报成服务端故障, 污染监控与告警。
+     */
+    @Test
+    @DisplayName("chatMessage 的请求体参数必须有 @Valid, 否则 DTO 上的 @NotBlank 形同虚设")
+    void chatMessage_requestBodyHasValid() throws NoSuchMethodException {
+        Method m = ChatController.class.getMethod("chatMessage", ChatRequestDTO.class);
+        jakarta.validation.Valid valid = m.getParameters()[0].getAnnotation(jakarta.validation.Valid.class);
+
+        assertThat(valid).as("缺少 @Valid → 空消息会返 50000 而不是 40001").isNotNull();
+    }
 }
