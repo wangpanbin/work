@@ -101,8 +101,19 @@ export interface AdminSessionPayload {
   status?: number
 }
 
-export function sessionList(movieId?: Id): Promise<Session[]> {
-  return request.get('/admin/sessions', { params: { movieId } }) as Promise<Session[]>
+/**
+ * 场次列表(分页) —— 2026-10-24 新增。
+ *
+ * <p>后端 `/api/admin/sessions` 保持返回全量 `Session[]` 不动(改了会破坏老契约),
+ * 分页走这条独立路径。管理端场次表实测一次要返回 1000+ 行, 全量拉会让
+ * 表格渲染与响应体都随数据量线性膨胀。
+ */
+export function sessionPage(params: {
+  page?: number
+  size?: number
+  movieId?: Id
+} = {}): Promise<PageData<Session>> {
+  return request.get('/admin/sessions/page', { params }) as Promise<PageData<Session>>
 }
 
 export function sessionCreate(data: AdminSessionPayload): Promise<Session> {

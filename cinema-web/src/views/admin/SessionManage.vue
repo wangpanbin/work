@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
-import { sessionList, sessionCreate, sessionUpdate, sessionDelete, hallList } from '../../api/admin'
+import { sessionPage, sessionCreate, sessionUpdate, sessionDelete, hallList, recoverSessionBitmap } from '../../api/admin'
 import { page as moviePage } from '../../api/movie'
 import {
   SESSION_STATUS_CODES,
@@ -22,15 +22,32 @@ const halls = ref<Hall[]>([])
 const dialogVisible = ref(false)
 const editing = ref<Session | null>(null)
 const form = reactive({ movieId: 0, hallId: 0, startTime: '', price: 49.9, status: 1 })
+/** 分页状态 —— 2026-10-24: 场次表实测一次要返回 1000+ 行, 改走 /admin/sessions/page */
+const total = ref(0)
+const pageNum = ref(1)
+const pageSize = ref(20)
 const movieMap = computed(() => Object.fromEntries(movies.value.map((m) => [m.id, m])))
 const hallMap = computed(() => Object.fromEntries(halls.value.map((h) => [h.id, h])))
 
 async function load() {
   try {
-    list.value = await sessionList()
+    const data = await sessionPage({ page: pageNum.value, size: pageSize.value })
+    list.value = data.records ?? []
+    total.value = Number(data.total ?? 0)
   } catch {
     // 拦截器已提示
   }
+}
+
+function onPageChange(p: number) {
+  pageNum.value = p
+  load()
+}
+
+function onSizeChange(s: number) {
+  pageSize.value = s
+  pageNum.value = 1
+  load()
 }
 
 async function loadOptions() {
@@ -85,7 +102,27 @@ async function onDelete(row: Session) {
   try {
     await sessionDelete(row.id)
     ElMessage.success(t('admin.sessionsDeleted'))
+    // 删掉本页最后一条时回退一页, 否则停在空页上
+    if (list.value.length === 1 && pageNum.value > 1) {
+      pageNum.value -= 1
+    }
     load()
+  } catch {
+    // 拦截器已提示
+  }
+}
+
+/**
+ * 手动恢复该场次的座位位图 —— 2026-10-24。
+ *
+ * <p>这个能力后端一直有(`POST /api/admin/sessions/bitmaps/recover`, P0-P5),
+ * 但前端从来没有入口, 于是 `PRODUCT.md` 宣传的「手动恢复位图」在产品里点不到。
+ * 位图与订单状态对不上时(Redis 重启 / flush / 历史脏位图), 管理员靠它把座位放回正确状态。
+ */
+async function onRecoverBitmap(row: Session) {
+  try {
+    await recoverSessionBitmap(row.id)
+    ElMessage.success(t('admin.sessionsBitmapRecovered'))
   } catch {
     // 拦截器已提示
   }
@@ -129,15 +166,27 @@ onMounted(async () => {
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column :label="t('admin.sessionsActionsCol')" width="180">
+      <el-table-column :label="t('admin.sessionsActionsCol')" width="240">
         <template #default="{ row }">
           <el-button link type="primary" @click="openEdit(row)">{{ t('admin.moviesEdit') }}</el-button>
+          <el-button link type="warning" @click="onRecoverBitmap(row)">{{ t('admin.sessionsRecoverBitmap') }}</el-button>
           <el-popconfirm :title="t('admin.sessionsConfirmDelete')" @confirm="onDelete(row)">
             <template #reference><el-button link type="danger">{{ t('admin.moviesDelete') }}</el-button></template>
           </el-popconfirm>
         </template>
       </el-table-column>
     </el-table>
+
+    <el-pagination
+      class="sessions-pager"
+      layout="total, sizes, prev, pager, next"
+      :total="total"
+      :current-page="pageNum"
+      :page-size="pageSize"
+      :page-sizes="[10, 20, 50, 100]"
+      @current-change="onPageChange"
+      @size-change="onSizeChange"
+    />
 
     <el-dialog v-model="dialogVisible" :title="editing ? t('admin.sessionsEditTitle') : t('admin.sessionsAddTitle')" width="540px">
       <el-form :model="form" label-width="100px">
@@ -223,5 +272,11 @@ h2 {
 }
 @media (max-width: 768px) {
   .page-header h2 { font-size: 18px; }
+}
+
+/* 分页条: 右对齐, 与表格留出呼吸间距 */
+.sessions-pager {
+  margin-top: 14px;
+  justify-content: flex-end;
 }
 </style>
