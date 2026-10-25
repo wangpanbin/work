@@ -18,6 +18,14 @@ import {
 const { t } = useI18n()
 const orders = ref<OrderVO[]>([])
 const loading = ref(false)
+/**
+ * 加载失败态(2026-10-25 交互审查)。
+ *
+ * <p>原先 load() 没有 catch: 请求失败时 orders 停在初始的 []，
+ * 模板于是渲染「暂无订单记录」—— 用户本来有 20 单, 网络抖一下页面就变成
+ * 「你一单都没有」。**请求失败 ≠ 没有订单**, 两者必须分开显示。
+ */
+const loadError = ref<string | null>(null)
 
 /**
  * P4-2:「全部」tab 的哨兵值。
@@ -56,9 +64,20 @@ async function load() {
     })
     orders.value = data.records
     total.value = Number(data.total ?? 0)
+    loadError.value = null
+  } catch {
+    // 拦截器已弹过一次 toast, 但 toast 一闪而过 —— 页面必须自己说清「加载失败」
+    loadError.value = t('order.loadFailed')
+    // 清掉旧列表: 失败时不能让页面同时显示「暂无订单记录」
+    orders.value = []
   } finally {
     loading.value = false
   }
+}
+
+/** 错误态上的「重试」—— 重新拉一次列表。 */
+async function reload() {
+  await load()
 }
 
 /** 切换状态筛选: 回到第 1 页并重拉。 */
@@ -175,7 +194,14 @@ onMounted(() => {
       </el-radio-group>
     </div>
 
-    <el-empty v-if="!loading && orders.length === 0" :description="t('order.empty')" />
+    <!-- 加载失败: 错误态 + 重试(2026-10-25) —— 不再把「请求失败」显示成「暂无订单记录」。
+         样式走 main.css 共享的 .load-error / .load-error-text, 不再各抄一份。 -->
+    <div v-if="loadError" class="load-error" role="alert">
+      <p class="load-error-text">{{ loadError }}</p>
+      <el-button type="primary" :loading="loading" @click="reload">{{ t('common.retry') }}</el-button>
+    </div>
+
+    <el-empty v-else-if="!loading && orders.length === 0" :description="t('order.empty')" />
 
     <div v-else class="orders-list">
       <div
@@ -279,7 +305,7 @@ onMounted(() => {
 
     <!-- 分页条(2026-10-24): 原先写死 size=20 且无分页, 第 21 条之后的订单不可达 -->
     <el-pagination
-      v-if="total > pageSize"
+      v-if="!loadError && total > pageSize"
       class="orders-pager"
       layout="total, prev, pager, next"
       :total="total"

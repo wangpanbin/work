@@ -5,6 +5,20 @@ import BrandMark from '../components/BrandMark.vue'
 
 const router = useRouter()
 const { t } = useI18n()
+
+/**
+ * 浏览器历史里**确有站内上一页**吗?
+ *
+ * <p>判据取 vue-router 写在 `history.state.back` 上的「站内上一页路径」:
+ * 首次导航时它是 undefined, 从站内某个页面跳过来时它是那个页面的 fullPath。
+ *
+ * <p>⚠️ **不能用 `window.history.length > 1`** —— 那个数把**站外**的历史一起数,
+ * 从外链直接进来时 length 也是 2, 据此判断会显示「返回上一页」,
+ * 而 `router.back()` 会把用户带回外链(或空白页)—— 404 页把人带离本站。
+ *
+ * <p>没有站内上一页时, 只留「返回首页」。
+ */
+const canGoBack = !!window.history.state?.back
 </script>
 
 <template>
@@ -35,7 +49,8 @@ const { t } = useI18n()
 
       <div class="actions">
         <el-button type="primary" size="large" @click="router.push('/')">{{ t('notFound.backHome') }}</el-button>
-        <el-button @click="router.back()">{{ t('common.back') }}</el-button>
+        <!-- v-if: 只有确有站内上一页时才给「返回上一页」, 否则这一键会把用户带离本站 -->
+        <el-button v-if="canGoBack" @click="router.back()">{{ t('common.back') }}</el-button>
       </div>
     </div>
   </div>

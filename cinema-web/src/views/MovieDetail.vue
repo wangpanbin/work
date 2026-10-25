@@ -75,6 +75,9 @@ async function loadSessions() {
     if (cached) {
       // 立即渲染缓存, 避免切换日期时骨架闪烁
       sessions.value = cached
+      // 缓存分支提前 return, 但错误态必须一起复位 ——
+      // 否则上一个日期拉取失败的提示会一直挂在新日期的场次列表上方。
+      sessionsError.value = null
       // 后台静默刷新
       listByMovieAndDate(movieId, selectedDate.value).then((list) => {
         sessions.value = list
@@ -215,7 +218,8 @@ async function reloadSessions() {
         </div>
         <el-empty v-else-if="!loading && sessions.length === 0" :description="t('movie.noSessions')" />
 
-        <div class="session-list">
+        <!-- v-else: 与错误块/空态互斥 —— 加载失败时不再同时渲染上一个日期的旧场次 -->
+        <div v-else class="session-list">
           <div v-for="(s, idx) in sessions" :key="s.id" class="session-card card-reveal" :style="{ animationDelay: `${idx * 0.06}s` }">
             <div class="session-time">
               <div class="start-time">{{ fmt(s.startTime) }}</div>

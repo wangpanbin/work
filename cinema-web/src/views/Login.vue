@@ -11,6 +11,9 @@
  *   5. loginRules / registerRules 必须用 computed(() => ({...t()})),
  *      用普通对象则切语言后校验消息不会重算
  *   6. 注册成功要回填 username 并切回登录 tab
+ *   7. 登录请求声明了 skipErrorToast(api/user.ts) —— 拦截器那条通用 toast
+ *      已经让位, handleLogin 的 catch 必须自己弹(42900 走弹窗, 其余走
+ *      ElMessage.error), 否则登录失败时屏幕上什么都不发生
  */
 import { computed, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -18,6 +21,7 @@ import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { useUserStore } from '../stores/user'
 import { register } from '../api/user'
+import { errorText } from '../i18n/errorText'
 import BrandMark from '../components/BrandMark.vue'
 
 const router = useRouter()
@@ -66,8 +70,32 @@ const registerRules = computed<FormRules>(() => ({
   ],
 }))
 
+/**
+ * 登录失败文案 —— 与拦截器同一套规则:
+ * 网络层错误(断网/超时)没有业务码, 用本地化文案;
+ * 业务错误在中文界面透出后端原文(信息量最大), 其它界面退化为本地化兜底。
+ *
+ * <p>⚠️ 登录请求声明了 skipErrorToast, 拦截器那条通用 toast 已经让位给这里,
+ * 所以这个函数是登录失败**唯一**的提示出口 —— 缺了就是静默失败。
+ */
+function loginErrorText(err: { code?: number; message?: string }): string {
+  if (err.code === undefined) {
+    return err.message === 'Network Error'
+      ? t('api.networkError')
+      : err.message || t('api.requestFailed')
+  }
+  return errorText(err.message)
+}
+
 async function handleLogin() {
-  await loginFormRef.value?.validate()
+  // P3-3(同款):validate() 校验失败会 reject, 放在 try/catch 之外
+  // → 每次表单校验不通过都产生一条未处理 Promise rejection(Vue warn)。
+  // 这里显式捕获并提前返回, 校验失败就不发请求。
+  try {
+    await loginFormRef.value?.validate()
+  } catch {
+    return
+  }
   loading.value = true
   try {
     await userStore.login(loginForm.username, loginForm.password)
@@ -78,14 +106,17 @@ async function handleLogin() {
     const safeRedirect = redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/'
     router.push(safeRedirect)
   } catch (e: unknown) {
-    // P1-#11: 拦截器已弹通用 ElMessage, 这里针对"被限流"特殊码给更详细的 alert 提示
-    const err = e as { code?: number }
+    const err = e as { code?: number; message?: string }
     if (err.code === 42900) {
+      // P1-#11: 被限流 → 弹窗给更详细的原因(比一条 toast 说得清)
       await ElMessageBox.alert(
         t('login.rateLimitContent'),
         t('login.titleRateLimit'),
         { confirmButtonText: t('login.rateLimitOk'), type: 'warning' },
       )
+    } else {
+      // 其它失败 → 一条 toast。拦截器已按 skipErrorToast 让位, 这里不补就是静默失败
+      ElMessage.error(loginErrorText(err))
     }
   } finally {
     loading.value = false

@@ -230,6 +230,17 @@ function goSeat() {
 }
 
 /**
+ * 跳订单列表 —— 页内入口与超时态的次要按钮共用。
+ *
+ * <p>离开前同样要清掉超时自动跳转的定时器, 否则那个还活着的定时器
+ * 会再推一次路由, 把用户从订单列表弹回支付页。
+ */
+function goOrders() {
+  clearRedirectTimer()
+  router.push(ROUTE_PATHS.orderList)
+}
+
+/**
  * 票根存根上的装饰条码 —— 纯装饰, 不是可扫描的条码, 宽度写死只为"像票"。
  * 真正的票根信息在上面的二维码弹窗里(那是可扫的)。
  */
@@ -243,6 +254,11 @@ const barcodeBars = [2, 1, 3, 1, 2, 1, 1, 3, 2, 1, 2, 3, 1, 2, 1, 3]
     <el-button type="primary" @click="reload">{{ t('common.retry') }}</el-button>
   </div>
   <div v-if="order" class="payment">
+    <!-- 页内入口: 返回订单列表(2026-10-25) —— 放在票面卡片上方, 不与主操作争层级。
+         超时态隐藏它: 那时按钮组里已有「查看我的订单」, 同屏两个入口是重复。 -->
+    <button v-if="!expired" type="button" class="orders-entry" @click="goOrders()">
+      ← {{ t('payment.backToOrders') }}
+    </button>
     <div class="payment-card stub-perf-x">
       <!-- Header -->
       <div class="payment-header">
@@ -287,6 +303,11 @@ const barcodeBars = [2, 1, 3, 1, 2, 1, 1, 3, 2, 1, 2, 3, 1, 2, 1, 3]
             <Countdown :expire-at="order.expireAt" :urgent-threshold="60" />
           </span>
         </div>
+        <!-- 超时提示: 原地给出(2026-10-25) —— 不再只靠一闪而过的 toast -->
+        <div v-if="expired" class="status-banner status-expired" role="status" aria-live="polite">
+          <el-icon :size="16"><Warning /></el-icon>
+          <span>{{ t('payment.expiredNotice') }}</span>
+        </div>
       </div>
 
       <div class="divider"></div>
@@ -327,8 +348,8 @@ const barcodeBars = [2, 1, 3, 1, 2, 1, 1, 3, 2, 1, 2, 3, 1, 2, 1, 3]
             type="primary" size="large"
             :loading="submitting"
             class="pay-btn"
-            @click="expired ? redirectToOrders() : onPay()"
-          >{{ expired ? t('payment.expiredRebook') : t(BUTTON_BY_ACTION.pay.labelKey) }}</el-button>
+            @click="expired ? goSeat() : onPay()"
+          >{{ expired ? t('payment.expiredReselect') : t(BUTTON_BY_ACTION.pay.labelKey) }}</el-button>
           <el-button
             v-else-if="action === 'cancel'"
             type="danger" plain
@@ -358,6 +379,12 @@ const barcodeBars = [2, 1, 3, 1, 2, 1, 1, 3, 2, 1, 2, 3, 1, 2, 1, 3]
             @click="goSeat"
           >{{ t(BUTTON_BY_ACTION.rebook.labelKey) }}</el-button>
         </template>
+        <!-- 超时后的次要出口(2026-10-25): 跳订单列表, 不用干等那 3 秒自动跳转 -->
+        <el-button
+          v-if="expired"
+          class="expired-orders-btn"
+          @click="goOrders()"
+        >{{ t('payment.backToOrders') }}</el-button>
       </div>
 
       <!-- 票根存根: 齿孔撕口在卡片上缘(stub-perf-x), 这里放票号条 + 装饰条码 -->
@@ -425,6 +452,31 @@ const barcodeBars = [2, 1, 3, 1, 2, 1, 1, 3, 2, 1, 2, 3, 1, 2, 1, 3]
   max-width: 600px;
   margin: 0 auto;
   animation: fadeInUp 0.5s ease;
+}
+
+/* 页内入口: 返回订单列表(2026-10-25) —— 弱墨文字 + 透明底,
+   不引入第二个强调面(主色 --accent 全站只有一支, 留给「立即支付」)。 */
+.orders-entry {
+  display: flex;
+  width: fit-content;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: color var(--transition-fast);
+}
+.orders-entry:hover {
+  color: var(--ink);
+}
+.orders-entry:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .payment-card {
@@ -676,6 +728,13 @@ const barcodeBars = [2, 1, 3, 1, 2, 1, 1, 3, 2, 1, 2, 3, 1, 2, 1, 3]
   color: var(--ink-2);
 }
 
+/* 超时横幅(2026-10-25): 语义色 --warn(暗场票面上的文字由下面的覆盖接管) */
+.status-banner.status-expired {
+  background: rgb(var(--warn-rgb) / 0.14);
+  border: 1px solid rgb(var(--warn-rgb) / 0.45);
+  color: var(--warn);
+}
+
 .banner-icon {
   width: 24px;
   height: 24px;
@@ -884,6 +943,11 @@ const barcodeBars = [2, 1, 3, 1, 2, 1, 1, 3, 2, 1, 2, 3, 1, 2, 1, 3]
   background: var(--hall-raised);
   border-color: var(--hall-rule);
   color: var(--hall-ink-2);
+}
+.payment-card .status-banner.status-expired {
+  background: rgb(var(--warn-rgb) / 0.18);
+  border-color: var(--hall-rule);
+  color: var(--hall-ink);
 }
 .payment-card .success-content {
   color: var(--hall-ink);

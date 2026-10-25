@@ -57,3 +57,93 @@ describe('loginRequiredDetector (spec #17 ID-4)', () => {
     expect(detectLoginRequired('怎么买票?')).toBe(false)
   })
 })
+
+/**
+ * 措辞放宽(交互流程审查批次四)。
+ *
+ * <p>原正则漏判「需要先完成登录」这类说法 —— 模型这么一说, 引导弹窗就不弹,
+ * 用户不知道自己要先登录。
+ *
+ * <p>放宽的**边界**: 不能只看「登录」两个字。影片简介里也有
+ * 「主角要登录银行系统」这种普通叙述, 命中就是误报。
+ * 所以正例(该弹)与反例(不该弹)必须一起加, 两者都在下面。
+ */
+describe('loginRequiredDetector — 措辞放宽(该弹的别漏)', () => {
+  it('命中 "需要先完成登录后才能查询订单" → true', () => {
+    expect(detectLoginRequired('需要先完成登录后才能查询订单')).toBe(true)
+  })
+
+  it('命中 "请先完成登录,再查看您的订单" → true', () => {
+    expect(detectLoginRequired('请先完成登录,再查看您的订单')).toBe(true)
+  })
+
+  it('命中 "您需要先完成登录操作" → true', () => {
+    expect(detectLoginRequired('您需要先完成登录操作')).toBe(true)
+  })
+
+  it('命中 "请完成登录" → true', () => {
+    expect(detectLoginRequired('请完成登录')).toBe(true)
+  })
+
+  it('命中 "需要您登录后才能查订单" → true', () => {
+    expect(detectLoginRequired('需要您登录后才能查订单')).toBe(true)
+  })
+
+  it('命中 "完成登录才能继续操作" → true', () => {
+    expect(detectLoginRequired('完成登录才能继续操作')).toBe(true)
+  })
+
+  it('命中 "请重新登录" → true', () => {
+    expect(detectLoginRequired('登录失败,请重新登录')).toBe(true)
+  })
+
+  it('命中英文 "Please log in first to view your orders" → true', () => {
+    expect(detectLoginRequired('Please log in first to view your orders')).toBe(true)
+  })
+
+  it('命中英文 "You need to log in to see this order" → true', () => {
+    expect(detectLoginRequired('You need to log in to see this order')).toBe(true)
+  })
+
+  it('命中英文句首大写 "Please Log In to continue" → true(大小写标志)', () => {
+    expect(detectLoginRequired('Please Log In to continue')).toBe(true)
+  })
+
+  it('命中英文 "You Are Not Logged In" → true', () => {
+    expect(detectLoginRequired('You Are Not Logged In')).toBe(true)
+  })
+
+  it('命中英文 "You are not logged in right now" → true', () => {
+    expect(detectLoginRequired('You are not logged in right now')).toBe(true)
+  })
+})
+
+describe('loginRequiredDetector — 措辞放宽(不该弹的别误报)', () => {
+  it('"登录页面加载有点慢" → false(界面闲聊, 不是要求登录)', () => {
+    expect(detectLoginRequired('登录页面加载有点慢')).toBe(false)
+  })
+
+  it('"主角要登录银行系统" → false(影片简介, 不是要求登录)', () => {
+    expect(detectLoginRequired('这个影片讲的是黑客入侵服务器,主角要登录银行系统')).toBe(false)
+  })
+
+  it('"电影里有一段主角登录系统的剧情" → false', () => {
+    expect(detectLoginRequired('电影里有一段主角登录系统的剧情')).toBe(false)
+  })
+
+  it('"请问这个登录入口在哪里" → false', () => {
+    expect(detectLoginRequired('请问这个登录入口在哪里')).toBe(false)
+  })
+
+  it('"怎么注册账号?登录和注册有什么区别?" → false', () => {
+    expect(detectLoginRequired('怎么注册账号?登录和注册有什么区别?')).toBe(false)
+  })
+
+  it('"我觉得登录体验还不错" → false', () => {
+    expect(detectLoginRequired('我觉得登录体验还不错')).toBe(false)
+  })
+
+  it('英文 "a hacker logging into a bank system" → false', () => {
+    expect(detectLoginRequired('The movie shows a hacker logging into a bank system')).toBe(false)
+  })
+})

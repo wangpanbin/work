@@ -1,15 +1,22 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { search as searchMovies } from '../api/movie'
 import { useMovieCache } from '../stores/movieCache'
 import { toIdString, type Movie } from '../types'
 import { usePosterFallback } from '../composables/usePosterFallback'
-import { Clock, VideoPlay } from '@element-plus/icons-vue'
+import { Clock, Search, VideoPlay } from '@element-plus/icons-vue'
 
 const { t } = useI18n()
 const movies = ref<Movie[]>([])
 const loading = ref(false)
+/**
+ * 列表加载失败(2026-10-25 交互审查 P3-10)。
+ *
+ * <p>原先 `loadMovies` 只有 try/finally: 请求失败时异常逃出(一条未处理的
+ * rejection), 界面却照样渲染「暂无匹配影片」—— **失败**被显示成了**没有**。
+ */
+const loadError = ref<string | null>(null)
 const cache = useMovieCache()
 const { isBroken: isPosterBroken, markBroken: markPosterBroken } = usePosterFallback()
 
@@ -22,6 +29,22 @@ const region = ref('')
 const genreOptions = ['动作', '喜剧', '科幻', '爱情', '悬疑', '动画', '战争', '剧情']
 const regionOptions = ['中国大陆', '美国', '日本', '韩国', '欧洲', '印度', '泰国']
 let debounceTimer: number | null = null
+
+/**
+ * Hero 副券上那个影片数的**口径**。
+ *
+ * <p>副券上的数字取的是 `movies.length` —— 那是**当前筛选结果**的条数。
+ * 一筛选, 它就不再是「全站热映影片数」了, 文案还写着「部热映影片」就是骗人:
+ * 用户筛出 3 部, Hero 却说「3 部热映影片」, 而站里其实有 20 部。
+ *
+ * <p>所以有筛选条件时改说「部匹配影片」(home.statMoviesFiltered)。
+ * 筛选栏下方的 filterMeta 本来就是筛选结果口径 —— 那个数是对的, 别动。
+ */
+const heroStatLabel = computed(() =>
+  keyword.value || genre.value || region.value
+    ? t('home.statMoviesFiltered')
+    : t('home.statMovies'),
+)
 
 /**
  * Hero 副券上的装饰条码 —— 纯 CSS, 宽度写死只为"像票", 不可扫描。
@@ -40,6 +63,19 @@ async function loadMovies(silent = false) {
     movies.value = data.records
     if (!keyword.value && !genre.value && !region.value) {
       cache.setMovies(data.records)
+    }
+    loadError.value = null
+  } catch {
+    // 加载失败**不能**退化成「没有影片」—— 那是两件事(2026-10-25 交互审查 P3-10)。
+    // 页面原本只有 try/finally: 请求失败时异常逃出, 一条未处理的 rejection,
+    // 而界面照样渲染 el-empty「暂无匹配影片」→ 用户以为站里没有影片。
+    //
+    // 静默刷新(silent, 命中缓存后的后台刷新)失败时**不动**错误态 ——
+    // 缓存列表还在, 那是可用的陈旧数据, 不是错误。
+    if (!silent) {
+      loadError.value = t('home.loadFailed')
+      // 清掉旧列表: 留着它等于告诉用户「这就是你刚搜的结果」, 那是错的。
+      movies.value = []
     }
   } finally {
     if (!silent) loading.value = false
@@ -97,7 +133,7 @@ onMounted(() => {
              票面数据竖着排才像票; 横排三列是账本。 -->
         <div class="hero-stats">
           <div class="stat">
-            <span class="stat-label">{{ t('home.statMovies') }}</span>
+            <span class="stat-label">{{ heroStatLabel }}</span>
             <span class="stat-num">{{ movies.length }}</span>
           </div>
           <div class="stat">
@@ -134,7 +170,7 @@ onMounted(() => {
           class="search-input"
           :placeholder="t('home.searchPlaceholder')"
           clearable
-          :prefix-icon="'Search'"
+          :prefix-icon="Search"
           @input="onSearchInput"
           @clear="onFilterChange"
         />
@@ -156,6 +192,13 @@ onMounted(() => {
           <div class="skeleton-line"></div>
           <div class="skeleton-line short"></div>
         </div>
+      </div>
+
+      <!-- 加载失败: 错误态 + 重试, 不能退化成「暂无匹配影片」(2026-10-25 交互审查 P3-10)。
+           样式复用 main.css 共享的 .load-error / .load-error-text, 不另抄一份。 -->
+      <div v-else-if="loadError" class="load-error" role="alert">
+        <p class="load-error-text">{{ loadError }}</p>
+        <el-button type="primary" @click="loadMovies(false)">{{ t('common.retry') }}</el-button>
       </div>
 
       <el-empty v-else-if="movies.length === 0" :description="t('home.empty')" />
