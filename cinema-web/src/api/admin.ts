@@ -1,6 +1,6 @@
 import axios from 'axios'
 import request from './request'
-import type { Hall, Session } from '../types/admin-types'
+import type { Hall, HallPayload, Session } from '../types/admin-types'
 import { toIdString, type Id, type Movie, type PageData } from '../types'
 import { AUTH_TOKEN_KEY } from '../constants/auth'
 
@@ -23,8 +23,16 @@ export interface DashboardSummary {
   }>
 }
 
+/**
+ * 经营看板汇总。
+ *
+ * <p>`skipErrorToast: true` —— 提示权交给页面自己(2026-10-25): 本接口被实时大屏
+ * 每 5 秒轮询一次, 后端一挂就是每秒一条 `ElMessage.error` 的 toast 风暴;
+ * 而拦截器那条通用文案还是后端的中文原文, 英文界面会夹中文。
+ * 三个调用方(经营看板 / 管理首页 / 实时大屏)都自带页内错误态与重试按钮。
+ */
 export function dashboardSummary(): Promise<DashboardSummary> {
-  return request.get('/admin/dashboard/summary') as Promise<DashboardSummary>
+  return request.get('/admin/dashboard/summary', { skipErrorToast: true }) as Promise<DashboardSummary>
 }
 
 /* ===================== 对话助手用量看板 (v0.4.0 IT-11) ===================== */
@@ -53,8 +61,15 @@ export interface ChatAssistantStats {
   dailyCalls: Array<{ day: string; calls: number }>
 }
 
+/**
+ * 助手用量统计。成本字段是**估算值**(单价来自后端配置, 需人工维护), 不是财务口径。
+ *
+ * <p>`skipErrorToast: true` —— 与 `dashboardSummary` 同一个理由(2026-10-25):
+ * 调用方(助手用量看板)在页内已有自己的错误行(`admin.statsLoadFailed`),
+ * 拦截器那条通用 toast 是重复的, 而且它是后端中文原文 —— 英文界面会夹中文。
+ */
 export function fetchChatStats(days = 7): Promise<ChatAssistantStats> {
-  return request.get('/admin/chat/stats', { params: { days } }) as Promise<ChatAssistantStats>
+  return request.get('/admin/chat/stats', { params: { days }, skipErrorToast: true }) as Promise<ChatAssistantStats>
 }
 
 /* ===================== 影片 CRUD ===================== */
@@ -94,24 +109,19 @@ export function movieDelete(id: Id): Promise<void> {
 
 /* ===================== 影厅 CRUD ===================== */
 
-export interface AdminHallPayload {
-  cinemaId: Id
-  name: string
-  seatRows: number
-  seatCols: number
-  /** VIP 起始行(含); null/缺省 表示无 VIP */
-  vipFromRow?: number | null
-}
+export type { HallPayload }
 
+/** ⚠️ 影厅载荷的字段语义见 `types/admin-types.ts` 的 `HallPayload` —— `vipFromRow` 为 null
+ *  时后端按「沿用当前 VIP 区」处理, 不是「清空」。 */
 export function hallList(cinemaId?: Id): Promise<Hall[]> {
   return request.get('/admin/halls', { params: { cinemaId } }) as Promise<Hall[]>
 }
 
-export function hallCreate(data: AdminHallPayload): Promise<Hall> {
+export function hallCreate(data: HallPayload): Promise<Hall> {
   return request.post('/admin/halls', data) as Promise<Hall>
 }
 
-export function hallUpdate(id: Id, data: AdminHallPayload): Promise<Hall> {
+export function hallUpdate(id: Id, data: HallPayload): Promise<Hall> {
   return request.put(`/admin/halls/${toIdString(id)}`, data) as Promise<Hall>
 }
 

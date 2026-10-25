@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { fetchChatStats, type ChatAssistantStats } from '../../api/admin'
+import { errorText } from '../../i18n/errorText'
 
 /**
  * 对话助手用量与成本看板(v0.4.0 IT-11)。
@@ -24,7 +25,9 @@ async function load() {
   try {
     stats.value = await fetchChatStats(days.value)
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e)
+    // 2026-10-25: 原先直接把后端中文原文当界面文案, 切到英文界面就成了「英文夹中文」。
+    // errorText 的统一规则: 中文界面透出后端原文(信息量最大), 其它界面用本地化兜底。
+    error.value = errorText(e instanceof Error ? e.message : undefined, 'admin.statsLoadFailed')
     stats.value = null
   } finally {
     loading.value = false

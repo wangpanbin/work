@@ -1,31 +1,39 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useUserStore } from '../../stores/user'
 import { dashboardSummary, type DashboardSummary } from '../../api/admin'
+import { ROUTE_NAMES, ROUTE_PATHS } from '../../constants/routes'
+import { adminCrumbs } from './breadcrumb'
 import BrandMark from '../../components/BrandMark.vue'
 
 const userStore = useUserStore()
 const router = useRouter()
+const route = useRoute()
 const { t } = useI18n()
 
 const isAdmin = computed(() => userStore.user?.role === 1)
 const summary = ref<DashboardSummary | null>(null)
 /** 统计拉取失败的提示(2026-10-24): 有值说明是「请求失败」, 没值才是「今天没数据」 */
 const loadError = ref<string | null>(null)
+/**
+ * 面包屑各级(2026-10-25): 管理端是密集报表控制台, 只有侧栏高亮时用户仍不知道自己
+ * 在哪一级。映射逻辑下沉到 `breadcrumb.ts` 纯函数, 这里只取当前路径。
+ */
+const crumbs = computed(() => adminCrumbs(route.path))
 
 // 移动端顶部导航项
 // ⚠️ 原稿每项带彩色 emoji 图标(🏠📊📡🎞🛋📅)。票根主题是克制的印刷质感,
 //    满屏彩色 emoji 是"廉价活动页"观感的主要来源之一, 这里去掉只留文字。
 const navItems = computed(() => [
-  { path: '/admin', labelKey: 'admin.mobileNavHome' },
-  { path: '/admin/dashboard', labelKey: 'admin.mobileNavDashboard' },
-  { path: '/admin/live', labelKey: 'admin.mobileNavLive' },
-  { path: '/admin/movies', labelKey: 'admin.mobileNavMovies' },
-  { path: '/admin/halls', labelKey: 'admin.mobileNavHalls' },
-  { path: '/admin/sessions', labelKey: 'admin.mobileNavSessions' },
-  { path: '/admin/chat-stats', labelKey: 'admin.mobileNavChatStats' },
+  { path: ROUTE_PATHS.adminHome, labelKey: 'admin.mobileNavHome' },
+  { path: ROUTE_PATHS.adminDashboard, labelKey: 'admin.mobileNavDashboard' },
+  { path: ROUTE_PATHS.adminLive, labelKey: 'admin.mobileNavLive' },
+  { path: ROUTE_PATHS.adminMovies, labelKey: 'admin.mobileNavMovies' },
+  { path: ROUTE_PATHS.adminHalls, labelKey: 'admin.mobileNavHalls' },
+  { path: ROUTE_PATHS.adminSessions, labelKey: 'admin.mobileNavSessions' },
+  { path: ROUTE_PATHS.adminChatStats, labelKey: 'admin.mobileNavChatStats' },
 ])
 
 async function load() {
@@ -44,7 +52,7 @@ onMounted(() => {
 
 function logout() {
   userStore.logout()
-  router.push('/login')
+  router.push({ name: ROUTE_NAMES.login })
 }
 </script>
 
@@ -56,15 +64,27 @@ function logout() {
         <span class="brand-text">{{ t('admin.asideBrand') }}</span>
       </div>
       <el-menu router :default-active="$route.path" mode="vertical" class="menu">
-        <el-menu-item index="/admin/dashboard">{{ t('admin.homeSidebar.dashboard') }}</el-menu-item>
-        <el-menu-item index="/admin/live">{{ t('admin.homeSidebar.live') }}</el-menu-item>
-        <el-menu-item index="/admin/movies">{{ t('admin.homeSidebar.movies') }}</el-menu-item>
-        <el-menu-item index="/admin/halls">{{ t('admin.homeSidebar.halls') }}</el-menu-item>
-        <el-menu-item index="/admin/sessions">{{ t('admin.homeSidebar.sessions') }}</el-menu-item>
-        <el-menu-item index="/admin/chat-stats">{{ t('admin.homeSidebar.chatStats') }}</el-menu-item>
+        <el-menu-item :index="ROUTE_PATHS.adminHome">{{ t('admin.homeSidebar.overview') }}</el-menu-item>
+        <el-menu-item :index="ROUTE_PATHS.adminDashboard">{{ t('admin.homeSidebar.dashboard') }}</el-menu-item>
+        <el-menu-item :index="ROUTE_PATHS.adminLive">{{ t('admin.homeSidebar.live') }}</el-menu-item>
+        <el-menu-item :index="ROUTE_PATHS.adminMovies">{{ t('admin.homeSidebar.movies') }}</el-menu-item>
+        <el-menu-item :index="ROUTE_PATHS.adminHalls">{{ t('admin.homeSidebar.halls') }}</el-menu-item>
+        <el-menu-item :index="ROUTE_PATHS.adminSessions">{{ t('admin.homeSidebar.sessions') }}</el-menu-item>
+        <el-menu-item :index="ROUTE_PATHS.adminChatStats">{{ t('admin.homeSidebar.chatStats') }}</el-menu-item>
       </el-menu>
     </el-aside>
     <el-main class="content">
+      <!-- 面包屑(2026-10-25): 管理端是密集报表控制台, 只有侧栏高亮时用户仍不知道自己
+           在哪一级。祖先级可点(交互墨 --accent), 当前页是纯文本(数据墨 --ink)。 -->
+      <el-breadcrumb class="crumbs" separator="/">
+        <el-breadcrumb-item
+          v-for="(c, i) in crumbs"
+          :key="c.labelKey"
+          :to="i < crumbs.length - 1 ? c.path : undefined"
+        >
+          {{ t(c.labelKey) }}
+        </el-breadcrumb-item>
+      </el-breadcrumb>
       <!-- 移动端顶部水平导航 (桌面端 CSS display:none 隐藏) -->
       <nav class="mobile-nav" :aria-label="t('admin.mobileNavAria')">
         <router-link
@@ -86,7 +106,7 @@ function logout() {
       </nav>
       <!-- /admin 默认页 → 若路径是 /admin 本身 (无子路由激活), 渲染欢迎页/概览 -->
       <router-view v-slot="{ Component, route }">
-        <component :is="Component" v-if="Component && route.path !== '/admin'" />
+        <component :is="Component" v-if="Component && route.path !== ROUTE_PATHS.adminHome" />
         <div v-else class="welcome">
           <div class="welcome-hero">
             <div class="welcome-badge">ADMIN CONSOLE</div>
@@ -121,13 +141,13 @@ function logout() {
           </div>
 
           <div class="welcome-actions">
-            <el-button type="primary" size="large" @click="router.push('/admin/dashboard')">
+            <el-button type="primary" size="large" @click="router.push({ name: ROUTE_NAMES.adminDashboard })">
               {{ t('admin.welcomeEnterDashboard') }}
             </el-button>
-            <el-button @click="router.push('/admin/live')">
+            <el-button @click="router.push({ name: ROUTE_NAMES.adminLive })">
               {{ t('admin.welcomeEnterLive') }}
             </el-button>
-            <el-button @click="router.push('/admin/sessions')">
+            <el-button @click="router.push({ name: ROUTE_NAMES.adminSessions })">
               {{ t('admin.welcomeEnterSessions') }}
             </el-button>
             <!-- 退出登录(2026-10-24): logout() 此前定义了却没有任何模板引用,
@@ -287,6 +307,32 @@ function logout() {
 .aside :deep(.el-menu-item:focus-visible) {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
+}
+
+/* ========== 面包屑 ==========
+   层级靠结构(两级: 管理端 / 当前页), 不引入任何新的强调色 ——
+   祖先级用交互墨(--accent, 与侧栏激活态同一支), 当前页用数据墨(--ink)。 */
+.crumbs {
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+.crumbs :deep(.el-breadcrumb__inner) {
+  color: var(--ink-3);
+  font-weight: 400;
+}
+.crumbs :deep(.el-breadcrumb__inner.is-link) {
+  color: var(--accent);
+  font-weight: 500;
+}
+.crumbs :deep(.el-breadcrumb__inner.is-link:hover) {
+  color: var(--accent-hover);
+}
+.crumbs :deep(.el-breadcrumb__item:last-child .el-breadcrumb__inner) {
+  color: var(--ink);
+  font-weight: 600;
+}
+.crumbs :deep(.el-breadcrumb__separator) {
+  color: var(--ink-3);
 }
 
 /* ========== 右侧内容区 ========== */

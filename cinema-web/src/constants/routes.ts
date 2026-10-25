@@ -25,6 +25,7 @@ export const ROUTE_PATHS = {
   adminMovies: '/admin/movies',
   adminHalls: '/admin/halls',
   adminSessions: '/admin/sessions',
+  adminChatStats: '/admin/chat-stats',
 } as const
 
 /** 路由名 —— `router.push({ name: ... })` 用。 */
@@ -41,6 +42,7 @@ export const ROUTE_NAMES = {
   adminMovies: 'admin-movies',
   adminHalls: 'admin-halls',
   adminSessions: 'admin-sessions',
+  adminChatStats: 'admin-chat-stats',
 } as const
 
 /**

@@ -38,9 +38,11 @@ async function loadSummary() {
   try {
     data.value = await dashboardSummary()
     loadError.value = null
-  } catch (e) {
-    // 区分「拉不到数据」与「今天确实没数据」—— 两者在界面上不能长得一样
-    loadError.value = t('api.requestFailed')
+  } catch {
+    // 区分「拉不到数据」与「今天确实没数据」—— 两者在界面上不能长得一样。
+    // 2026-10-25: dashboardSummary 已声明 skipErrorToast, 拦截器不再弹通用 toast,
+    // 这句页面内提示就是唯一的失败反馈, 用本地化键而不是后端中文原文。
+    loadError.value = t('admin.liveLoadFailed')
   }
 }
 

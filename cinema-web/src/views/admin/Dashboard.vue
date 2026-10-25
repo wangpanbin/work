@@ -10,6 +10,7 @@ import {
   type RevenueExportQuery,
 } from '../../api/admin'
 import { downloadBlob } from '../../utils/download'
+import { ROUTE_NAMES } from '../../constants/routes'
 import {
   DEFAULT_EXPORT_PRESET,
   EXPORT_PRESETS,
@@ -29,6 +30,8 @@ const router = useRouter()
 const { t } = useI18n()
 const data = ref<DashboardSummary | null>(null)
 const loading = ref(false)
+/** 经营数据拉取失败的提示(2026-10-25): 有值说明是「请求失败」, 没值才是「今天没数据」 */
+const loadError = ref<string | null>(null)
 
 // ====== T5: 导出对话框 ======
 const exportDialogVisible = ref(false)
@@ -89,6 +92,13 @@ async function load() {
   loading.value = true
   try {
     data.value = await dashboardSummary()
+    loadError.value = null
+  } catch {
+    // 失败与「今天没数据」在界面上不能长得一样(2026-10-25): 原先这里没有 catch,
+    // data 保持 null, 模板的 v-if="data" 把整块内容挡掉 —— 管理员只看到一个页头,
+    // 既看不到错误也点不到重试, onMounted(load) 还顺手产生一条未处理的 rejection。
+    // 写法照抄 AdminHome / LiveDashboard(2026-10-24 已修的那两处)。
+    loadError.value = t('admin.dashboardLoadFailed')
   } finally {
     loading.value = false
   }
@@ -138,11 +148,19 @@ onMounted(load)
       <h2>{{ t('admin.dashboardTitle') }}</h2>
       <div class="header-actions">
         <el-button type="primary" @click="openExportDialog">{{ t('admin.exportBtn') }}</el-button>
-        <el-button @click="router.push('/admin')" plain>{{ t('admin.backToHome') }}</el-button>
+        <el-button @click="router.push({ name: ROUTE_NAMES.adminHome })" plain>{{ t('admin.backToHome') }}</el-button>
       </div>
     </div>
 
-    <template v-if="data">
+    <!-- 经营数据拉取失败: 明确提示 + 重试(2026-10-25)。
+         ⚠️ 与下面的数据区**互斥**: 二次拉取失败时, 横幅与旧数据不能同屏 ——
+         那会让管理员看到一张「看起来正常」的旧看板, 却以为它是新数据。 -->
+    <div v-if="loadError" class="load-error" role="alert">
+      <p class="load-error-text">{{ loadError }}</p>
+      <el-button size="small" @click="load">{{ t('common.retry') }}</el-button>
+    </div>
+
+    <template v-else-if="data">
       <!-- 4 卡片 -->
       <div class="cards">
         <div class="card card-reveal card-reveal--plain gold">

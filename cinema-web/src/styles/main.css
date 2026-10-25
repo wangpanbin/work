@@ -415,6 +415,32 @@ img {
   color: var(--ink-2);
 }
 
+/* ============================================
+   共享状态块 · 管理端三页的告警条与空状态
+   MovieManage / HallManage / SessionManage 三个页面各抄了一份
+   同名同义的 CSS —— 改一处漏两处就会漂。抽到这里共用。
+   ============================================ */
+
+/* 加载失败条: 与表格留出呼吸间距 */
+.load-alert {
+  margin-bottom: 12px;
+}
+
+/* 弹窗里的后端错误: 留在上下文里, 不靠一闪而过的 toast */
+.submit-alert {
+  margin-bottom: 12px;
+}
+
+/* 空状态: 层级靠留白与墨色, 不引入新的色值 */
+.table-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px 0;
+  color: var(--ink-2);
+}
+
 /* --- App 根容器 --- */
 .app {
   min-height: 100vh;
