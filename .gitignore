@@ -51,14 +51,25 @@ test/playwright-cli/snapshots/
 
 # E2E 测试内容 (顶层 test/ tests/ 目录; 不影响 cinema-server/src/test/ 等子模块测试目录)
 # / 前缀强制仅匹配 git root; 避免误伤 cinema-server/src/test/
-/test/
-/tests/
+#
+# v0.4.0: 浏览器回归套件**要入库** —— 证据必须入库才算数(新克隆的仓库拿不到就等于没有)。
+# 注意 gitignore 的语义: 父目录被排除时无法重新包含子目录, 所以这里排除的是
+# 「test/ 里的东西」(/test/*), 而不是 test/ 目录本身, 再单独开 test/e2e/ 的口子。
+/test/*
+/tests/*
+!test/e2e/
+test/e2e/screenshots/
+test/e2e/__pycache__/
+# 2026-09-29 的 E2E 报告是「问题闭环」的历史证据, 随仓库入库
+!test/e2e-report-2026-09-29.md
 # 测试报告
 docs/压测报告*.md
 # README 与实现方案都引用了这两份压测报告, 它们是「并发 0 超卖」这类正确性证据,
 # 属于交付物而非临时产物 —— 解除忽略, 随仓库入库。上面的规则继续挡住同前缀的新报告。
 !docs/压测报告.md
 !docs/压测报告-v2.md
+# v0.4.0: 一键演示脚本生成的最新压测报告(同属交付证据)
+!docs/压测报告-v3.md
 test_mixed.py
 test_myorders.py
 test_webapp_e2e.py
@@ -75,14 +86,21 @@ META-INF/
 cinema-server/.tmp/
 opennlp/
 
-# 另一个项目产出的 Mini App 目录(defect-triage-workbench), 与 cinema 业务无关。
-# / 前缀限定仅匹配 git root; 本目录内容不删, 只挡住它污染本仓库的 diff。
-/miniapps/
+# v0.4.0: 另一个项目的 Mini App 目录(defect-triage-workbench)已**移出本仓库**
+# (到 F:\test\miniapps-defect-triage-workbench), 所以这里不再需要它的忽略规则。
 
 # 课程设计汇报物料 (一次性交付素材, 不属于 cinema 业务代码)
 # deck/  —— 汇报幻灯片生成器与产物 (PPTX / 图片 / 中间文件)
 # video/ —— 汇报演示前端 + 配音流水线 + 成片, 含约 44MB 的 mp3/音频二进制
-# 二者均可由脚本重新生成, 入库只会永久撑大仓库且污染业务代码的 diff。
-# / 前缀限定仅匹配 git root, 避免误伤子模块内同名目录。
-/deck/
+#
+# v0.4.0: deck/ 的**生成器源码**入库(约 80KB), 让「怎么重新生成」有据可查;
+# 产物(2.3MB 的 PPTX / PDF / 33 张 PNG)继续忽略 —— 它们可由源码重新生成,
+# 入库只会永久撑大仓库。同样是「排除内容而非排除目录」, 才能重新包含子项。
+/deck/*
+!deck/README.md
+!deck/compile.js
+!deck/lib.js
+!deck/theme.js
+!deck/mavis-ppt-map.cjs
+!deck/slide-*.js
 /video/

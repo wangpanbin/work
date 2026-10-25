@@ -8,7 +8,7 @@
 - **一键下单**(v0.2.0,已落地):设计 spec [docs/superpowers/specs/2026-10-19-chat-one-click-order-design.md](docs/superpowers/specs/2026-10-19-chat-one-click-order-design.md) · 决策记录 [ADR-0004](docs/adr/0004-chat-order-proposal.md) · 发布说明 [docs/发布说明-v0.2.0.md](docs/发布说明-v0.2.0.md)
 - **v0.3.0 收口与修复**(2026-10-25):发布说明 [docs/发布说明-v0.3.0.md](docs/发布说明-v0.3.0.md) · 部署前置检查 [docs/部署前置检查.md](docs/部署前置检查.md)
 - 领域词汇表: [CONTEXT.md](CONTEXT.md)
-- 原始方案见 [plan.md](plan.md)
+- 原始方案见 [docs/archive/plan-2026-08-30.md](docs/archive/plan-2026-08-30.md)（**原始设计稿，已被本机环境取代** —— RabbitMQ 延迟队列 / Nginx / 多实例在本机都不可用；落地架构见 [实现方案](docs/实现方案.md)）
 
 ---
 
@@ -21,7 +21,7 @@
 | **延迟关单** | Redis ZSet 延迟队列(主链路 5s 扫描) + 定时补偿任务(1min 兜底),双保险 |
 | **冷启动守护** | 服务重启/Redis flush 后锁座前自动从 DB 重建 Bitmap,杜绝"看似可选实则已售" |
 | **交易闭环** | 锁座 → 支付 → 退票(状态机 PAID→REFUNDING→REFUNDED) + 电子票(HMAC 签名,24h 过期,一次性验票) |
-| **工程严谨** | 312 个 JUnit5 + Mockito 单元测试覆盖核心链路;`@RateLimit`/`@Idempotent` AOP 注解;OrderService 拆 4 service + 1 core(单文件 ≤ 300 行) |
+| **工程严谨** | 329 个 JUnit5 + Mockito 单元测试覆盖核心链路;`@RateLimit`/`@Idempotent` AOP 注解;OrderService 拆 4 service + 1 core(单文件 ≤ 300 行) |
 | **数据可视化** | 管理端经营看板(4 卡片 + 3 图 + 1 表);实时数据大屏(WebSocket 推送锁座事件) |
 | **前端体验** | 全局路由守卫(未登录/非管理员自动拦截) · 影片搜索/筛选 · 注册确认密码 · 移动端适配 · 座位图重构 |
 | **国际化** | vue-i18n 11 双语(zh-CN / en-US);浏览器语言自动探测 + 本地持久化 + `fallbackLocale: zh-CN` 防裸 key;29 个专项用例,其中 `key-coverage` 兜底「两边都漏」的盲点 |
@@ -66,7 +66,7 @@
 | 接口限流(`@RateLimit`) | ✅ P0 E4 | Redis 滑动窗口 Lua,锁座/支付/退票/聊天分级限流 |
 | 幂等键(`@Idempotent`) | ✅ P0 E5 | SETNX,锁座/支付前置挡重试 |
 | OrderService 拆分 | ✅ P0 E1 | 4 service + 1 core,单文件 ≤ 300 行 |
-| 关键路径单测 | ✅ P0 E2 | **312 个 JUnit5 + Mockito 用例**(47 个测试类,2026-10-25 实测) |
+| 关键路径单测 | ✅ P0 E2 | **329 个 JUnit5 + Mockito 用例**(49 个测试类,2026-10-25 实测) |
 | 营收明细导出 Excel | ✅ | `GET /api/admin/revenue/export`,独立 axios 实例走 blob,看板导出对话框 |
 | 错误码体系 | ✅ | 0/4xxxx/5xxxx + data 携带附加信息 |
 | **安全基线** | ✅ v0.3.0 | JWT 密钥走 `JWT_SECRET` 环境变量(仓库里的默认值只用于开发);CORS 收敛成 `CORS_ALLOWED_ORIGINS` 白名单(不再是 `*`);登录按 IP+账号 10/分钟、注册按 IP 120/小时 限流;管理员播种双开关(`SPRING_PROFILES_ACTIVE` + `CINEMA_SEED_ADMIN_ENABLED`) |
@@ -151,17 +151,43 @@ pnpm dev
 ```bash
 cd cinema-server
 mvn test
-# Tests run: 312, Failures: 0, Errors: 0
-# (跨 47 个测试类,2026-10-25 实测)
+# Tests run: 329, Failures: 0, Errors: 0
+# (跨 49 个测试类,2026-10-25 实测)
 
 cd ../cinema-web
 pnpm test
-# Test Files: 35 passed, Tests: 547 passed (vitest 3.x)
+# Test Files: 35 passed, Tests: 554 passed (vitest 3.x)
 
-# 仓库自带的 Python 工具测试(对账脚本 / 演示排片脚本)
+# 仓库自带的 Python 工具测试(对账脚本 / 演示排片脚本 / 文档一致性闸门)
 cd ..
 python -m unittest discover -s tools -p "test_*.py"
-# Ran 80 tests ... OK
+# Ran 81 tests ... OK
+```
+
+### 4.1 一键跑完全部闸门
+
+```bash
+python tools/run_all_gates.py
+# 逐项 PASS/FAIL + 汇总; 任一失败 → 非零退出
+# --only backend / --skip frontend  可挑闸门; --json 机器可读
+```
+
+> 它**不碰 CI/CD 配置,也不装 git 钩子** —— 只是一个本地入口。
+
+### 4.2 浏览器回归(真 Chromium)
+
+```bash
+# 需要: 后端 8080 + 前端 5173 都在跑, 且跑过 sql/05_refresh_sessions_for_demo.sql
+python test/e2e/e2e_regression.py
+# 20 个场景; 报告写 test/e2e/RESULTS.md, 截图写 test/e2e/screenshots/
+```
+
+### 4.3 一键演示(补种 → 冒烟 → 防超卖 → 压测 → 出报告)
+
+```bash
+python tools/demo_run.py               # 默认不重置数据, 幂等补种
+python tools/demo_run.py --reset       # dry-run: 只打印会清什么
+python tools/demo_run.py --reset --yes  # 真清(只删演示范围, 不碰 movie/hall)
 ```
 
 ---
@@ -203,6 +229,8 @@ python -m unittest discover -s tools -p "test_*.py"
 | POST | `/api/admin/sessions/bitmaps/recover?sessionId=` | 手动恢复位图(P0 P5) | 管理员 |
 | GET | `/api/admin/dashboard/summary` | 经营看板汇总(P0 O3) | 管理员 |
 | GET | `/api/admin/revenue/export?from=&to=&mode=` | 营收明细导出 xlsx(**不走 `R<T>` 包装**,直接返回二进制流) | 管理员 |
+
+| GET | `/api/admin/chat/stats` | 对话助手用量与成本(近 N 天: 调用量/失败率/P95/估算成本) | 管理员 |
 
 ### WebSocket
 
@@ -276,7 +304,7 @@ F:/test/work/
 └── cinema-web/                           Vue3 前端
     ├── package.json
     ├── DESIGN.md                         视觉宪法(票根语言/色板/命名规则), 与 main.css 由测试锁同步
-    ├── tests/                            vitest 用例(35 个 .test.ts / 547 条)
+    ├── tests/                            vitest 用例(35 个 .test.ts / 554 条)
     └── src/
         ├── api/                          axios 封装 + 各模块 API(admin.ts 含 exportRevenue 独立实例)
             └── errorCodes.ts             错误码 → 结构化载荷(锁座冲突的座位列表等)
@@ -565,8 +593,8 @@ v0.1.0 曾经「不让助手直接锁座」(三条代码级证据见 spec §2.3)
 
 ## 测试文件
 
-- `cinema-server/src/test/java/...` — **312 个 JUnit5 + Mockito 单元测试**(47 个测试类,2026-10-25 实测)
-- `cinema-web/tests/` — **547 个 Vitest 单元测试**(35 个 `.test.ts` 文件,2026-10-25 实测)
+- `cinema-server/src/test/java/...` — **329 个 JUnit5 + Mockito 单元测试**(49 个测试类,2026-10-25 实测)
+- `cinema-web/tests/` — **554 个 Vitest 单元测试**(35 个 `.test.ts` 文件,2026-10-25 实测)
 - `tools/test_*.py` — **80 个 Python 工具测试**(位图对账 / 幽灵订单清理 / Redis 探针 / 只读 SQL 工具 / 文档一致性闸门,2026-10-25 实测)
 - `test/load_test.py` — 三场景 Python 压测驱动
 - `test/concurrency_strict.py` — 防超卖专项
