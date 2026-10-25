@@ -2,7 +2,7 @@
 import { onBeforeUnmount, onMounted, ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
 import { seatMap } from '../api/seat'
 import { lockSeats } from '../api/order'
@@ -13,8 +13,10 @@ import { useSeatStore, MAX_WATCH } from '../stores/seat'
 import { InfoFilled, Refresh } from '@element-plus/icons-vue'
 import { parsePreselectFromQuery } from '../stores/seatEventReducer'
 import { computeReleasedWatchHits, formatSeatPositions } from '../stores/seatWatch'
-import { createSeatWs, type SeatWsHandle, type WsStatus } from '../utils/ws'
+import { createSeatWs, type SeatEvent, type SeatWsHandle, type WsStatus } from '../utils/ws'
 import { useSeatSync } from '../composables/useSeatSync'
+import { loadSeatSession, canLockSession } from '../composables/useSeatSession'
+import { useNow } from '../composables/useNow'
 import { computeDragRange } from '../utils/seatDragRange'
 import SeatItem from '../components/SeatItem.vue'
 
@@ -39,12 +41,27 @@ const refreshing = ref(false)
  */
 const loadError = ref<string | null>(null)
 let wsHandle: SeatWsHandle | null = null
+/**
+ * 装载轮次 —— 每一轮编排 +1。
+ *
+ * <p>用于识别「已经过时的那一轮」: 换场次后, 上一轮的座位图请求可能还在路上,
+ * 它回来时不能套用自己的预选、也不能用自己的场次去覆盖 WS。
+ * 只比场次 ID 挡不住 `A → B → A` 的快返(那时场次 ID 又相等了), 所以用轮次。
+ */
+let sessionGeneration = 0
+/**
+ * WS 状态监听的停止函数。
+ *
+ * <p>换场次时必须停掉上一个句柄上的监听 —— 否则监听会一直挂在旧句柄的
+ * status 上(旧句柄被 close() 时 status 还会再变一次)。
+ */
+let stopWsStatusWatch: (() => void) | null = null
 
 // P0-2: WS 连接状态(从 wsHandle.status 同步过来给 template 用)
 const wsStatus = ref<WsStatus>('connecting')
 
 /**
- * 拉取权威座位图。
+ * 拉取当前场次的权威座位图。
  *
  * @param preserveSelection 权威重拉时为 true —— 不直接丢弃用户已选座位, 而是逐个用新位图复核。
  *   缺省 false, 保持改动前的语义(手动刷新按钮 / 首次装载仍清空选座)。
@@ -53,14 +70,44 @@ const wsStatus = ref<WsStatus>('connecting')
  *   页面据此渲染「加载失败 + 重试」, 而不是一整页空白。
  */
 async function refresh(preserveSelection = false): Promise<number> {
+  return refreshSession(sessionId.value, preserveSelection)
+}
+
+/**
+ * 拉取**指定场次**的权威座位图。
+ *
+ * <p>为什么要带场次参数(2026-10-25 交互流程审查 P0-1): 换场次时装载的是
+ * 新场次, 而请求可能还在路上 —— 此时若把结果落到 store 里, 就会出现
+ * 「URL 是新场次, 座位图是旧场次」。所以落库前先核对场次还对不对。
+ *
+ * <p>⚠️ **还要核对轮次**: 只比场次 ID 挡不住 `A → B → A` 的快返 ——
+ * 那时第一轮 A 的响应回来时, 场次 ID 又等于 A 了, 于是它会执行
+ * `seatStore.load(..., {preserveSelection:false})` 把**第三轮刚套上的预选清空**。
+ * 轮次(`sessionGeneration`)单调递增, 只有最新那一轮的响应才作数。
+ *
+ * @param sid 要装载的场次 ID
+ * @param preserveSelection 权威重拉时为 true —— 不丢弃用户已选座位, 逐个复核
+ * @param generation 发起这次请求时的轮次号; 缺省取当前轮次(手动刷新按钮走这条)
+ */
+async function refreshSession(
+  sid: string,
+  preserveSelection = false,
+  generation: number = sessionGeneration,
+): Promise<number> {
   refreshing.value = true
   try {
-    const m = await seatMap(sessionId.value)
+    const m = await seatMap(sid)
+    // 场次已切走 → 这份结果作废(绝不能把上一场的座位图盖到新场次上)
+    if (sid !== sessionId.value) return 0
+    // 这一轮也已过时(同场次快返) → 同样作废, 否则会清掉新一轮刚套上的预选
+    if (generation !== sessionGeneration) return 0
     const removed = seatStore.load(m, { preserveSelection }).length
     loadError.value = null
     return removed
   } catch (e) {
-    loadError.value = t('seat.loadFailed')
+    if (sid === sessionId.value && generation === sessionGeneration) {
+      loadError.value = t('seat.loadFailed')
+    }
     throw e
   } finally {
     refreshing.value = false
@@ -258,6 +305,24 @@ function notifyReleasedWatchHits(released: number[]) {
   seatStore.clearWatchHits(hits)
 }
 
+/**
+ * WS 事件处理(与场次无关, 只看事件内容)。
+ */
+function onSeatEvent(evt: SeatEvent) {
+  const before = seatStore.selected.size
+  // 带 seq: 先按座位丢弃乱序到达的迟到事件(无序号时全部接受, 退化成纯增量)
+  seatStore.applyEvent(evt.type, evt.seats, evt.seq)
+  // P0-2: WS 事件导致 selected 减少时, 提示用户具体被抢了哪个
+  if ((evt.type === 'LOCKED' || evt.type === 'SOLD') && seatStore.selected.size < before) {
+    const lostCount = before - seatStore.selected.size
+    ElMessage.warning(t('seat.warnSeatsTaken', { n: lostCount }))
+  }
+  if (evt.type === 'RELEASED') {
+    notifyReleasedWatchHits(evt.seats)
+    seatSync.reconcile('release')
+  }
+}
+
 onMounted(async () => {
   if (!userStore.isLogin) {
     ElMessage.warning(t('seat.warnLogin'))
@@ -267,66 +332,226 @@ onMounted(async () => {
   // 首拉失败**不再中断整个 onMounted** —— WS 必须连上(2026-10-24)。
   // 否则用户看到的是一张「没有实时更新」的过期座位图, 而且毫无察觉:
   // 状态条都不会出现, 因为连 wsHandle 都没创建。
+  // loadSeatSession 内部已兜住拉图失败, 这里再兜一层只为不让异常逃出 onMounted。
   try {
-    await refresh()
-    // T7: 应用 preselect(spec §7.2) — 来自 chat 行动卡片的跳转
-    // 必须在 refresh() 之后调用(位图未知则冲突判断失效)
-    const preselect = parsePreselectFromQuery(route.query.preselect)
-    if (preselect.length > 0) {
-      seatStore.applyPreselect(preselect)
-    }
+    await runSeatSession(sessionId.value)
   } catch {
     // 错误已记进 loadError —— 页面渲染「加载失败 + 重试」, WS 继续连着,
     // 连上后的权威重拉会把座位图补回来
   }
-  wsHandle = createSeatWs(sessionId.value, (evt) => {
-    const before = seatStore.selected.size
-    // 带 seq: 先按座位丢弃乱序到达的迟到事件(无序号时全部接受, 退化成纯增量)
-    seatStore.applyEvent(evt.type, evt.seats, evt.seq)
-    // P0-2: WS 事件导致 selected 减少时, 提示用户具体被抢了哪个
-    if ((evt.type === 'LOCKED' || evt.type === 'SOLD') && seatStore.selected.size < before) {
-      const lostCount = before - seatStore.selected.size
-      ElMessage.warning(t('seat.warnSeatsTaken', { n: lostCount }))
-    }
-    if (evt.type === 'RELEASED') {
-      notifyReleasedWatchHits(evt.seats)
-      seatSync.reconcile('release')
-    }
-  })
+})
+
+/**
+ * 关掉当前 WS(换场次 / 卸载时都要走这里)。
+ */
+function closeWs() {
+  stopWsStatusWatch?.()
+  stopWsStatusWatch = null
+  wsHandle?.close()
+  wsHandle = null
+  wsStatus.value = 'closed'
+}
+
+/**
+ * 清空上一场次的选座**与座位图**。
+ *
+ * <p>座位图必须一起清(2026-10-25 交互流程审查 P0-1): 旧座位图留在页面上时,
+ * 用户会在**旧场次**的网格上选座, 而请求发往**新场次** —— 那就是「锁错场次
+ * 的钱付了」。清掉之后页面回到「还没装载」的空态, 与首拉时的行为一致。
+ */
+function resetSelection() {
+  seatStore.clearSelection()
+  seatStore.map = null
+  resetHoverPreview()
+}
+
+/**
+ * 装载某个场次的座位图(编排的一步)。
+ *
+ * <p>轮次号一起传下去: `refreshSession` 落库前要比对, 过时的那份结果直接作废。
+ */
+async function loadMapFor(sid: string, generation: number): Promise<void> {
+  await refreshSession(sid, false, generation)
+}
+
+/**
+ * 建立某个场次的实时连接(编排的一步)。
+ */
+function connectWs(sid: string) {
+  stopWsStatusWatch?.()
+  stopWsStatusWatch = null
+  wsHandle = createSeatWs(sid, onSeatEvent)
   // 同步初始状态, 后续 watch 自动更新
   wsStatus.value = wsHandle.status.value
   // 断连重连 = 断连期间丢失事件的唯一补偿点 → 立刻做一次权威重拉。
   // 只认 prev === 'closed': 首次 connecting→open 前面刚 load() 过, 再拉一次纯属浪费。
-  watch(wsHandle.status, (s, prev) => {
+  stopWsStatusWatch = watch(wsHandle.status, (s, prev) => {
     wsStatus.value = s
     if (s === 'open' && prev === 'closed') seatSync.reconcile('reconnect')
   })
+}
+
+/**
+ * 装载一个场次 —— 首拉与「同路由换场次」共用同一条编排。
+ *
+ * <p>编排本身在 `composables/useSeatSession.ts`(可单测), 这里只负责把
+ * 视图侧的依赖注入进去。
+ *
+ * <p>**轮次**(`sessionGeneration`)单调递增: 每一轮编排都带自己的轮次号,
+ * 回来时对照当前轮次 —— 过时的那轮就地中止(不套用它的预选、不用它连 WS)。
+ */
+async function runSeatSession(sid: string): Promise<void> {
+  const preselect = parsePreselectFromQuery(route.query.preselect)
+  const generation = ++sessionGeneration
+  await loadSeatSession(
+    {
+      closeWs,
+      resetSelection,
+      loadMap: loadMapFor,
+      applyPreselect: (indexes) => seatStore.applyPreselect(indexes),
+      connectWs,
+      // 换场次时, 上一轮编排的座位图请求可能还在路上。
+      // 座位图在 refreshSession 里已挡住(落库前核对场次), 这里挡住另外两路:
+      // 旧预选套到新场次、旧场次覆盖新场次的 WS。
+      //
+      // 判据用「轮次」而不是场次 ID: A → B → A 快返时, 第一轮 A 回来时场次 ID
+      // 又是 A 了 —— 只比 ID 会把上一轮 A 的预选套到当前 A 场次上。
+      isCurrent: (generation) => generation === sessionGeneration,
+    },
+    sid,
+    preselect,
+    generation,
+  )
+}
+
+/**
+ * 换场次的触发源。
+ *
+ * <p>带上 preselect: 对话助手的行动卡片跳的是 `/seat/:id?preselect=...`,
+ * 同一场次换一组预选同样要重新走一遍编排。
+ */
+const seatRouteKey = computed(
+  () => `${String(route.params.sessionId ?? '')}|${String(route.query.preselect ?? '')}`,
+)
+
+/**
+ * P0-1: 同路由换场次必须重新装载。
+ *
+ * <p>Vue Router 4 对**同一路由记录只换 params** 会复用组件实例
+ * (`RouterView` 渲染时不加 key), `onMounted` 不再触发 —— 座位图会停在上一场次上,
+ * 而 URL 已经是新场次, WS 也还连着旧场次。于是用户在旧场次的网格上选座、
+ * 请求却发往新场次: 锁错场次的钱付了。
+ *
+ * <p>回调不能直接 `await` 一个可能 reject 的 promise —— 这里用 `void` 显式丢弃
+ * 返回值, 失败由 {@link loadSeatSession} 内部兜住(它永不 reject)。
+ */
+watch(seatRouteKey, () => {
+  void runSeatSession(sessionId.value)
 })
 
 onBeforeUnmount(() => {
   // 拖拽用的全局监听必须摘掉, 否则组件销毁后还会落座
   window.removeEventListener('pointerup', onDragEnd)
   window.removeEventListener('pointercancel', onDragCancel)
-  wsHandle?.close()
+  closeWs()
   seatSync.dispose()
 })
 
+/**
+ * 反应式时钟 —— 倒计时必须随时间推移, 否则「已开场」的闸门只在装载那一刻判一次。
+ *
+ * <p>原先 `remainingSeconds` 依赖的是 `dayjs()`, 那不是响应式来源,
+ * 于是 computed 只在座位图换掉时重算 —— 页面开着不动, 倒计时是**冻住的**,
+ * 「本场次已开场」这道闸门也就永远不会翻开。
+ */
+const { now } = useNow(1000)
+
 const remainingSeconds = computed(() => {
   if (!seatStore.map) return 0
-  const left = dayjs(seatStore.map.startTime).diff(dayjs(), 'second')
+  const left = dayjs(seatStore.map.startTime).diff(now.value, 'second')
   return left > 0 ? left : 0
 })
+
+/**
+ * 场次是否已开场(2026-10-25 交互流程审查 P3)。
+ *
+ * <p>后端在锁座那一刻才拒「场次已开场」, 前端提前拦一道 —— 判据放在
+ * `canLockSession` 这个纯函数里(可单测), 视图只消费它的结果。
+ */
+const sessionStarted = computed(() => !canLockSession(remainingSeconds.value))
 
 const totalPrice = computed(() => {
   if (!seatStore.map) return 0
   return (seatStore.selected.size * seatStore.map.price).toFixed(2)
 })
 
+/**
+ * 同场次已有待支付单时的确认框(2026-10-25 交互流程审查 P0-2)。
+ *
+ * <p>后端锁座前会 `closePending` 掉同场次的旧待支付单 —— 这个副作用对用户
+ * 可见, 所以必须在**请求发出之前**告知。对话助手那条路径早就有这个提示
+ * (`chat.orderProposal.cancelPendingWarn`), 选座这条路径原先一个字不说。
+ *
+ * @param orderNo 存量待支付订单号
+ * @returns 用户确认 → true; 取消 → false(调用方据此**不发**请求)
+ */
+async function confirmPendingOrder(orderNo: string): Promise<boolean> {
+  try {
+    await ElMessageBox.confirm(
+      t('seat.pendingOrderWarn', { order: orderNo }),
+      t('seat.pendingOrderTitle'),
+      {
+        confirmButtonText: t('seat.pendingOrderOk'),
+        cancelButtonText: t('seat.pendingOrderCancel'),
+        type: 'warning',
+      },
+    )
+    return true
+  } catch {
+    // 用户取消 —— 不发请求。但不能静默返回: 给一句可观察的反馈,
+    // 否则用户点了「确认锁座下单」却什么都没发生, 只会以为页面卡了。
+    // 文案用 pendingOrderCancelled(「订单没下, 旧待支付单还在」),
+    // 不是弹窗取消按钮那句 pendingOrderCancel(「再想想」)—— 当 toast 读起来别扭。
+    ElMessage.info(t('seat.pendingOrderCancelled'))
+    return false
+  }
+}
+
 async function onConfirm() {
+  // 已开场 → 不发请求(按钮禁用只是第一道, 这里再拦一道)
+  if (!canLockSession(remainingSeconds.value)) {
+    ElMessage.warning(t('seat.sessionStarted'))
+    return
+  }
   const seats = [...seatStore.selected]
   if (seats.length === 0) {
     ElMessage.warning(t('seat.warnSelectSeat'))
     return
+  }
+  // ⚠️ **权威重拉一次再读「同场次是否有待支付单」**。
+  //
+  // 座位图是**装载时**的快照, 而对话一键下单**不跳转**(它停在聊天浮窗里) ——
+  // 用户在同一个选座页上用聊天下了一笔单之后, 快照里的 pendingOrderNo 仍是 null
+  // → 不会弹确认框 → 后端照样把那笔单关掉。
+  // 披露必须基于**当下**的状态, 否则又是一条路径披露、另一条不披露。
+  let removed: number
+  try {
+    removed = await refreshSession(sessionId.value, true, sessionGeneration)
+  } catch {
+    // 拉不到当下状态 → 不敢锁(盲锁可能静默关掉用户的一笔待支付单)
+    ElMessage.error(t('seat.loadFailed'))
+    return
+  }
+  if (removed > 0) {
+    // 重拉时发现有座位已被占走 → 选座变了, 让用户重新挑
+    ElMessage.warning(t('seat.warnSeatsTaken', { n: removed }))
+    return
+  }
+  // 同场次已有待支付单 → 先告知「重新选座会取消它」, 用户确认后才发请求
+  const pendingOrderNo = seatStore.map?.pendingOrderNo
+  if (pendingOrderNo) {
+    const goOn = await confirmPendingOrder(pendingOrderNo)
+    if (!goOn) return
   }
   submitting.value = true
   // 先认领这些座位为「我的」: 自家锁座的 WS 事件可能早于 HTTP 响应到达,
@@ -535,7 +760,16 @@ async function onConfirm() {
           <div class="summary-label">{{ t('seat.totalAmount') }}</div>
         </div>
       </div>
-      <el-button type="primary" size="large" :loading="submitting" @click="onConfirm" class="confirm-btn">
+      <!-- 已开场: 按钮禁用 + 明说原因(2026-10-25 交互流程审查 P3) -->
+      <p v-if="sessionStarted" class="session-started-hint">{{ t('seat.sessionStarted') }}</p>
+      <el-button
+        type="primary"
+        size="large"
+        :loading="submitting"
+        :disabled="sessionStarted"
+        @click="onConfirm"
+        class="confirm-btn"
+      >
         {{ t('seat.confirmLock') }}
       </el-button>
     </div>
@@ -1033,6 +1267,16 @@ async function onConfirm() {
 
 .confirm-btn {
   flex-shrink: 0;
+}
+
+/* 已开场提示: 独占一行(flex-basis 100%) 放在按钮上方。
+   颜色走语义色 --danger(选座域已登记), 不新增任何硬编码色值。 */
+.session-started-hint {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--danger);
 }
 
 /* --- Responsive --- */

@@ -1,6 +1,5 @@
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 import { describe, it, expect } from 'vitest'
+import { code } from '../helpers/source'
 
 /**
  * 前端收口改动的**接线契约**(2026-10-24)。
@@ -16,24 +15,6 @@ import { describe, it, expect } from 'vitest'
  *
  * 脆性写在文件头: 断言针对源码文本, 重构时需同步更新。
  */
-
-const read = (rel: string) =>
-  readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf-8')
-
-/**
- * 去掉注释(块注释 / HTML 注释 / 行注释)。
- *
- * ⚠️ 必须去注释再做「不该出现某串」的断言 —— 本仓的源码注释里大量
- * 写着「原先是怎么写的(为什么这是个坑)」, 拿原文去断言会**永远命中**,
- * 断言就变成恒真、什么也拦不住。
- *
- * 行注释用 `[^:]` 前瞻避开 `http://` / `ws://` 这类协议里的双斜杠。
- */
-const code = (rel: string) =>
-  read(rel)
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/(^|[^:'"`\\])\/\/[^\n]*/g, '$1')
 
 describe('C1 — 首拉失败不再让整页哑掉', () => {
   it('SeatSelect: 首拉被 try 包住, 失败不中断 onMounted(WS 必须连上)', () => {

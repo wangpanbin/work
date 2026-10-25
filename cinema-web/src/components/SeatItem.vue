@@ -111,6 +111,12 @@ function onClick() {
   // 切换失败: 给出原因提示
   if (unavailable.value) {
     ElMessage.info(t('seat.infoUnavailable'))
+  } else if (status.value === 'LOCKED_MINE') {
+    // 我自己锁的座位(2026-10-25 交互流程审查 P1): `toggle` 只放行
+    // AVAILABLE / SELECTED, 所以它必然返回 false; 而 `unavailable` 只含
+    // SOLD / LOCKED_OTHER, 上限分支也不成立 —— 原先两个提示分支一个都不进,
+    // 用户看到一片绿色(我已锁)的座位点下去毫无反应, 只会以为页面卡了。
+    ElMessage.info(t('seat.lockedMineHint'))
   } else if (seatStore.selected.size >= seatStore.maxSelect) {
     ElMessage.warning(t('seat.warnMaxSelect', { n: seatStore.maxSelect }))
   }
