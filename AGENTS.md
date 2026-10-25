@@ -25,7 +25,8 @@ Test accounts seeded by backend on startup: `user1/123456`, `user2/123456`, `adm
 - There is no linter configured in either module. **build 要单独验**:`pnpm build` 与 `pnpm type-check` 查出的问题不重叠(SCSS 变量/模板编译错误只有 build 报)。
 - Python 工具: `python -m unittest discover -s tools -p "test_*.py"`(**81 个用例**,2026-10-25 实测;对账脚本的纯逻辑 + 真实 Redis 往返 + 临时 MySQL 库的集成测试 + 文档一致性闸门)。
 - **一键闸门**:`python tools/run_all_gates.py` —— 后端 / 前端类型 / 前端构建 / 前端用例 / Python 工具 / 审计红线,逐项 PASS/FAIL + 汇总,任一失败非零退出(`--only` / `--skip` 可挑闸门,`--json` 机器可读)。**它不碰 CI/CD 配置,也不装 git 钩子。**
-- **浏览器回归**:`python test/e2e/e2e_regression.py` —— 21 个场景的 Python Playwright 套件(**已入库**)。前置:后端 8080 + 前端 5173 在跑,且跑过 `sql/05_refresh_sessions_for_demo.sql`(场次过期会 404)。报告写 `test/e2e/RESULTS.md`,截图写 `test/e2e/screenshots/`(不入库)。
+- **浏览器回归**:`python test/e2e/e2e_regression.py` —— 22 个场景的 Python Playwright 套件(**已入库**)。前置:后端 8080 + 前端 5173 在跑,且跑过 `sql/05_refresh_sessions_for_demo.sql`(场次过期会 404)。
+  - **三态**:PASS / FAIL / **SKIP**。SKIP = 当前环境不具备验证条件(目前只有 S22 —— 助手出不出下单卡取决于 LLM),**不是通过**。退出码只看 FAIL。报告写 `test/e2e/RESULTS.md`,截图写 `test/e2e/screenshots/`(不入库)。
 - **一键演示**:`python tools/demo_run.py` —— 幂等补种 → 全链路冒烟 → 250 并发防超卖 → 三场景压测 → 出报告。默认**不重置**数据;`--reset` 默认 dry-run,还要 `--yes` 才真删(只删演示范围,不碰 `movie`/`hall`)。
 - **数字以实测为准**:README/AGENTS 里的用例数会随测试增长漂移,别照抄文档 —— 跑一次 `mvn test`(或聚合 `target/surefire-reports/TEST-*.xml`)、`pnpm test` 和上面的 unittest 取真值再更新。**而且有闸门兜着**:`tools/test_docs_consistency.py` 核对五件事 —— 文档指向的仓库内路径必须真实存在;**文档引用的仓库内文件必须已入库**(`git ls-files` 能命中,2026-10-25 新增:「本机有」不等于「仓库里有」,`/test/` 被 ignore 时就是死引用);后端用例数/测试类数必须等于 surefire 实测;前端与 Python 的数字必须跨文档一致;列表项不能被粘在上一行末尾。改完测试数**别只改一个文档**(2026-10-25 那轮后端从 309 变 312,一次要改 8 个地方,漏一处就是一轮「文档说有、代码没有」)。反过来,文档里**不要重复写数字** —— 重复的数字就是缓存,缓存必然过期;要引用就指向 `AGENTS.md`。
 
@@ -87,7 +88,7 @@ Test accounts seeded by backend on startup: `user1/123456`, `user2/123456`, `adm
 - **⚠️ 助手的写审计表 `chat_assistant_log` 是「助手没越权写」的证据,不是可选日志**:`ChatAssistantLogService` 写库**全程 try/catch,失败不影响主流程**(审计挂掉绝不能让用户下单失败);但**红线指标必须恒为 0** —— `kind='WRITE_CONFIRM' AND confirmed_by_user=0` 的行数就是「未经用户显式确认的写操作」,它恒为 0 是因为助手没有任何写工具(`ChatTools` 全是只读 `@Tool`)、写入口只有 `ChatOrderController#confirm` 一处。**将来新增任何写入口,必须显式传 `confirmed_by_user=1`**,否则这条查询会立刻数出来。`tools/run_all_gates.py` 的「审计红线」闸门查的就是它。
   - **用量未知记 `null`,不记 0** —— 0 会被误读成「这次调用免费」。`tokenUsage()` 拿不到就写 null;单价未配置(配成 0)时 `cost_cents` 也是 null。
   - **成本是估算值,单价在 `application.yml` 的 `cinema.chat.cost.*`**(美分 USD / 每百万 token),DeepSeek 会调价且分峰谷时段 → **单价需人工维护**,别把看板上的成本当财务口径。
-- **助手只有三种卡,第三种是「引导卡」**:`SEAT_SUGGESTION`(只读建议)· `ORDER_PROPOSAL`(ADR-0004 的一键下单确认卡)· `ORDER_GUIDE`(2026-10-25 新增,**取消/退票引导卡**)。引导卡**只带跳转信息**(`targetRoute` + `action`),**不带任何可提交载荷** —— 助手**不执行**取消或退票,只把用户引导到订单页自己操作(ADR-0002 的底线:助手不写)。前端卡型登记在 `components/chat/cardRegistry.ts`,新增卡型要同时改 `CARD_KINDS` 与 `CARD_TYPE_LABEL_KEYS`,否则 `cardRegistry.test.ts` 会判红。
+- **助手只有三种卡,第三种是「引导卡」**:`SEAT_SUGGESTION`(只读建议)· `ORDER_PROPOSAL`(ADR-0004 的一键下单确认卡)· `ORDER_GUIDE`(2026-10-25 新增,**取消/退票引导卡**)。引导卡**只带跳转信息**(`guideRoute` + `guideAction`),**不带任何可提交载荷** —— 助手**不执行**取消或退票,只把用户引导到订单页自己操作(ADR-0002 的底线:助手不写)。前端卡型登记在 `components/chat/cardRegistry.ts`,新增卡型要同时改 `CARD_KINDS` 与 `CARD_TYPE_LABEL_KEYS`,否则 `cardRegistry.test.ts` 会判红。
 - **四套闸门现在有一个一键入口**:`python tools/run_all_gates.py`(逐项 PASS/FAIL + 汇总 + 任一失败非零退出;`--only` / `--skip` 可挑闸门,`--json` 机器可读)。**它不碰 CI/CD 配置,也不装 git 钩子** —— 那是用户红线。**改动任何用例数后必须重跑它** —— 文档里的数字由 `tools/test_docs_consistency.py` 兜着,漏一处就是一轮「文档说有、代码没有」。
 - **同一用户同一场次只能有一个待支付单**（`RedisKeys.userPending(userId, sessionId)`，TTL=支付窗口 900s）。用 user2 造测试数据时，**第二笔锁座会把前一笔待支付单顶掉并自动取消**，于是先建的那几单 `status` 立刻变 2（已取消）、座位跟着释放。做「多座位同时释放」之类的验收必须**一笔订单锁 4 个座位**（`POST /orders/lock` 上限 4 座），不能一单一座地循环。另外 `@RateLimit` 会在连打 5~6 次 `POST /orders/lock` 后返回 `42900`，脚本里要留间隔。
 

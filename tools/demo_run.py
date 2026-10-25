@@ -181,10 +181,16 @@ def step_reset(cfg: dict, execute: bool) -> tuple[bool, str]:
         f"DELETE r FROM refund_log r JOIN `user` u ON u.id=r.user_id WHERE {where_users}",
         f"DELETE o FROM `order` o JOIN `user` u ON u.id=o.user_id WHERE {where_users}",
         "DELETE ti FROM order_item ti JOIN `order` o ON o.id=ti.order_id "
-        "JOIN `session` s ON s.id=o.session_id WHERE s.start_time < NOW()",
+        "JOIN `session` s ON s.id=o.session_id JOIN `user` u ON u.id=o.user_id "
+        "WHERE s.start_time < NOW() AND u.username NOT IN ('user1','user2','admin')",
         "DELETE t FROM ticket t JOIN `order` o ON o.order_no=t.order_no "
-        "JOIN `session` s ON s.id=o.session_id WHERE s.start_time < NOW()",
-        "DELETE o FROM `order` o JOIN `session` s ON s.id=o.session_id WHERE s.start_time < NOW()",
+        "JOIN `session` s ON s.id=o.session_id JOIN `user` u ON u.id=o.user_id "
+        "WHERE s.start_time < NOW() AND u.username NOT IN ('user1','user2','admin')",
+        # ⚠️ 必须带用户过滤: 不加的话会连 user1/user2/admin 的过期场次订单一起删,
+        # 而本脚本的承诺是「不碰真实用户」—— 行为与承诺不符(终态评审抓到的)。
+        "DELETE o FROM `order` o JOIN `session` s ON s.id=o.session_id "
+        "JOIN `user` u ON u.id=o.user_id "
+        "WHERE s.start_time < NOW() AND u.username NOT IN ('user1','user2','admin')",
     ]
     for sql in delete_sql:
         rc, out = mysql(sql, cfg, write=True)

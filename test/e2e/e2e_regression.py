@@ -44,8 +44,18 @@ S = {}  # 场景间共享状态
 RESULTS = []  # (name, PASS/FAIL/SKIP, detail)
 
 
-def record(name, ok, detail=""):
-    status = "PASS" if ok else "FAIL"
+class Skipped(Exception):
+    """这条场景在当前环境里没法验证(不是失败)。记 SKIP, 不许记 PASS。"""
+
+
+def record(name, ok, detail="", skipped=False):
+    """记一条场景结果。
+
+    <p>三态: PASS / FAIL / **SKIP**。
+    SKIP 不是「通过」—— 它表示**这条场景在当前环境里没法验证**
+    (典型: 助手出不出卡取决于 LLM), 必须带上原因, 不能算作通过。
+    """
+    status = "SKIP" if skipped else ("PASS" if ok else "FAIL")
     RESULTS.append((name, status, detail))
     print(f"[{status}] {name}" + (f" — {detail}" if detail else ""), flush=True)
 
@@ -750,9 +760,68 @@ def s21_admin_usage_dashboard(page_c):
     # 红线指标也要在 —— 让「助手没越权写」在管理端是**看得见**的
     assert page_c.locator(".stat-label", has_text="红线指标").count() >= 1, (
         "看板上没有红线指标")
+    # 标题在还不够: 四项指标的**数值**也得渲染出来(否则可能全是空壳)
+    values = [v.strip() for v in page_c.locator(".stat-value").all_text_contents()]
+    assert len(values) >= 5, f"看板上的指标值不够: {values}"
+    assert all(v for v in values), f"有指标值是空的: {values}"
     shot(page_c, "s21-usage-dashboard")
-    return "四项指标(调用量/失败率/P95/估算成本) + 红线指标都在看板上 ✓"
+    return f"四项指标(调用量/失败率/P95/估算成本) + 红线指标都在看板上, 数值非空 ✓ ({len(values)} 个值)"
 
+
+def s22_chat_widget_flow(page):
+    """对话助手浮窗(浏览器): 开浮窗 → 发消息 → 助手回复 → 出卡则点「确认下单」→ 订单建成
+
+    ⚠️ **不伪造通过**: 助手出不下下单卡取决于 LLM —— 它是模型自由发挥的。
+    出卡了 → 点「确认下单」→ 验订单建成(这才是 AC-20 那条链路的真覆盖);
+    没出卡 → 记 **SKIP**(附原因), 不许记 PASS —— 记 PASS 就是把「没验」说成「验过了」。
+    """
+    page.goto(FRONT + "/")
+    page.wait_for_load_state("networkidle")
+    # 打开聊天浮窗
+    page.locator("button.chat-fab").first.click(timeout=8000)
+    page.wait_for_selector(".chat-panel", timeout=8000)
+    page.wait_for_selector(".chat-input textarea", timeout=8000)
+
+    # 发一条会诱发推荐的消息
+    page.locator(".chat-input textarea").fill("帮我推荐今晚的场次,要两个连座")
+    page.locator(".chat-send-btn").click()
+
+    # 等助手回复(LLM 可能要几秒; 超时按 SKIP 记, 不算失败)
+    deadline, replied = time.time() + 45, False
+    while time.time() < deadline:
+        if page.locator(".chat-msg.assistant").count() > 0:
+            replied = True
+            break
+        page.wait_for_timeout(500)
+    if not replied:
+        raise Skipped("45s 内助手没回复(LLM 不可用或被限流) —— 本次没法验证这条链路")
+
+    # 出卡了吗? 没出卡就是 LLM 没给下单建议 —— 同样按 SKIP 记
+    card = page.locator(".order-card")
+    if card.count() == 0:
+        shot(page, "s22-chat-no-card")
+        raise Skipped("助手这次没给下单卡(LLM 自由发挥) —— 卡片链路本次没法验证")
+
+    shot(page, "s22-chat-card")
+    page.locator(".order-card-btn").first.click(timeout=8000)
+
+    # 确认后前端会发确认请求 —— 订单建成的判据是**出现了订单号**
+    deadline, order_no = time.time() + 20, None
+    while time.time() < deadline:
+        for txt in page.locator(".chat-panel").all_text_contents():
+            m = re.search(r"订单号[\s:：]*([0-9]{6,})", txt)
+            if m:
+                order_no = m.group(1)
+                break
+        if order_no:
+            break
+        page.wait_for_timeout(500)
+    assert order_no, "点了「确认下单」但没看到订单号"
+
+    # 服务端对账: 这笔单真的存在
+    d = api_ok("GET", f"/orders/{order_no}", token=S["token1"])
+    assert d and d.get("orderNo"), f"订单 {order_no} 查不到"
+    return f"聊天浮窗 → 发消息 → 助手给出下单卡 → 点「确认下单」→ 订单 {order_no} 建成 ✓"
 
 def s20_rebuild_keeps_lock(page, page_c):
     """位图合并语义(v0.4.0 超卖修复): 重建位图**不清掉**已锁座位"""
@@ -821,6 +890,7 @@ def run():
             ("S19 中英双语切换", lambda: s19_locale_switch(page)),
             ("S20 位图合并不抹掉已锁座位", lambda: s20_rebuild_keeps_lock(page, page_c)),
             ("S21 管理端助手用量看板", lambda: s21_admin_usage_dashboard(page_c)),
+            ("S22 对话浮窗→下单卡→确认下单", lambda: s22_chat_widget_flow(page)),
             # ⚠️ 登出**必须排最后** —— 它会清掉 user1 的 token,
             # 排在前面会让后面所有需要登录的场景被路由守卫踢回 /login。
             ("S07 登出+路由守卫", lambda: s07_logout(page)),
@@ -829,6 +899,8 @@ def run():
             try:
                 detail = fn()
                 record(name, True, detail)
+            except Skipped as e:
+                record(name, True, f"SKIP: {e}", skipped=True)
             except Exception as e:
                 record(name, False, f"{type(e).__name__}: {e}")
                 traceback.print_exc()
@@ -839,7 +911,10 @@ def run():
 
     # 汇总
     n_pass = sum(1 for _, s, _ in RESULTS if s == "PASS")
-    print(f"\n===== 汇总: {n_pass}/{len(RESULTS)} PASS =====")
+    n_fail = sum(1 for _, s, _ in RESULTS if s == "FAIL")
+    n_skip = sum(1 for _, s, _ in RESULTS if s == "SKIP")
+    print(f"\n===== 汇总: {n_pass} PASS / {n_fail} FAIL / {n_skip} SKIP "
+          f"(共 {len(RESULTS)} 个场景) =====")
     for name, s, d in RESULTS:
         print(f"  [{s}] {name}" + (f" — {d}" if d else ""))
 
@@ -853,12 +928,16 @@ def run():
         "| --- | :-: | --- |",
     ]
     for name, s, d in RESULTS:
-        icon = "✅" if s == "PASS" else "❌"
+        icon = {"PASS": "✅", "FAIL": "❌", "SKIP": "⏭"}.get(s, "?")
         lines.append(f"| {name} | {icon} {s} | {d} |")
-    lines += ["", f"**统计**: ✅ {n_pass} / ❌ {len(RESULTS) - n_pass}", ""]
+    lines += ["", f"**统计**: ✅ {n_pass} PASS / ❌ {n_fail} FAIL / ⏭ {n_skip} SKIP", ""]
+    if n_skip:
+        lines += ["> ⏭ = **跳过**, 不是通过: 当前环境不具备验证条件(例如助手出不出卡取决于 LLM)。",
+                  "> 跳过项不代表功能有问题, 但也**不算验过了**。", ""]
     (ROOT / "test" / "e2e" / "RESULTS.md").write_text("\n".join(lines), encoding="utf-8")
     print("报告已写入 test/e2e/RESULTS.md")
-    return 0 if n_pass == len(RESULTS) else 1
+    # 退出码只看 FAIL —— SKIP 是「环境不具备验证条件」, 不是缺陷(但会在报告里单列)。
+    return 1 if n_fail else 0
 
 
 if __name__ == "__main__":

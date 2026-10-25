@@ -179,7 +179,7 @@ python tools/run_all_gates.py
 ```bash
 # 需要: 后端 8080 + 前端 5173 都在跑, 且跑过 sql/05_refresh_sessions_for_demo.sql
 python test/e2e/e2e_regression.py
-# 21 个场景; 报告写 test/e2e/RESULTS.md, 截图写 test/e2e/screenshots/
+# 22 个场景(PASS/FAIL/SKIP 三态,退出码只看 FAIL); 报告写 test/e2e/RESULTS.md, 截图写 test/e2e/screenshots/
 ```
 
 ### 4.3 一键演示(补种 → 冒烟 → 防超卖 → 压测 → 出报告)
