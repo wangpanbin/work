@@ -112,7 +112,7 @@ private final ConcurrentHashMap<String, Long> lastAccessAt = new ConcurrentHashM
 - 重复 → 不重复
 - 超界 / 负数 → 跳过
 
-13/13 用例覆盖。
+13/13 用例覆盖。> ⚠️ 2026-10-25 更正:13 是**整个测试文件**的用例数,`computeApplyPreselect` 自身的 describe 块是 **10 条**(自 `4f652fa` 引入至今未变,没有用例被删)。
 
 ---
 
@@ -163,7 +163,7 @@ ChatMemoryStore 按 `chatSessionId` 分桶,与 userId 完全独立。匿名用�
 | ADR-0002(action-cards 不写) | ✅ | `ChatToolsStructureTest` 反射白名单锁死;system prompt 内嵌警告 |
 | ADR-0003(无 RAG) | ✅ | 无 vector store / embedding 调用,纯 ChatMemory |
 | Q1(30min idle evict) | ✅ | `evictIfIdle` + `evictIdleSessions` |
-| Q2(preselect 追加 + min-priority 剔除) | ✅ | `computeApplyPreselect` 13/13 |
+| Q2(preselect 追加 + min-priority 剔除) | ✅ | `computeApplyPreselect` 10/10(原记 13/13 系口径误记,2026-10-25 更正) |
 | Q3(anon 共用 'anon' 桶) | ✅ | SpEL `?:` 短路,实测 T8.3 |
 | Q4(chatSessionId 客户端 UUID + localStorage) | ✅ | `api/chat.ts` |
 | Q5(LOGIN_REQUIRED 转自然语言) | ✅ | `getMyOrders` / `getMyOrder` 返 Map.of("error","LOGIN_REQUIRED") |

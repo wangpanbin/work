@@ -6,6 +6,7 @@
 - P0 增量设计 spec: [docs/superpowers/specs/2026-08-31-p0-increment-design.md](docs/superpowers/specs/2026-08-31-p0-increment-design.md)
 - **对话式订票助手**(已落地):设计 spec [docs/superpowers/specs/2026-09-21-chat-assistant-design.md](docs/superpowers/specs/2026-09-21-chat-assistant-design.md) · 决策记录 [docs/adr/](docs/adr/) · code review [docs/agents/chat-assistant-code-review.md](docs/agents/chat-assistant-code-review.md)
 - **一键下单**(v0.2.0,已落地):设计 spec [docs/superpowers/specs/2026-10-19-chat-one-click-order-design.md](docs/superpowers/specs/2026-10-19-chat-one-click-order-design.md) · 决策记录 [ADR-0004](docs/adr/0004-chat-order-proposal.md) · 发布说明 [docs/发布说明-v0.2.0.md](docs/发布说明-v0.2.0.md)
+- **v0.3.0 收口与修复**(2026-10-25):发布说明 [docs/发布说明-v0.3.0.md](docs/发布说明-v0.3.0.md) · 部署前置检查 [docs/部署前置检查.md](docs/部署前置检查.md)
 - 领域词汇表: [CONTEXT.md](CONTEXT.md)
 - 原始方案见 [plan.md](plan.md)
 
@@ -20,7 +21,7 @@
 | **延迟关单** | Redis ZSet 延迟队列(主链路 5s 扫描) + 定时补偿任务(1min 兜底),双保险 |
 | **冷启动守护** | 服务重启/Redis flush 后锁座前自动从 DB 重建 Bitmap,杜绝"看似可选实则已售" |
 | **交易闭环** | 锁座 → 支付 → 退票(状态机 PAID→REFUNDING→REFUNDED) + 电子票(HMAC 签名,24h 过期,一次性验票) |
-| **工程严谨** | 217 个 JUnit5 + Mockito 单元测试覆盖核心链路;`@RateLimit`/`@Idempotent` AOP 注解;OrderService 拆 4 service + 1 core(单文件 ≤ 300 行) |
+| **工程严谨** | 312 个 JUnit5 + Mockito 单元测试覆盖核心链路;`@RateLimit`/`@Idempotent` AOP 注解;OrderService 拆 4 service + 1 core(单文件 ≤ 300 行) |
 | **数据可视化** | 管理端经营看板(4 卡片 + 3 图 + 1 表);实时数据大屏(WebSocket 推送锁座事件) |
 | **前端体验** | 全局路由守卫(未登录/非管理员自动拦截) · 影片搜索/筛选 · 注册确认密码 · 移动端适配 · 座位图重构 |
 | **国际化** | vue-i18n 11 双语(zh-CN / en-US);浏览器语言自动探测 + 本地持久化 + `fallbackLocale: zh-CN` 防裸 key;29 个专项用例,其中 `key-coverage` 兜底「两边都漏」的盲点 |
@@ -53,7 +54,8 @@
 | 功能 | 状态 | 备注 |
 | --- | --- | --- |
 | 影片/影厅/场次 CRUD | ✅ | 含座位自动生成 |
-| 手动恢复位图 | ✅ P0 P5 | `POST /api/admin/sessions/bitmaps/recover` |
+| 场次分页列表 | ✅ v0.3.0 | `GET /api/admin/sessions/page`;旧的全量端点契约一字未动 |
+| 手动恢复位图 | ✅ P0 P5 | `POST /api/admin/sessions/bitmaps/recover`(管理端列表每行也有「恢复位图」按钮) |
 | 经营数据看板 | ✅ P0 O3 | 今日票房/订单/趋势/TOP 影片/上座率 |
 | 实时数据大屏 | ✅ P0 D1 | WebSocket 推送,`/admin/live` |
 
@@ -64,9 +66,11 @@
 | 接口限流(`@RateLimit`) | ✅ P0 E4 | Redis 滑动窗口 Lua,锁座/支付/退票/聊天分级限流 |
 | 幂等键(`@Idempotent`) | ✅ P0 E5 | SETNX,锁座/支付前置挡重试 |
 | OrderService 拆分 | ✅ P0 E1 | 4 service + 1 core,单文件 ≤ 300 行 |
-| 关键路径单测 | ✅ P0 E2 | **217 个 JUnit5 + Mockito 用例**(36 个测试类,2026-10-19 实测) |
+| 关键路径单测 | ✅ P0 E2 | **312 个 JUnit5 + Mockito 用例**(47 个测试类,2026-10-25 实测) |
 | 营收明细导出 Excel | ✅ | `GET /api/admin/revenue/export`,独立 axios 实例走 blob,看板导出对话框 |
 | 错误码体系 | ✅ | 0/4xxxx/5xxxx + data 携带附加信息 |
+| **安全基线** | ✅ v0.3.0 | JWT 密钥走 `JWT_SECRET` 环境变量(仓库里的默认值只用于开发);CORS 收敛成 `CORS_ALLOWED_ORIGINS` 白名单(不再是 `*`);登录按 IP+账号 10/分钟、注册按 IP 120/小时 限流;管理员播种双开关(`SPRING_PROFILES_ACTIVE` + `CINEMA_SEED_ADMIN_ENABLED`) |
+| **退票释放幂等** | ✅ v0.3.0 | `refund_seat.lua` 按订单号打幂等标记 —— 补偿任务重复退票不会把**别人已付款的座位**清成可选 |
 | **对话式订票助手** | ✅ 2026-09-21 | LangChain4j + DeepSeek;8 只读工具(含 FAQ searchFaq);行动卡片 SEAT_SUGGESTION;@RateLimit 分桶(匿名 2/min,登录 10/min);LOGIN_REQUIRED 引导登录;FAQ 知识库 18 条种子数据;key-missing 走 50000 短路 |
 | **一键下单** | ✅ 2026-10-19 | v0.2.0:助手出 `ORDER_PROPOSAL` 确认卡,服务端重读位图核验座位与价格 → Redis 提案快照(TTL 90s,一次性,不占位)→ 用户点一次「确认下单」→ 复用 `OrderLockService.lockSeats` 锁座 → 聊天内「待支付卡」跳支付页;幂等键 = `proposalId`;`/api/chat/orders/**` 强制登录 + 限流;存量待支付单在卡上显式提示;`cinema.chat.order-enabled=false` 可不发版回滚(ADR-0004) |
 
@@ -99,6 +103,8 @@ mysql -uroot -p --default-character-set=utf8mb4 < sql/04_extra_demo_data.sql
 # 演示/截图前补场次: 生成今天起 3 天的排片(前端日期选择器只看今天/明天/后天)
 #   幂等, 可重复执行; 不要用 04 重跑补种, 它的 ID 会与历史数据冲突并被静默跳过
 mysql -uroot -p --default-character-set=utf8mb4 < sql/05_refresh_sessions_for_demo.sql
+# 可选: 真实影片名 + 专属海报(课堂演示用; 必须带 utf8mb4, 否则中文片名乱码)
+mysql -uroot -p --default-character-set=utf8mb4 < sql/07_real_demo_movies.sql
 # 可选: 对话助手 FAQ 知识库(18 条常见问答; 迁移 PR #15 数据,spec #20)
 #   ⚠️ 需手动执行并**重启后端**才生效; 未执行时 searchFaq 工具查不到表,
 #      KnowledgeService 会记录「知识库不可用」日志并降级(其余 7 个工具不受影响)。
@@ -145,12 +151,17 @@ pnpm dev
 ```bash
 cd cinema-server
 mvn test
-# Tests run: 139, Failures: 0, Errors: 0
-# (跨 26 个测试类,2026-09-29 实测)
+# Tests run: 312, Failures: 0, Errors: 0
+# (跨 47 个测试类,2026-10-25 实测)
 
 cd ../cinema-web
 pnpm test
-# Test Files: 14 passed, Tests: 137 passed (vitest 3.x)
+# Test Files: 35 passed, Tests: 547 passed (vitest 3.x)
+
+# 仓库自带的 Python 工具测试(对账脚本 / 演示排片脚本)
+cd ..
+python -m unittest discover -s tools -p "test_*.py"
+# Ran 80 tests ... OK
 ```
 
 ---
@@ -187,7 +198,8 @@ pnpm test
 | --- | --- | --- | --- |
 | CRUD | `/api/admin/movies` | 影片管理 | 管理员 |
 | CRUD | `/api/admin/halls` | 影厅管理 | 管理员 |
-| CRUD | `/api/admin/sessions` | 场次管理 | 管理员 |
+| CRUD | `/api/admin/sessions` | 场次管理(**旧契约不变**:返回全量 `Session[]`) | 管理员 |
+| GET | `/api/admin/sessions/page?page=&size=` | 场次分页(`Page<Session>`,`size` 被 `PageParams` 钳制在 1~100) | 管理员 |
 | POST | `/api/admin/sessions/bitmaps/recover?sessionId=` | 手动恢复位图(P0 P5) | 管理员 |
 | GET | `/api/admin/dashboard/summary` | 经营看板汇总(P0 O3) | 管理员 |
 | GET | `/api/admin/revenue/export?from=&to=&mode=` | 营收明细导出 xlsx(**不走 `R<T>` 包装**,直接返回二进制流) | 管理员 |
@@ -207,10 +219,17 @@ pnpm test
 F:/test/work/
 ├── plan.md                              原始架构方案
 ├── README.md                            本文件
+├── tools/                               运维脚本(纯 Python 标准库, 不引三方包)
+│   ├── reconcile_seat_bitmap.py         位图 ↔ DB 对账 + 幽灵订单清理
+│   ├── check_redis_safety.py            Redis 部署前置探针(只读)
+│   ├── seed_sessions.py                 演示场次补种
+│   └── test_*.py                        上述脚本的单元/集成测试
 ├── docs/
 │   ├── 实现方案.md                       详细实现方案(W1-W5 + P0)
+│   ├── 部署前置检查.md                    上线前的配置/环境/数据检查清单(阻断项优先)
 │   ├── 压测报告.md                       W5 压测结果
 │   ├── 压测报告-v2.md                    P0 后回归压测结果
+│   ├── agents/                           专题文档(座位流 / 对话助手 / i18n / 架构地图 / 工具)
 │   └── superpowers/specs/                P0 增量设计 spec
 ├── sql/
 │   ├── 01_schema.sql                    建库建表
@@ -218,7 +237,8 @@ F:/test/work/
 │   ├── 03_p0_increment.sql              P0 增量: movie 扩列 + refund_log + ticket
 │   ├── 04_extra_demo_data.sql           扩展演示: 12 部影片(带 TMDB 海报) + 14 天场次
 │   ├── 05_refresh_sessions_for_demo.sql 演示场次补种: 今天起 3 天(绝对日期 ID, 真幂等)
-│   └── 06_qa_knowledge.sql              对话助手 FAQ 知识库(18 条常见问答,spec #20)
+│   ├── 06_qa_knowledge.sql              对话助手 FAQ 知识库(18 条常见问答,spec #20)
+│   └── 07_real_demo_movies.sql          真实影片名 + 专属海报(课堂演示用)
 ├── cinema-server/                       Spring Boot 后端(按领域分包)
 │   ├── pom.xml
 │   └── src/main/java/com/cinema/
@@ -256,7 +276,7 @@ F:/test/work/
 └── cinema-web/                           Vue3 前端
     ├── package.json
     ├── DESIGN.md                         视觉宪法(票根语言/色板/命名规则), 与 main.css 由测试锁同步
-    ├── tests/                            vitest 用例(30 个 .test.ts / 407 条)
+    ├── tests/                            vitest 用例(35 个 .test.ts / 547 条)
     └── src/
         ├── api/                          axios 封装 + 各模块 API(admin.ts 含 exportRevenue 独立实例)
             └── errorCodes.ts             错误码 → 结构化载荷(锁座冲突的座位列表等)
@@ -425,7 +445,7 @@ F:/test/work/
 
 ### 行动卡片(`cards[]`)
 
-LLM 在 reply 末尾输出 fenced ` ```json-cards ``` ` 块,后端 `ReplyCardParser` 解析后填 `ChatResponseVO.cards` + `followUps`,前端 `ChatMessage.vue` 按 `v-if="response.cards.length"` 渲染可点击的 `ActionCard`。点击跳 `/seat/{sessionId}?preselect=52,53`,由既有 `applyPreselect`(纯函数,13/13 用例覆盖)做追加语义 + 超 maxSelect 按最小索引剔除。
+LLM 在 reply 末尾输出 fenced ` ```json-cards ``` ` 块,后端 `ReplyCardParser` 解析后填 `ChatResponseVO.cards` + `followUps`,前端 `ChatMessage.vue` 按 `v-if="response.cards.length"` 渲染可点击的 `ActionCard`。点击跳 `/seat/{sessionId}?preselect=52,53`,由既有 `computeApplyPreselect`(纯函数,10 条用例覆盖)做追加语义 + 超 maxSelect 按最小索引剔除。
 
 **约束**:卡片不携带任何可直接提交的载荷,只携带 `{sessionId, seatIndexes}` 建议(ADR-0002 硬约束)。
 
@@ -519,6 +539,8 @@ v0.1.0 曾经「不让助手直接锁座」(三条代码级证据见 spec §2.3)
 | **⚠️ 重跑 `04_extra_demo_data.sql` 不但没用,而且会静默失败** | 脚本执行"成功"但 `session` 表一行没多 | 它的确定性 ID 是 `movie*1e7 + hall*1e5 + d*100 + s`,`d` 为**相对天数**、不含绝对日期;跑过一次后各 `d` 均已被占用,重跑时算出同一批 ID,被脚本内的 `INSERT IGNORE` 全部丢弃 | **改用 `05_refresh_sessions_for_demo.sql`**:ID 用 `DAYOFMONTH*100 + slot` 绝对日期编码,跨天不撞、同天重跑真幂等 |
 | **FAQ 知识库需手动灌** | 对话助手问流程类问题不走知识库兜底 | `sql/06_qa_knowledge.sql` 默认不执行,`qa_knowledge` 表可能不存在 | 按「快速开始 §1」执行该 SQL 并重启后端;不执行时 `searchFaq` 降级,其余 7 个工具不受影响 |
 | **Vite dev 只监听 IPv6** | 用 `http://127.0.0.1:5173` 探测会「连接被拒绝」,误判前端没起 | Vite 6 默认绑 `[::1]`(localhost 解析到 IPv6) | 用 `http://localhost:5173` 访问即可;不是服务故障 |
+| **Redis 位图不会自动收缩** | 清掉一个越界座位位后,位图字符串仍是原来的体积 | Redis 的位图按 offset 分配,清零高位**不回收**空间(实测 offset=100000 → 12501 字节,清零后 STRLEN 仍是 12501) | 用 `python tools/reconcile_seat_bitmap.py --purge-ghost-orders --fix` —— 它走「DEL + 按合法位重建」的原子 Lua,体积才真的降回来 |
+| **位图重建不校验座位索引** | 历史幽灵订单若没清掉,每次重建位图都会把它重新撑大 | `SeatBitmapRebuilder` 照 `order_item` 原样 SETBIT,不查座位是否真实存在 | 跑一次 `--purge-ghost-orders --fix`;API 层的越界拦截已修,新单不会再产生越界行 |
 
 ---
 
@@ -543,8 +565,9 @@ v0.1.0 曾经「不让助手直接锁座」(三条代码级证据见 spec §2.3)
 
 ## 测试文件
 
-- `cinema-server/src/test/java/...` — **217 个 JUnit5 + Mockito 单元测试**(36 个测试类,2026-10-19 实测)
-- `cinema-web/tests/` — **313 个 Vitest 单元测试**(22 个 `.test.ts` 文件,2026-10-19 实测)
+- `cinema-server/src/test/java/...` — **312 个 JUnit5 + Mockito 单元测试**(47 个测试类,2026-10-25 实测)
+- `cinema-web/tests/` — **547 个 Vitest 单元测试**(35 个 `.test.ts` 文件,2026-10-25 实测)
+- `tools/test_*.py` — **80 个 Python 工具测试**(位图对账 / 幽灵订单清理 / Redis 探针 / 只读 SQL 工具 / 文档一致性闸门,2026-10-25 实测)
 - `test/load_test.py` — 三场景 Python 压测驱动
 - `test/concurrency_strict.py` — 防超卖专项
 - `test/concurrency_test.py` — 并发基础压测
@@ -554,10 +577,13 @@ v0.1.0 曾经「不让助手直接锁座」(三条代码级证据见 spec §2.3)
 - `test_webapp_e2e.py` — Web 端 E2E 脚本(根目录)
 - `docs/压测报告.md` — 完整压测报告(W5)
 - `docs/压测报告-v2.md` — P0 后回归压测报告
+- `docs/部署前置检查.md` — 部署前置检查清单(Redis / MySQL / 环境变量 / 演示数据)
+- `docs/agents/` — 专题文档(座位流 / 对话助手 / i18n / 架构地图 / 工具)
 - `docs/superpowers/specs/2026-08-31-p0-increment-design.md` — P0 增量设计 spec
 - `docs/superpowers/specs/2026-09-21-chat-assistant-design.md` — 对话式订票助手设计 spec(**已实现**)
 - `docs/superpowers/specs/2026-10-19-chat-one-click-order-design.md` — 一键下单设计 spec(**已实现**,v0.2.0)
 - `docs/发布说明-v0.2.0.md` — v0.2.0 发布说明
+- `docs/发布说明-v0.3.0.md` — v0.3.0 发布说明(收口与修复)
 - `docs/adr/` — 架构决策记录(ADR-0001/0002/0003/**0004 一键下单**)
 - `docs/agents/chat-assistant-code-review.md` — 对话助手双轴 code review
 

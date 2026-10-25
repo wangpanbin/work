@@ -1,0 +1,30 @@
+# 对话式订票助手 (chat assistant)
+
+只读工具 + 一键下单提案(ADR-0004)的全部不变式与踩坑点。
+
+> **硬约束仍在 `AGENTS.md`** —— 本文件是专题展开, 不覆盖仓库级底线。
+> 改动前先读 `AGENTS.md` 的 `Conventions & gotchas` 一节。
+
+## 对话式订票助手 (chat assistant)
+
+Design spec: `docs/superpowers/specs/2026-09-21-chat-assistant-design.md` + `docs/superpowers/specs/2026-10-19-chat-one-click-order-design.md`。It rides LangChain4j inside `cinema-server` (ADR-0001) and deliberately does not use RAG (ADR-0003). There are **8 `@Tool` methods** on `ChatTools` (4 movie/session + 2 seat + 2 order); `ChatToolsStructureTest` is the reflection whitelist that fails if any write method ever gets annotated.
+
+**v0.2.0 起助手可以一键下单**(ADR-0004,局部修订 ADR-0002 —— 原文保留,只加修订标记)。三条不变量,改这块之前先确认没破:
+
+- **助手仍不注册任何写工具** —— `ChatTools` 仍是 8 个只读 `@Tool`,`ChatToolsStructureTest` 的 4 条断言一字未改。写路径全在 LLM 之外的**后处理装配层**(`OrderProposalAssembler`)。
+- **付款仍在用户手里** —— 助手只锁座建单到「待支付」,支付在 `/payment` 页由用户自己完成。
+- **不做机器自动换座重试** —— 40002 座位被抢时只告知 + 给「重新找一组」按钮,把重试的决定权交回用户。
+
+chat 模块第一次有了写操作,以下几条是踩坑点:
+
+- **幂等键 = `proposalId`,不是 `userId:sessionId:seatIndexes`** —— 座位列表从不进幂等键,模型的幻觉/重试产生不了第二把钥匙(这正是 ADR-0002 证据 2 的正面回应)。
+- **提案 = 服务端快照**(Redis `cinema:chat:proposal:{id}`,TTL 90s,**一次性**:确认时原子 GETDEL 读出即删)。**提案不占位** —— TTL 内座位不保证可用,占位只发生在 `lockSeats` 那一刻。
+- **座位与价格以服务端为准** —— 模型给的座位只是提示,服务端重读位图复核(在范围内 / 当前可选 / 同行连座),任一不满足就由服务端重找一组(优先中段);价格一律取 `session.getPrice()`,模型报价被丢弃。**越界索引绝不进 `lock_seat.lua`**(见下方 seatIndexes 范围校验那条)。
+- **`closeIfUnpaid` 副作用必须可见** —— 提案阶段查同场次存量待支付单(`OrderLockService.findUserPendingOrder`,已由 private 提为 public 供提案阶段复用),确认卡上显式列出「将被取消的订单号」。
+- **既有抢票链路零改动** —— 确认端点内部直接复用 `OrderLockService.lockSeats`;`POST /orders/lock` 及其 `@Idempotent`/`@RateLimit` 一行未动。
+- **鉴权** —— `/api/chat/orders/**` 已加入 `AuthRequiredInterceptor` 覆盖路径(未登录 40101);`/api/chat/message` 仍公开可匿名。
+- **回滚闸门** —— `cinema.chat.order-enabled=false` → 装配器停摆 + 端点拒服务,不发版即可让整条写路径失效。`cinema.chat.proposal-ttl-seconds` 默认 90。
+- **票数由 `count` 决定,不由模型的座位数组长度决定** —— spec §4 的 `count(1~4)` 是票数,`preferredSeats` 只是「提示」。两者长度不一致时**以 `count` 为准、提示作废并由服务端重找**;曾经的实现是 `hint.size()` 覆盖 `count`,于是「用户说 3 张、模型只给 2 个索引」会静默变成 2 张票(`OrderProposalService#resolveSeatCount`)。`OrderProposalServiceTest` 两条用例锁住这个契约。
+- **前端错误码映射必须下沉到纯函数** —— `components/chat/orderProposalCard.ts` 的 `CONFIRM_ERROR_KEYS` / `confirmErrorKey` / `isProposalExpiredCode`。本仓 vitest 挂不上 SFC,映射写在 `.vue` 里就没有闸门。
+- **限流分桶要按用户,不按 proposalId / sessionId** —— 把 `proposalId` 拼进确认桶,提案一次性消费后每份 id 都唯一,「3 次/分钟」永远触发不了;把 `sessionId` 拼进提案桶,「10 次/分钟」实际是每场次 10 次,换场次就能再刷一轮。口径对齐既有 `POST /api/chat/message` 的 userId 全局分桶(`IdempotencyKeys` 里三条常量 + `IdempotencyKeysTest` 反射锁死)。
+- **过期提示不能只挂在按钮回调里** —— 按钮在 `state !== 'active'` 时是置灰的,写在 `onConfirm` 里的过期提示永远不可达,过期卡只剩一个 `00:00` 倒计时。现在提示由 `stateHint` 直接推导,永远可达。

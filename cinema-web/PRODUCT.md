@@ -34,6 +34,7 @@ web
 ## Operating Context
 
 - 前端**不能独立运行**:`pnpm dev`(5173)通过 `/api` 与 `/ws` 代理转发到 `http://localhost:8080`,后端 + MySQL 8 + Redis 8(127.0.0.1:6379)必须先起。
+- 初始化库表按 `sql/01_schema.sql` → `sql/02_init_data.sql` → `sql/03_p0_increment.sql` 顺序执行;可选的 `sql/06_qa_knowledge.sql` 是对话助手的 FAQ 知识库(不跑则 `searchFaq` 降级,须跑完并重启后端),`sql/07_real_demo_movies.sql` 把演示影片换成真实片名与专属海报(需 `--default-character-set=utf8mb4`)。
 - 演示/截图前必须跑 `sql/05_refresh_sessions_for_demo.sql` 补今天起 3 天的场次(幂等,可重复执行);影片详情页的日期选择器只看今天/明天/后天,窗口一过就是空场次。**不要重跑 `sql/04_extra_demo_data.sql`,它会静默失败。**
 - 测试账号:`user1/123456`、`user2/123456`、`admin/123456`(后端启动时自动初始化)。
 - 对话助手需 `DEEPSEEK_API_KEY` 环境变量;未设时 `/api/chat/message` 返 `50000` 短路(设计如此,不挂外部 key 也能起服务)。
@@ -45,26 +46,32 @@ web
 
 **用户端**:注册/登录(JWT,注册确认密码)、影片列表/详情/搜索筛选、场次选择、WebSocket 实时选座、锁座下单(15 分钟待支付)、模拟支付、我的订单(取消/退票/电子票二维码)。
 
-**管理端**:影片/影厅/场次 CRUD(含座位自动生成)、手动恢复位图、经营看板(票房/订单/趋势/TOP 影片/上座率 + 营收导出 xlsx)、实时数据大屏。
+**管理端**:影片/影厅/场次 CRUD(含座位自动生成)、**场次分页**(`GET /api/admin/sessions/page`)、手动恢复位图(列表每行一个按钮)、经营看板(票房/订单/趋势/TOP 影片/上座率 + 营收导出 xlsx)、实时数据大屏。
 
 **工程化**:`@RateLimit` 限流、`@Idempotent` 幂等、统一 `{code,msg,data}` 错误码、全局路由守卫(登录/管理员)、404 兜底、vue-i18n 11 中英双语。
+
+**安全基线**(后端):JWT 密钥走 `JWT_SECRET` 环境变量、CORS 收敛成 `CORS_ALLOWED_ORIGINS` 白名单、登录按 IP+账号 10/分钟 + 注册按 IP 120/小时 限流、管理员播种双开关。
 
 **约束(改动前必须知道)**:
 
 - 雪花 ID 一律当 string 处理,避免 JS Number 精度截断。
 - 主题色一律走 `src/styles/main.css` 的 `:root` token,禁止在 `.vue` 里写死色值;`rgba(var(--x-rgb), a)` 是非法 CSS,必须用斜杠语法 `rgb(var(--x-rgb) / a)`。
 - 座位图 5 态转灰度后必须仍可分辨(已固化为 `themeTokens.test.ts` 的可执行断言)。
-- `seatIndexes` 上界必须按场次的 `seatCount` 校验;越界索引会直接落进 `lock_seat.lua` 的 `SETBIT`,位图按 offset 立即分配且永不回收。
+- `seatIndexes` 上界必须按场次的 `seatCount` 校验;越界索引会直接落进 `lock_seat.lua` 的 `SETBIT`,位图按 offset 立即分配且**永不回收**。
+- **Redis 位图不会自动收缩**:清零高位后 `STRLEN` 不变,体积只增不减 —— 已撑大的位图要用 `tools/reconcile_seat_bitmap.py --purge-ghost-orders --fix` 重建(它是 DEL + 按合法位重写)。
+- 退票释放座位必须**按订单幂等**(`refund_seat.lua` 的第三个 key):否则补偿任务二次释放会把**别人已付款的座位**清成可选。
+- 位图重建必须走**临时 key + 原子换名**(`replace_seat_bitmap.lua`):「先删正式位图再重建」会在两次 Redis 调用之间留下空位图窗口 —— 此刻的锁座会认为已付款座位可选 = 超卖。重建失败时正式位图一个位都不动(宁可锁死也不误放)。
 - 对话助手的 `@Tool` 方法**不允许**出现 `userId` 形参,身份由服务端 `UserContext` 注入(`ChatToolsStructureTest` 反射锁死);任何写方法被 `@Tool` 注解即测试红。
 - 前端 vitest 跑在 `environment: 'node'`,未装 jsdom / `@vue/test-utils`,挂不了 Vue 组件;视图层验证只有三条路:下沉纯函数、`.vue` 源码静态契约断言、真浏览器。
 - 无 linter;`pnpm build` 与 `pnpm type-check` 查出的问题不重叠,两个都要跑。
 - 路由级缓存(`movieCache`,5 分钟 TTL)不监听 Admin CRUD,管理员改完数据用户端最长 5 分钟内可能看到陈旧数据(与后端方案一致,不主动补救)。
 - **属当前状态、非硬性要求**:中英双语、品牌名、用例数等;改 locale 或加 `t()` 后仍必须跑 `pnpm test`(`key-coverage` 是防运行时裸 key 的闸门)。
-- **未设定产品级无障碍标准**:2026-10-12 审计发现的键盘支持缺失、`index.html` 的 `lang` 静态写死等属已知缺陷,不是本项目被考核的验收项。
+- **未设定产品级无障碍标准**:2026-10-12 审计发现的键盘支持缺失属已知缺陷,不是本项目被考核的验收项。(`lang` 那条**已修复** —— `i18n/index.ts` 的 `applyHtmlLang()` 在运行时同步 `document.documentElement.lang`,`index.html` 里的静态值只是首屏兜底。v0.3.0 又给大屏连接状态加了 `role="status" aria-live="polite"`、给行动卡片的内层按钮绑上焦点落点,但整体键盘可达仍未完成。)
 
 ## Evidence on Hand
 
-- 测试:后端 JUnit5 + Mockito、前端 Vitest 3.x(`tests/**/*.test.ts`)。**用例数会漂移,以实跑为准** —— AGENTS.md 明确写了「数字以实测为准,别照抄文档」。
+- 测试:后端 JUnit5 + Mockito、前端 Vitest 3.x(`tests/**/*.test.ts`)、仓库内 Python 工具测试(`tools/test_*.py`)。**用例数会漂移,以实跑为准** —— AGENTS.md 明确写了「数字以实测为准,别照抄文档」。
+- 上线前检查:`docs/部署前置检查.md` + `tools/check_redis_safety.py`(Redis 配置只读探针)。
 - 压测:`docs/压测报告.md`、`docs/压测报告-v2.md`;核心结论「250 并发抢同一座位 0 超卖」。
 - 设计与决策:`docs/实现方案.md`、`docs/superpowers/specs/`、`docs/adr/`(ADR-0001/0002/0003)、`CONTEXT.md` 领域词表。
 - 资产:`src/components/BrandMark.vue`(手写票根 SVG,无外部依赖)。

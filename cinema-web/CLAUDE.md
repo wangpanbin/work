@@ -37,8 +37,16 @@ src/
 │   └── index.ts           # 运行时单例: 初始化 / 三态循环 / 跟随系统变化
 ├── utils/
 │   ├── ws.ts              # 座位 WebSocket 客户端(自动重连 + 指数退避 + 15s 心跳 + 状态 ref)
-│   └── bitmap.ts          # 后端 Base64 Big-Endianian 位图 → Uint8Array(每位 = 一个座位)
-├── components/            # SeatItem(单座状态), Countdown(下单/支付倒计时)
+│   │                        #   + wsBaseUrl():座位 WS 与大屏 WS 共用同一份基址解析
+│   ├── wsMessage.ts        # WS 消息解析(可选 seq 字段)
+│   ├── bitmap.ts          # 后端 Base64 Big-Endianian 位图 → Uint8Array(每位 = 一个座位)
+│   │                        #   缺失位按「占用」处理; base64 非法时抛错(交给调用方渲染错误态)
+│   ├── markdown.ts         # 聊天 Markdown 渲染(先转义再拼标签)
+│   └── seatDragRange.ts    # 拖拽连选的区间计算(纯函数)
+├── components/            # SeatItem(单座状态), Countdown(下单/支付倒计时), chat/(浮窗与卡片)
+├── composables/           # useChatContext / useSeatSync(重连补偿) / usePosterFallback / useNow
+├── constants/             # auth.ts(角色/令牌) + routes.ts(路由常量)
+├── i18n/                  # vue-i18n 11 实例: index.ts(含 applyHtmlLang) / detect / persist / fallback / errorText / locales
 ├── views/                 # 页面: Home / Login / MovieDetail / SeatSelect / OrderList / Payment / NotFound
 │   └── admin/             # AdminHome(嵌套壳) + Dashboard / LiveDashboard / MovieManage / HallManage / SessionManage
 ├── types/                 # TS 类型: R<T> 业务响应, UserVO/Movie/SessionVO/PageData
@@ -61,6 +69,7 @@ src/
 
 - 统一信封 `{ code, msg, data }`,`code === 0` 视为成功,`request.ts` 拦截器直接返回 `body.data`
 - **40002** 锁座冲突 → `error.data.conflict` 是冲突座位 index 列表,前端要刷新座位图并提示
+- **40003 / 40004** 一键下单提案过期/已被消费、下单功能被回滚闸门关掉 —— 映射表在 `components/chat/orderProposalCard.ts` 的 `CONFIRM_ERROR_KEYS`
 - **40900** 幂等冲突(短时间内重复提交同一锁座/支付/退票)
 - **42900** 限流(后端 Redis 滑动窗口,100 次同用户锁座 → 第 6 次起命中)
 - **40101 / 40102** 登录态失效 → 拦截器清掉 `cinema_token` + `cinema_user` 并跳 `/login?redirect=当前路径`
@@ -72,7 +81,7 @@ src/
 - **JWT 存储**:`localStorage.cinema_token`(token)和 `localStorage.cinema_user`(用户缓存)。`stores/user.ts` 同步读 `cinema_user` 才能让 `router.beforeEach` 在首次导航就拿到 `role`,否则守卫判错
 - **管理端权限**:`user.role === 1` 才放行 `/admin/*`;非管理员被守卫跳到 `/?_denied=1`
 - **axios 拦截器不在组件上下文**,路由守卫的非管理员拦截也不要弹 `ElMessage` —— 提示逻辑放 `App.vue` 监听
-- **WebSocket 故意绕过 Vite 代理**:`utils/ws.ts` 里端口判定 `location.port === '5173' ? '8080' : location.port`,所以 HMR 代理不会进 WS 流。心跳已经压到 15s(防部分网关 30s idle 切断)
+- **WebSocket 的基址解析只有一份**:`utils/ws.ts` 的 `wsBaseUrl(loc)` —— 开发端口(5173 / 4173)直连后端 8080,其余情况用当前 host。座位 WS 与大屏 WS(`/ws/admin`)**共用**它,不要在任何 `.vue` 里自己拼 `location.host`(那会让 `vite preview` 模式下大屏连不上,且没有任何错误提示)。心跳 15s(防部分网关 30s idle 切断)
 - **网络错误的本地化文案**:`request.ts` 把 `Network Error` 替换成"网络异常,请确认后端已启动(8080)",别改这个文案,方便本地排障
 - **路由级缓存的失效边界**:`movieCache.ts` 不监听 Admin CRUD,所以管理员改完影片/场次,用户端最长 5 分钟内可能看到陈旧数据 —— 与后端方案文档一致,不主动补救
 - **404 兜底**:`router` 末尾的 `/:pathMatch(.*)*` 指向 `NotFound.vue`,外部死链进来不会白屏

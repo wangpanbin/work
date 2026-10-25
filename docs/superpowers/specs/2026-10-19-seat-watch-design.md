@@ -6,6 +6,7 @@
 > 关联:`docs/superpowers/specs/2026-09-21-chat-assistant-design.md`、`docs/superpowers/specs/2026-09-22-i18n-zh-en-design.md`、`docs/adr/0002-action-cards-do-not-execute-writes.md`、`CONTEXT.md`
 > 术语:本文出现的「座位索引 / 选座 / 锁座 / 锁座冲突 / 待支付订单 / 场次上下文 / 行动卡片」一律以 `CONTEXT.md` 为准
 > 上游输入:`plans/影院抢票选座系统_下一轮迭代计划.md`
+> 状态:**已实现**(提交 `c6dea15`)
 
 ---
 

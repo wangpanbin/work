@@ -4,7 +4,8 @@
 > 路径:A. 走 P0 全集(用户已选)  
 > 场景:**课程设计答辩 / 学校实训**(用户已选)  
 > 基线:W1-W5 已完成 + Phase A/B/F 优化已落地(详见 `docs/实现方案.md`)  
-> 关联:基于 `docs/superpowers/specs/2026-08-31-improvements-roadmap.md` 的 P0 段
+> 状态:**已实现**(P0 九项全部落地;v0.3.0 收口轮又补了退票释放幂等、支付补偿、影厅改行列防护、场次删除校验与安全基线)
+> 关联:本 spec 的 P0 段源自一份头脑风暴文档,那份文档未随仓库保留 —— 正文引用的具体条目以本文与 `docs/实现方案.md` 为准
 
 ---
 
@@ -146,7 +147,7 @@ modules/order/
 **触发点**:
 - 启动时(可选,只对"近期"场次,过滤 start_time > now-7d)
 - 锁座前 fallback(若 `EXISTS lock_key = 0` 则触发)
-- 提供管理端接口 `POST /api/admin/bitmaps/recover?sessionId={}` 手动触发
+- 提供管理端接口 `POST /api/admin/sessions/bitmaps/recover?sessionId={}` 手动触发(实际落地路径在 `AdminSessionController` 上,前缀是 `/api/admin/sessions`)
 
 **验收**:
 - `FLUSHDB` 后锁座,后端能自动恢复 bitmap 不超卖
@@ -448,7 +449,7 @@ CREATE TABLE IF NOT EXISTS ticket (
 | GET | `/api/admin/dashboard/summary` | 经营看板数据 | O3 | admin-only |
 | GET | `/api/admin/dashboard/top-movies` | TOP 影片 | O3 | admin-only |
 | GET | `/api/admin/dashboard/top-sessions` | TOP 场次 | O3 | admin-only |
-| POST | `/api/admin/bitmaps/recover` | 手动恢复 bitmap | P5 | admin-only |
+| POST | `/api/admin/sessions/bitmaps/recover` | 手动恢复 bitmap | P5 | admin-only |
 | GET | `/api/movies` (改) | 加 keyword/genre/region 参 | F1 | 无 |
 | GET | `/api/admin/live/stream` (WS) | 大屏实时事件 | D1 | admin-only |
 | POST | `/api/orders/lock` (改) | 加 @RateLimit + @Idempotent | E4/E5 | 限流+幂等 |

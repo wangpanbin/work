@@ -6,6 +6,7 @@
 > 基线:W1-W5 已完成 + P0 全部 9 项 + 营收导出已落地
 > 关联:`docs/superpowers/specs/2026-08-31-p0-increment-design.md`、`docs/实现方案.md`、`CONTEXT.md`
 > 术语:本文出现的「锁座 / 选座 / 待支付订单 / 锁座冲突 / 行动卡片 / 场次上下文 / 座位索引」一律以 `CONTEXT.md` 为准
+> 状态:**已实现**,但「只读 + 只推荐」这条边界**已被局部修订** —— ADR-0004 允许助手经**用户一次点击**触发锁座建单(写路径在 LLM 之外的装配层, 付款仍在用户手里)。以 `docs/adr/0004-chat-order-proposal.md` 与 `docs/superpowers/specs/2026-10-19-chat-one-click-order-design.md` 为准
 
 ---
 

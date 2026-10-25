@@ -6,12 +6,13 @@
 > 基线:W1-W5 + P0 + 营收导出 + 对话助手(T1-T9)均已落地
 > 关联:`CONTEXT.md`、`docs/superpowers/specs/2026-09-21-chat-assistant-design.md`、`AGENTS.md`
 > 术语:本文出现的「锁座 / 选座 / 待支付订单 / 行动卡片 / 场次上下文 / 座位索引」一律以 `CONTEXT.md` 为准
+> 状态:**已实现**(v0.2.0 落地;v0.3.0 起额外覆盖 `html[data-theme='dark']` 暗色作用域的locale 完整性 —— 闸门按作用域分别验亮/暗两套)
 
 ---
 
 ## 0. 一句话决策
 
-在 `cinema-web` 引入 `vue-i18n@^10`,**全量翻译用户可见文案**,在顶栏增加一个 `🌐 EN/中文` chip(移动端进 avatar 菜单),切换语言通过 `localStorage.cinema_locale` 持久化,首次访问根据 `navigator.language` 嗅探默认语言。**Element Plus 内置组件(`ElMessage` / `ElMessageBox` / `Pagination` 等)的按钮文案不翻译**(走默认中文),仅翻译应用层文案。
+在 `cinema-web` 引入 `vue-i18n@^11`(实际落地为 `^11.4.12`;`legacy: false` 与 `fallbackLocale` 的行为在 11 上与设计一致),**全量翻译用户可见文案**,在顶栏增加一个 `🌐 EN/中文` chip(移动端进 avatar 菜单),切换语言通过 `localStorage.cinema_locale` 持久化,首次访问根据 `navigator.language` 嗅探默认语言。**Element Plus 内置组件(`ElMessage` / `ElMessageBox` / `Pagination` 等)的按钮文案不翻译**(走默认中文),仅翻译应用层文案。
 
 ---
 
@@ -222,7 +223,7 @@ i18n = createI18n({
 
 | # | 决策 | 理由 |
 | --- | --- | --- |
-| D1 | 引入 `vue-i18n@^10` | 用户已选(Q2) |
+| D1 | 引入 `vue-i18n@^11` | 用户已选(Q2);实际落地 `^11.4.12` |
 | D2 | 全量翻译用户可见 UI 文案(250-400 个 key) | 用户已选(Q1),见 §2.3 边界 |
 | D3 | 切换按钮 = 顶栏 chip(桌面)+ avatar dropdown(移动) | 用户已选(Q3),与现有 chip 风格一致 |
 | D4 | 持久化 = `localStorage.cinema_locale` + 首次 `navigator.language` 嗅探 | 用户已选(Q4) |

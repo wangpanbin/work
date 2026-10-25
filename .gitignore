@@ -55,6 +55,10 @@ test/playwright-cli/snapshots/
 /tests/
 # 测试报告
 docs/压测报告*.md
+# README 与实现方案都引用了这两份压测报告, 它们是「并发 0 超卖」这类正确性证据,
+# 属于交付物而非临时产物 —— 解除忽略, 随仓库入库。上面的规则继续挡住同前缀的新报告。
+!docs/压测报告.md
+!docs/压测报告-v2.md
 test_mixed.py
 test_myorders.py
 test_webapp_e2e.py
@@ -70,6 +74,10 @@ cinema-server/.factorypath
 META-INF/
 cinema-server/.tmp/
 opennlp/
+
+# 另一个项目产出的 Mini App 目录(defect-triage-workbench), 与 cinema 业务无关。
+# / 前缀限定仅匹配 git root; 本目录内容不删, 只挡住它污染本仓库的 diff。
+/miniapps/
 
 # 课程设计汇报物料 (一次性交付素材, 不属于 cinema 业务代码)
 # deck/  —— 汇报幻灯片生成器与产物 (PPTX / 图片 / 中间文件)
