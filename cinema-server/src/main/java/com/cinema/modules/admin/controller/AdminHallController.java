@@ -1,6 +1,7 @@
 package com.cinema.modules.admin.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.cinema.common.exception.BizException;
 import com.cinema.common.result.R;
 import com.cinema.infra.redis.cache.SessionInfoCacheService;
@@ -28,7 +29,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Duration;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 @RestController
@@ -48,7 +52,9 @@ public class AdminHallController {
     public R<List<Hall>> list(@RequestParam(required = false) Long cinemaId) {
         LambdaQueryWrapper<Hall> qw = new LambdaQueryWrapper<Hall>()
                 .eq(cinemaId != null, Hall::getCinemaId, cinemaId);
-        return R.ok(hallMapper.selectList(qw));
+        List<Hall> halls = hallMapper.selectList(qw);
+        fillVipFromRow(halls);
+        return R.ok(halls);
     }
 
     @GetMapping("/{id}")
@@ -57,7 +63,74 @@ public class AdminHallController {
         if (hall == null) {
             throw new BizException("影厅不存在");
         }
+        fillVipFromRow(List.of(hall));
         return R.ok(hall);
+    }
+
+    // =====================================================================
+    // VIP 起始行(派生值)
+    //
+    // VIP 归属的唯一真源是 seat 表的 seat_type=1 —— hall 表里根本没有这一列。
+    // 所以这里用 MIN(row_no) 反推, 而不是另存一份: 另存一份就造出两个真源
+    // (改了列不重建座位 / 重建了座位不改列), 两者必然漂移。
+    //
+    // 语义是**行号**(1 起算), 与 insertSeats 里 `r >= vipFromRow ? 1 : 0` 的 r 同一种;
+    // 前端回填后原样提交, 两侧必须同一种, 否则 VIP 区会整个错位。
+    // =====================================================================
+
+    /**
+     * 回填这些影厅的 VIP 起始行; 一个 VIP 座位都没有的影厅 → null。
+     *
+     * <p>一次批量查(GROUP BY hall_id)取回所有影厅的值, 不在循环里逐个查(N+1)。
+     */
+    private void fillVipFromRow(List<Hall> halls) {
+        if (halls == null || halls.isEmpty()) {
+            return;
+        }
+        Map<Long, Integer> vipFromRows = loadVipFromRows(halls.stream().map(Hall::getId).toList());
+        for (Hall hall : halls) {
+            hall.setVipFromRow(vipFromRows.get(hall.getId()));
+        }
+    }
+
+    /**
+     * 批量取这些影厅的 VIP 起始行: {@code MIN(row_no) WHERE seat_type = 1}(按 hall_id 分组)。
+     *
+     * <p>没有 VIP 座位的影厅不会出现在结果里 → 读出来就是 null。
+     */
+    private Map<Long, Integer> loadVipFromRows(Collection<Long> hallIds) {
+        if (hallIds.isEmpty()) {
+            return Map.of();
+        }
+        List<Map<String, Object>> rows = seatMapper.selectMaps(
+                new QueryWrapper<Seat>()
+                        .select("hall_id AS hallId", "MIN(row_no) AS vipFromRow")
+                        .in("hall_id", hallIds)
+                        .eq("seat_type", 1)
+                        .groupBy("hall_id"));
+        Map<Long, Integer> result = new HashMap<>();
+        for (Map<String, Object> row : rows) {
+            Object hallId = columnValue(row, "hallId");
+            Object vipFromRow = columnValue(row, "vipFromRow");
+            if (hallId instanceof Number id && vipFromRow instanceof Number v) {
+                result.put(id.longValue(), v.intValue());
+            }
+        }
+        return result;
+    }
+
+    /** 取聚合行里的列值(列名大小写不敏感 —— 免得驱动改了别名大小写就读不到)。 */
+    private static Object columnValue(Map<String, Object> row, String column) {
+        Object value = row.get(column);
+        if (value != null) {
+            return value;
+        }
+        for (Map.Entry<String, Object> entry : row.entrySet()) {
+            if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(column)) {
+                return entry.getValue();
+            }
+        }
+        return null;
     }
 
     /**
@@ -78,6 +151,7 @@ public class AdminHallController {
             return hall.getId();
         });
         hall.setId(hallId);
+        fillVipFromRow(List.of(hall));
         return R.ok(hall);
     }
 
@@ -117,13 +191,37 @@ public class AdminHallController {
         hall.setSeatRows(dto.getSeatRows());
         hall.setSeatCols(dto.getSeatCols());
         hall.setSeatCount(dto.getSeatRows() * dto.getSeatCols());
+        // ⚠️ **vipFromRow 为 null 的语义 = 保持原样**, 不是「清空 VIP 区」(2026-10-25 交互审查 P2-1)。
+        //
+        // <p>为什么: 请求里没有这个值, 有两种完全不同的原因 ——
+        // ① 管理员确实要把 VIP 区清掉;
+        // ② 调用方**根本没这个字段**(老前端 / 老 Hall 实体没有这一列), 发的就是 null。
+        // ②与①在 wire 上长得一模一样, 却是**破坏性**的: update 会删光该厅全部座位,
+        // 再按 null 重插 → 整厅 VIP 座位变成普通座位, 界面只提示「重建座位布局」。
+        //
+        // <p>所以这里取「当前值」兜底: 原来有 VIP 就继续有, 原来没有就还是没有。
+        // 真要清空 VIP 区请**新建影厅** —— 与「有过订单的影厅不允许改行列数」同一条规矩。
+        //
+        // <p>注意取值必须在**删座位之前**做 —— 座位删掉后就派生不出来了。
+        Integer vipFromRow = dto.getVipFromRow() != null
+                ? dto.getVipFromRow()
+                : loadVipFromRows(List.of(id)).get(id);
+        // ⚠️ VIP 起始行不能超过行数 —— 否则**整厅 VIP 会静默消失**:
+        // `insertSeats` 按 `r >= vipFromRow` 插 VIP, 起始行 7 而影厅只有 6 行时
+        // 一行 VIP 都不会插, 而前端还显示着「7」(它不知道后端把 VIP 丢了)。
+        // 这条要在**删座位之前**拦住 —— 拦晚了座位已经重建完了。
+        if (vipFromRow != null && vipFromRow > dto.getSeatRows()) {
+            throw new BizException("VIP 起始行 " + vipFromRow
+                    + " 超过影厅行数 " + dto.getSeatRows() + ", 请把 VIP 起始行调到行数以内");
+        }
         transactionTemplate.executeWithoutResult(tx -> {
             hallMapper.updateById(hall);
             seatMapper.delete(new LambdaQueryWrapper<Seat>().eq(Seat::getHallId, id));
-            insertSeats(hall, dto.getVipFromRow());
+            insertSeats(hall, vipFromRow);
         });
         hallLayoutCache.invalidate(id);
         invalidateSessionInfoCache(id);
+        fillVipFromRow(List.of(hall));
         return R.ok(hall);
     }
 

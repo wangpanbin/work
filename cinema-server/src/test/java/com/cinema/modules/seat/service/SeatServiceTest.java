@@ -6,6 +6,8 @@ import com.cinema.modules.hall.entity.Hall;
 import com.cinema.modules.hall.mapper.HallMapper;
 import com.cinema.modules.movie.entity.Movie;
 import com.cinema.modules.movie.mapper.MovieMapper;
+import com.cinema.modules.order.entity.Order;
+import com.cinema.modules.order.service.PendingOrderQuery;
 import com.cinema.modules.seat.cache.SessionInfoCacheVO;
 import com.cinema.modules.seat.reader.HallLayoutCache;
 import com.cinema.modules.seat.reader.MyLockedSeatsReader;
@@ -29,11 +31,13 @@ import org.springframework.data.redis.core.ValueOperations;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -53,13 +57,14 @@ class SeatServiceTest {
     @Mock private SessionBitmapReader bitmapReader;
     @Mock private HallLayoutCache hallLayoutCache;
     @Mock private MyLockedSeatsReader myLockedSeatsReader;
+    @Mock private PendingOrderQuery pendingOrderQuery;
 
     private SeatService service;
 
     @BeforeEach
     void setUp() {
         service = new SeatService(sessionInfoLoader, bitmapReader, hallLayoutCache,
-                myLockedSeatsReader);
+                myLockedSeatsReader, pendingOrderQuery);
     }
 
     @Test
@@ -111,6 +116,85 @@ class SeatServiceTest {
         verify(bitmapReader, org.mockito.Mockito.times(2)).readWithPadding(anyString(), eqInt(40));
         verify(myLockedSeatsReader).load(userId, sessionId);
         verify(hallLayoutCache).load(10L, 5, 8);
+    }
+
+    // =================================================================
+    // P0-2 (2026-10-25): 座位图接口补「当前用户的存量待支付单」
+    // =================================================================
+
+    @Test
+    @DisplayName("seatMap: 有待支付单 → 返回 pendingOrderNo 与 pendingExpireAt")
+    void seatMap_returnsPendingOrderInfo_whenUserHasPendingOrder() {
+        Long userId = 100L, sessionId = 1L;
+        SessionInfoCacheVO info = new SessionInfoCacheVO();
+        info.setSessionId(sessionId);
+        info.setHallId(10L);
+        info.setSeatRows(5);
+        info.setSeatCols(8);
+        info.setSeatCount(40);
+        when(sessionInfoLoader.load(sessionId)).thenReturn(info);
+        when(bitmapReader.readWithPadding(anyString(), anyInt())).thenReturn(new byte[5]);
+        when(myLockedSeatsReader.load(userId, sessionId)).thenReturn(List.of(3, 5));
+        when(hallLayoutCache.load(10L, 5, 8)).thenReturn(new com.cinema.modules.seat.vo.HallLayout(5, 8, List.of()));
+
+        LocalDateTime expireAt = LocalDateTime.of(2026, 10, 25, 18, 30, 0);
+        Order pending = new Order();
+        pending.setOrderNo("ORD-PENDING");
+        pending.setUserId(userId);
+        pending.setSessionId(sessionId);
+        pending.setExpireAt(expireAt);
+        when(pendingOrderQuery.find(userId, sessionId)).thenReturn(pending);
+
+        SeatMapVO vo = service.seatMap(sessionId, userId);
+
+        assertThat(vo.getPendingOrderNo()).isEqualTo("ORD-PENDING");
+        // 时间口径与 OrderProposalService 一致: Asia/Shanghai → epoch 毫秒
+        assertThat(vo.getPendingExpireAt())
+                .isEqualTo(expireAt.atZone(ZoneId.of("Asia/Shanghai")).toInstant().toEpochMilli());
+    }
+
+    @Test
+    @DisplayName("seatMap: 没有待支付单 → pendingOrderNo / pendingExpireAt 都是 null")
+    void seatMap_returnsNullPendingInfo_whenNoPendingOrder() {
+        Long userId = 100L, sessionId = 1L;
+        SessionInfoCacheVO info = new SessionInfoCacheVO();
+        info.setSessionId(sessionId);
+        info.setHallId(10L);
+        info.setSeatRows(5);
+        info.setSeatCols(8);
+        info.setSeatCount(40);
+        when(sessionInfoLoader.load(sessionId)).thenReturn(info);
+        when(bitmapReader.readWithPadding(anyString(), anyInt())).thenReturn(new byte[5]);
+        when(myLockedSeatsReader.load(userId, sessionId)).thenReturn(List.of());
+        when(hallLayoutCache.load(10L, 5, 8)).thenReturn(new com.cinema.modules.seat.vo.HallLayout(5, 8, List.of()));
+        when(pendingOrderQuery.find(userId, sessionId)).thenReturn(null);
+
+        SeatMapVO vo = service.seatMap(sessionId, userId);
+
+        assertThat(vo.getPendingOrderNo()).isNull();
+        assertThat(vo.getPendingExpireAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("seatMap: 未登录(userId 为 null) → 不查待支付单, 两个字段都是 null")
+    void seatMap_skipsPendingQuery_whenAnonymous() {
+        Long sessionId = 1L;
+        SessionInfoCacheVO info = new SessionInfoCacheVO();
+        info.setSessionId(sessionId);
+        info.setHallId(10L);
+        info.setSeatRows(5);
+        info.setSeatCols(8);
+        info.setSeatCount(40);
+        when(sessionInfoLoader.load(sessionId)).thenReturn(info);
+        when(bitmapReader.readWithPadding(anyString(), anyInt())).thenReturn(new byte[5]);
+        when(myLockedSeatsReader.load(null, sessionId)).thenReturn(List.of());
+        when(hallLayoutCache.load(10L, 5, 8)).thenReturn(new com.cinema.modules.seat.vo.HallLayout(5, 8, List.of()));
+
+        SeatMapVO vo = service.seatMap(sessionId, null);
+
+        assertThat(vo.getPendingOrderNo()).isNull();
+        assertThat(vo.getPendingExpireAt()).isNull();
+        verify(pendingOrderQuery, never()).find(any(), any());
     }
 
     private static int eqInt(int v) {

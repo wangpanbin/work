@@ -85,18 +85,34 @@ public class OrderLockService {
 
         // 幂等防重: 查用户当前 PENDING_PAY 订单; Redis user:pending 仅作为 lockSeats 写入提示,
         // 实际查询以 DB 为权威源(Redis value 在本仓库从未被读取,见 #5 收尾)。
+        //
+        // P0-2 修复(2026-10-25): 同场次重复锁座时,「关旧单」与「锁新座」的先后顺序
+        // 决定了失败时用户是否两头落空。规格:
+        //   ① 新旧座位**无交集**(用户改选别的座位) → 先锁新座, 锁成功后才关旧单。
+        //      锁失败 → 旧单原样保留, 用户手上仍有一笔可支付的单。
+        //   ② 新旧座位**有交集**(用户重选了自己已锁的座位) → 保持原顺序(先关旧单释放座位, 再锁新座),
+        //      因为旧单的锁还在位图上, 不先释放就必然与自己冲突。
+        //
+        // DB 上有唯一索引 uk_user_pending(user_id, pending_key) —— 同一用户同一场次只能有一笔待支付单,
+        // 所以两条路径都必须保证「关旧单」发生在「写新订单」之前。
         Order pending = findUserPendingOrder(userId, sessionId);
-        if (pending != null) {
+        List<Integer> pendingSeats = pending == null ? List.of() : orderCore.seatIndexesOf(pending);
+        boolean sharesSeat = pending != null && seats.stream().anyMatch(pendingSeats::contains);
+
+        if (pending != null && sharesSeat) {
             orderCore.clearUserLockedHash(userId, sessionId);
             // 复用 OrderCore.getOwnedOrder 之外的快速关闭: 直接关闭旧单
             closePending(pending);
-        }
-
-        // ★ Redis Lua 原子锁座(防超卖核心)
-        LuaLockResult lockResult = seatLuaService.lock(sessionId, seats);
-        if (!lockResult.ok()) {
-            throw new BizException(ResultCode.BUSINESS_ERROR.getCode(), "座位已被占用",
-                    Map.of("conflict", lockResult.conflict()));
+            // ★ Redis Lua 原子锁座(防超卖核心)
+            lockSeatsOrThrow(sessionId, seats);
+        } else {
+            // 无交集(或没有旧单): 先锁新座 —— 锁失败时旧单一个字都不动, 用户不会两头落空
+            lockSeatsOrThrow(sessionId, seats);
+            if (pending != null) {
+                // 锁成功后才动旧单, 且必须在写新订单之前关掉(uk_user_pending 唯一索引)
+                orderCore.clearUserLockedHash(userId, sessionId);
+                closePendingReplacing(sessionId, seats, pending);
+            }
         }
 
         // 落库(事务), 失败补偿释放防"幽灵锁座"
@@ -219,8 +235,62 @@ public class OrderLockService {
      * {@link CloseReason#REPLACED} 表示「旧单被同场次的新锁座顶掉」。
      * 座位释放事件照发(座位确实回到可选池), 但**不发管理端大屏事件**:
      * 顶替不是一次取消, 记进大屏流水会重复计数。
+     *
+     * @return CAS 是否成功推进(旧单已经不是待支付态时返回 false, 详见 {@link PendingOrderCloser#close})
      */
-    private void closePending(Order order) {
-        pendingOrderCloser.close(order, CloseReason.REPLACED);
+    private boolean closePending(Order order) {
+        return pendingOrderCloser.close(order, CloseReason.REPLACED);
+    }
+
+    /**
+     * 新座位**已锁成功**之后关闭旧单 —— 顺序不能反(见 lockSeats 里的 P0-2 说明)。
+     *
+     * <p>失败处理(防止幽灵锁座):
+     * <ul>
+     *   <li>关单抛异常(CAS 已提交但座位没释放 / DB 报错) → 新座位不能留成幽灵锁 →
+     *       补偿释放后原样抛出。此时旧单要么仍是待支付(用户仍有一笔单),
+     *       要么已被取消(用户看到错误提示重来)。</li>
+     *   <li>CAS 没推进(close 返回 false) → 旧单已经不是待支付态(被并发关掉 / 已支付) →
+     *       它在 uk_user_pending 上的 pending_key 已是 NULL, 不会与新单冲突, 继续建新单即可。</li>
+     * </ul>
+     */
+    private void closePendingReplacing(Long sessionId, List<Integer> newSeats, Order pending) {
+        boolean closed;
+        try {
+            closed = closePending(pending);
+        } catch (RuntimeException e) {
+            releaseNewSeatsQuietly(sessionId, newSeats);
+            throw e;
+        }
+        if (!closed) {
+            log.info("[锁座] 旧待支付单 {} 状态已变更(并发关单/已支付), 不重复关",
+                    pending.getOrderNo());
+        }
+    }
+
+    /**
+     * 补偿释放刚锁上的新座位 —— 避免「幽灵锁座」(位图占着但没有订单持有)。
+     *
+     * <p>只清 lock 位、不动 sold 位(未支付通道), 与 {@link SeatLuaService#releaseUnpaid} 语义一致。
+     */
+    private void releaseNewSeatsQuietly(Long sessionId, List<Integer> seats) {
+        try {
+            seatLuaService.releaseUnpaid(new SeatWrite.Unpaid(sessionId, seats));
+        } catch (Exception e) {
+            log.error("[锁座] 补偿释放新座位失败 sid={} seats={}", sessionId, seats, e);
+        }
+    }
+
+    /**
+     * ★ Redis Lua 原子锁座(防超卖核心) —— 冲突直接抛业务异常。
+     *
+     * @throws BizException code=40002 座位已被占用(data 里带冲突座位列表)
+     */
+    private void lockSeatsOrThrow(Long sessionId, List<Integer> seats) {
+        LuaLockResult lockResult = seatLuaService.lock(sessionId, seats);
+        if (!lockResult.ok()) {
+            throw new BizException(ResultCode.BUSINESS_ERROR.getCode(), "座位已被占用",
+                    Map.of("conflict", lockResult.conflict()));
+        }
     }
 }
