@@ -39,10 +39,25 @@ public final class SeatWrite {
      * 已支付订单的座位 —— 退票。
      *
      * <p>对应 {@code refund_seat.lua}: **同清 sold + lock**, 让座位真正回到可选池。
+     *
+     * <p><b>为什么带 orderNo</b>(2026-10-24): 退票释放必须**按订单幂等**。
+     * 位图里没有「这张 sold 位属于哪张单」的信息, 补偿任务二次释放时无从判断归属,
+     * 会把已被他人买走的座位清成可选 → 超卖。把 orderNo 编码进类型,
+     * 释放通道就永远拿得到幂等标记的 key。
+     *
+     * <p><b>为什么空 orderNo 直接抛异常</b>(2026-10-25): 幂等标记的 key 是
+     * {@code cinema:order:seat-released:{orderNo}} —— orderNo 为空串时它退化成一把
+     * <b>全局共享</b>的 key, 任何一张单的退票都会把其它单的释放一起挡掉(座位永久占着 = 漏卖),
+     * 而且这种退化不报错, 只在数据里看得出来。宁可在这里当场炸掉, 也不能让它悄悄退化。
+     * 注意: record 的紧凑构造器做不到编译期检查, 这里是**运行期** fail-fast。
      */
-    public record Paid(Long sessionId, List<Integer> seats) {
+    public record Paid(Long sessionId, List<Integer> seats, String orderNo) {
         public Paid {
             seats = seats == null ? List.of() : List.copyOf(seats);
+            if (orderNo == null || orderNo.isBlank()) {
+                throw new IllegalArgumentException(
+                        "SeatWrite.Paid 的 orderNo 不能为空: 退票释放按订单幂等, 空 orderNo 会退化成全局共享的幂等键");
+            }
         }
     }
 }

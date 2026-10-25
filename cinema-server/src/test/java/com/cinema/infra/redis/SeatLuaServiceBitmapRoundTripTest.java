@@ -10,10 +10,20 @@ import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
+import org.mockito.ArgumentCaptor;
 
+import java.util.Collection;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * 座位位图写入链路的<strong>真实 Redis 往返测试</strong>。
@@ -58,6 +68,7 @@ class SeatLuaServiceBitmapRoundTripTest {
     void tearDown() {
         if (redisTemplate != null) {
             redisTemplate.delete(List.of(RedisKeys.sessionLock(SESSION_ID), RedisKeys.sessionSold(SESSION_ID)));
+            redisTemplate.delete(releaseMarkerKeys());
         }
         if (connectionFactory != null) {
             connectionFactory.destroy();
@@ -87,7 +98,7 @@ class SeatLuaServiceBitmapRoundTripTest {
         assertThat(soldBit(11)).isEqualTo(1);
 
         // 3) 退票: 同清 sold + lock
-        List<Integer> refunded = seatLuaService.refundSold(new SeatWrite.Paid(SESSION_ID, seats));
+        List<Integer> refunded = seatLuaService.refundSold(new SeatWrite.Paid(SESSION_ID, seats, "ORD-RT-1"));
         assertThat(refunded).containsExactlyInAnyOrder(10, 11);
         assertThat(soldBit(10)).isEqualTo(0);
         assertThat(soldBit(11)).isEqualTo(0);
@@ -120,7 +131,7 @@ class SeatLuaServiceBitmapRoundTripTest {
         assertThat(conflict.conflict()).containsExactlyInAnyOrder(10, 11);
 
         // 换成退票路径才真正清零
-        List<Integer> refunded = seatLuaService.refundSold(new SeatWrite.Paid(SESSION_ID, seats));
+        List<Integer> refunded = seatLuaService.refundSold(new SeatWrite.Paid(SESSION_ID, seats, "ORD-RT-2"));
         assertThat(refunded).containsExactlyInAnyOrder(10, 11);
         assertThat(soldBit(10)).isEqualTo(0);
         assertThat(soldBit(11)).isEqualTo(0);
@@ -163,18 +174,131 @@ class SeatLuaServiceBitmapRoundTripTest {
     void refundSold_isIdempotent() {
         assertThat(seatLuaService.lock(SESSION_ID, List.of(10)).ok()).isTrue();
         seatLuaService.confirmPaid(SESSION_ID, List.of(10));
-        assertThat(seatLuaService.refundSold(new SeatWrite.Paid(SESSION_ID, List.of(10))))
+        assertThat(seatLuaService.refundSold(new SeatWrite.Paid(SESSION_ID, List.of(10), "ORD-RT-3")))
                 .containsExactly(10);
 
         // 第二次退票: 没有任何位需要清
-        assertThat(seatLuaService.refundSold(new SeatWrite.Paid(SESSION_ID, List.of(10)))).isEmpty();
+        assertThat(seatLuaService.refundSold(new SeatWrite.Paid(SESSION_ID, List.of(10), "ORD-RT-3"))).isEmpty();
         assertThat(soldBit(10)).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("防超卖: 本单座位已释放过, 二次释放不清掉他人已付款的座位")
+    void refundSold_secondCallDoesNotClearSeatBoughtBySomeoneElse() {
+        List<Integer> seats = List.of(10);
+
+        // 1) 本单付了款: 座位 sold=1
+        assertThat(seatLuaService.lock(SESSION_ID, seats).ok()).isTrue();
+        seatLuaService.confirmPaid(SESSION_ID, seats);
+        assertThat(soldBit(10)).isEqualTo(1);
+
+        // 2) 退票主流程释放座位(写下按订单幂等标记), 但订单卡在 REFUNDING
+        List<Integer> released = seatLuaService.refundSold(new SeatWrite.Paid(SESSION_ID, seats, "ORD-P0-1"));
+        assertThat(released).containsExactly(10);
+        assertThat(soldBit(10)).isEqualTo(0);
+
+        // 3) 座位回到可选池后被**他人**买走: sold=1, 那是别人的票
+        assertThat(seatLuaService.lock(SESSION_ID, seats).ok()).isTrue();
+        seatLuaService.confirmPaid(SESSION_ID, seats);
+        assertThat(soldBit(10)).isEqualTo(1);
+
+        // 4) 补偿任务二次释放本单座位 → 幂等标记挡住, 一个位都不碰
+        List<Integer> second = seatLuaService.refundSold(new SeatWrite.Paid(SESSION_ID, seats, "ORD-P0-1"));
+        assertThat(second).isEmpty();
+        assertThat(soldBit(10)).isEqualTo(1);
+
+        // 5) 他人的座位仍然不可售 —— 再锁座必须冲突, 不存在「同一座位两张已付票」
+        LuaLockResult conflict = seatLuaService.lock(SESSION_ID, seats);
+        assertThat(conflict.ok()).isFalse();
+        assertThat(conflict.conflict()).containsExactly(10);
+    }
+
+    @Test
+    @DisplayName("防超卖: 退票主流程未释放过就中断, 补偿任务释放的是本单自己的座位")
+    void refundSold_compensationReleasesOwnSeatWhenMainFlowNeverReleased() {
+        List<Integer> seats = List.of(10);
+        assertThat(seatLuaService.lock(SESSION_ID, seats).ok()).isTrue();
+        seatLuaService.confirmPaid(SESSION_ID, seats);
+
+        // 主流程在释放之前就断了 → 没有幂等标记, 补偿任务照常释放本单座位
+        List<Integer> released = seatLuaService.refundSold(new SeatWrite.Paid(SESSION_ID, seats, "ORD-P0-2"));
+        assertThat(released).containsExactly(10);
+        assertThat(soldBit(10)).isEqualTo(0);
+        assertThat(seatLuaService.lock(SESSION_ID, seats).ok()).isTrue();
+    }
+
+    @Test
+    @DisplayName("原子替换位图: 旧位一个不剩, 新位全部就位, 临时 key 不留残留")
+    void replaceSeats_replacesWholeBitmap() {
+        // 先造一个与新向量完全不同的旧位图
+        assertThat(seatLuaService.lock(SESSION_ID, List.of(10, 11)).ok()).isTrue();
+        seatLuaService.confirmPaid(SESSION_ID, List.of(10));
+        assertThat(lockBit(11)).isEqualTo(1);
+        assertThat(soldBit(10)).isEqualTo(1);
+
+        // 原子替换: 新向量 = lock {20,21} / sold {30}
+        RecoverResult result = seatLuaService.replaceSeats(SESSION_ID, List.of(20, 21), List.of(30));
+        assertThat(result.lock()).isEqualTo(2);
+        assertThat(result.sold()).isEqualTo(1);
+
+        // 新向量就位
+        assertThat(lockBit(20)).isEqualTo(1);
+        assertThat(lockBit(21)).isEqualTo(1);
+        assertThat(soldBit(30)).isEqualTo(1);
+        // 旧位一个都不剩 —— 这正是「先删后建」原本要达到的效果, 现在没有空窗期
+        assertThat(lockBit(10)).isEqualTo(0);
+        assertThat(lockBit(11)).isEqualTo(0);
+        assertThat(soldBit(10)).isEqualTo(0);
+
+        // 临时 key 随换名消失, 不留残留
+        assertThat(redisTemplate.hasKey(RedisKeys.sessionLockRebuild(SESSION_ID))).isFalse();
+        assertThat(redisTemplate.hasKey(RedisKeys.sessionSoldRebuild(SESSION_ID))).isFalse();
+    }
+
+    @Test
+    @DisplayName("原子替换位图: 脚本失败时只清临时 key, 正式位图一个字节都不碰")
+    void replaceSeats_scriptFails_keepsRealBitmapKeys() {
+        // 真实 Redis 上先造出正式位图: 座位 10 已售
+        assertThat(seatLuaService.lock(SESSION_ID, List.of(10)).ok()).isTrue();
+        seatLuaService.confirmPaid(SESSION_ID, List.of(10));
+
+        // 把脚本执行打掉 —— 真实场景是 Redis 抖动 / OOM / 连接中断
+        StringRedisTemplate failing = mock(StringRedisTemplate.class);
+        when(failing.execute(any(RedisScript.class), anyList(), any(Object[].class)))
+                .thenThrow(new RuntimeException("模拟 Redis 不可用"));
+        SeatLuaService failingService = new SeatLuaService(failing, new ObjectMapper());
+
+        assertThatThrownBy(() -> failingService.replaceSeats(SESSION_ID, List.of(), List.of(30)))
+                .isInstanceOf(RuntimeException.class);
+
+        // 关键: 只删了**临时** key —— 正式位图一个 key 都没被删
+        ArgumentCaptor<Collection<String>> deleted = ArgumentCaptor.forClass(Collection.class);
+        verify(failing).delete(deleted.capture());
+        assertThat(deleted.getValue()).containsExactlyInAnyOrder(
+                RedisKeys.sessionLockRebuild(SESSION_ID), RedisKeys.sessionSoldRebuild(SESSION_ID));
+        verify(failing, never()).delete(RedisKeys.sessionLock(SESSION_ID));
+        verify(failing, never()).delete(RedisKeys.sessionSold(SESSION_ID));
+
+        // 真实 Redis 上的正式位图也没被动过 —— 座位 10 仍然是已售, 不会被误放成可选
+        assertThat(soldBit(10)).isEqualTo(1);
+        assertThat(lockBit(10)).isEqualTo(0);
     }
 
     // ------------------------------------------------------------------ helpers
 
     private void clearBitmaps() {
         redisTemplate.delete(List.of(RedisKeys.sessionLock(SESSION_ID), RedisKeys.sessionSold(SESSION_ID)));
+        redisTemplate.delete(releaseMarkerKeys());
+    }
+
+    /**
+     * 本测试用到的退票释放幂等标记 key —— 跨用例清理, 免得上一个用例留下的标记
+     * 把下一个用例的释放挡掉(那正好是这个 key 的作用, 但在这里只是噪声)。
+     */
+    private static List<String> releaseMarkerKeys() {
+        return List.of("ORD-RT-1", "ORD-RT-2", "ORD-RT-3", "ORD-P0-1", "ORD-P0-2").stream()
+                .map(RedisKeys::orderSeatReleased)
+                .toList();
     }
 
     /**

@@ -46,7 +46,9 @@ public class SeatBitmapGuard {
         }
 
         long t0 = System.currentTimeMillis();
-        RecoverResult result = seatLuaService.recoverSeats(lockKey, soldKey, v.lock(), v.sold());
+        // 原子替换而不是「先删后建」: 冷启动期间正式位图可能已经存在一部分陈旧位,
+        // 但删除与重建之间的空窗会让已付款的座位看起来可选 —— 宁可先多占着, 也不误放。
+        RecoverResult result = seatLuaService.replaceSeats(sessionId, v.lock(), v.sold());
         long cost = System.currentTimeMillis() - t0;
         log.info("[bitmap-recover] sid={} lock={} sold={} cost={}ms", sessionId, result.lock(), result.sold(), cost);
         return true;
@@ -65,12 +67,20 @@ public class SeatBitmapGuard {
     }
 
     /**
-     * 强制恢复(管理端手动触发). 跳过 EXISTS 检查, 直接重建。
+     * 强制恢复(管理端手动触发 / 支付位图写失败后的补偿)。跳过 EXISTS 检查, 直接重建。
+     *
+     * <p><b>2026-10-25 修复: 不再「先清空再恢复」</b>。
+     *
+     * <p>原先的写法是 {@code clear(sessionId)} 之后才 {@code recoverSeats(...)} ——
+     * 两次 Redis 调用之间正式位图是空的, 此刻任何一次锁座都会看到「座位可选」→
+     * 已付款的座位被再次卖出 = **超卖**; 更糟的是重建本身还可能失败(Redis 抖动 / OOM),
+     * 失败后位图就永久停在「空」状态, 整场次座位全部看起来可选。
+     *
+     * <p>现在改成 {@link SeatLuaService#replaceSeats}: 位图先建在临时 key 上, 建好后再
+     * 原子换名。重建失败 = 正式位图原封不动 = 座位保持「已锁/已售」(宁可锁死也不误放)。
+     * 调用方 {@code OrderPayService} 的注释与本实现现在说的是同一件事。
      */
     public RecoverResult forceRecover(Long sessionId) {
-        String lockKey = RedisKeys.sessionLock(sessionId);
-        String soldKey = RedisKeys.sessionSold(sessionId);
-
         SeatBitmapRebuilder.SeatVectors v = rebuilder.collectSeatVectors(sessionId);
         if (!v.hasOrders()) {
             log.info("[bitmap-recover:force] sid={} 无有效订单, 清空位图", sessionId);
@@ -78,9 +88,7 @@ public class SeatBitmapGuard {
             return new RecoverResult(0, 0);
         }
 
-        // 强制模式: 先清空再恢复
-        clear(sessionId);
-        RecoverResult result = seatLuaService.recoverSeats(lockKey, soldKey, v.lock(), v.sold());
+        RecoverResult result = seatLuaService.replaceSeats(sessionId, v.lock(), v.sold());
         log.info("[bitmap-recover:force] sid={} lock={} sold={}", sessionId, result.lock(), result.sold());
         return result;
     }

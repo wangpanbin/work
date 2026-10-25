@@ -29,7 +29,7 @@ public class SeatLuaService {
     private static final DefaultRedisScript<String> CONFIRM_SCRIPT = script("lua/confirm_seat.lua");
     private static final DefaultRedisScript<String> RELEASE_SCRIPT = script("lua/release_seat.lua");
     private static final DefaultRedisScript<String> REFUND_SCRIPT = script("lua/refund_seat.lua");
-    private static final DefaultRedisScript<String> RECOVER_SCRIPT = script("lua/recover_seat_bitmap.lua");
+    private static final DefaultRedisScript<String> REPLACE_SCRIPT = script("lua/replace_seat_bitmap.lua");
 
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
@@ -41,7 +41,7 @@ public class SeatLuaService {
         preload(CONFIRM_SCRIPT, "confirm_seat");
         preload(RELEASE_SCRIPT, "release_seat");
         preload(REFUND_SCRIPT, "refund_seat");
-        preload(RECOVER_SCRIPT, "recover_seat_bitmap");
+        preload(REPLACE_SCRIPT, "replace_seat_bitmap");
     }
 
     private void preload(DefaultRedisScript<String> script, String name) {
@@ -108,21 +108,66 @@ public class SeatLuaService {
      * (sold==1 时一个位都不动) → 退票成功后座位在位图里仍是已售, 刷新后依然灰着不可选。
      * 已支付订单的座位必须用这个方法, 待支付单的取消/超时关单才用 {@link #releaseUnpaid}。
      *
-     * @return 实际发生变化的座位(幂等:座位已是可选时返回空列表)
+     * <p><b>按订单幂等</b>(2026-10-24): 脚本带第三个 KEYS = 释放标记
+     * ({@code cinema:order:seat-released:{orderNo}})。标记已存在 = 本单座位已释放过,
+     * 脚本直接返回空列表, 不再碰任何位。这一条挡住的是**超卖**:
+     * 退票主流程中途中断 → 补偿任务二次释放 → 座位若已被他人买走,
+     * 第二次无条件清位会把别人已付款的座位清成可选(同一座位两张 PAID 订单)。
+     *
+     * @return 实际发生变化的座位(幂等:座位已是可选、或本单已释放过时返回空列表)
      */
     public List<Integer> refundSold(SeatWrite.Paid target) {
-        String json = redisTemplate.execute(REFUND_SCRIPT, keys(target.sessionId()),
-                args(target.seats()));
+        String json = redisTemplate.execute(REFUND_SCRIPT,
+                refundKeys(target.sessionId(), target.orderNo()),
+                refundArgs(target.seats()));
         return parseList(json);
     }
 
     /**
-     * P5 冷启动恢复: 原子批量 SETBIT(lockSeats → lock bitmap, soldSeats → sold bitmap)。
-     * 用于服务重启 / Redis flush 后从 DB 重建位图。
+     * 退票脚本的 KEYS: (lock, sold, 按订单幂等标记)。
+     *
+     * <p>顺序固定, 与 {@code refund_seat.lua} 的 KEYS[1..3] 一一对应。
      */
-    public RecoverResult recoverSeats(String lockKey, String soldKey,
-                                      List<Integer> lockSeats, List<Integer> soldSeats) {
-        // 拼 ARGV: [N, lock1..lockN, M, sold1..soldM]
+    private static List<String> refundKeys(Long sessionId, String orderNo) {
+        return List.of(RedisKeys.sessionLock(sessionId), RedisKeys.sessionSold(sessionId),
+                RedisKeys.orderSeatReleased(orderNo));
+    }
+
+    /**
+     * 退票脚本的 ARGV: [标记 TTL 秒, seat1..seatN]。
+     */
+    private static Object[] refundArgs(List<Integer> seats) {
+        Object[] argv = new Object[1 + seats.size()];
+        argv[0] = String.valueOf(RedisKeys.SEAT_RELEASED_TTL_SECONDS);
+        for (int i = 0; i < seats.size(); i++) {
+            argv[1 + i] = String.valueOf(seats.get(i));
+        }
+        return argv;
+    }
+
+    /**
+     * **原子替换**场次座位位图(2026-10-25)。
+     *
+     * <p>对应 {@code replace_seat_bitmap.lua} —— 位图先建在**临时 key** 上, 建好后再 RENAME
+     * 覆盖正式 key。
+     *
+     * <p><b>为什么不直接「先删后建」</b>: 删除与重建是两次 Redis 调用, 中间正式位图是空的,
+     * 此刻任何一次锁座都会看到「座位可选」→ 已付款的座位被再次卖出 = 超卖; 而重建本身
+     * 还可能失败(Redis 抖动 / OOM), 失败后位图就永久停在「空」状态。
+     *
+     * <p><b>为什么这样就安全</b>: 换名之前正式位图原封不动 —— 重建失败 = 座位保持
+     * 「已锁/已售」(宁可锁死也不误放); 换名在同一个 Lua 脚本里完成, 脚本执行期间不会有
+     * 其他客户端的命令插进来, 不存在「换了一半」的中间态。
+     *
+     * @param sessionId 场次 id
+     * @param lockSeats  待支付订单占用的座位
+     * @param soldSeats 已售订单占用的座位
+     * @return 重建后的位数 (lock, sold)
+     */
+    public RecoverResult replaceSeats(Long sessionId, List<Integer> lockSeats, List<Integer> soldSeats) {
+        String tmpLock = RedisKeys.sessionLockRebuild(sessionId);
+        String tmpSold = RedisKeys.sessionSoldRebuild(sessionId);
+        // 拼 ARGV: [N, lock1..lockN, M, sold1..soldM] —— 与 recover_seat_bitmap.lua 同一套布局
         Object[] argv = new Object[2 + lockSeats.size() + soldSeats.size()];
         argv[0] = String.valueOf(lockSeats.size());
         for (int i = 0; i < lockSeats.size(); i++) argv[1 + i] = String.valueOf(lockSeats.get(i));
@@ -130,11 +175,32 @@ public class SeatLuaService {
         for (int j = 0; j < soldSeats.size(); j++) {
             argv[2 + lockSeats.size() + j] = String.valueOf(soldSeats.get(j));
         }
-        String json = redisTemplate.execute(RECOVER_SCRIPT, List.of(lockKey, soldKey), argv);
+        String json;
+        try {
+            json = redisTemplate.execute(REPLACE_SCRIPT,
+                    List.of(tmpLock, tmpSold, RedisKeys.sessionLock(sessionId), RedisKeys.sessionSold(sessionId)),
+                    argv);
+        } catch (Exception e) {
+            // 脚本失败 → 正式位图没被动过(这是本方法存在的全部意义), 只清掉临时 key。
+            cleanupRebuildKeys(tmpLock, tmpSold);
+            throw e;
+        }
         try {
             return objectMapper.readValue(json, RecoverResult.class);
         } catch (Exception e) {
-            throw new IllegalStateException("Lua 恢复结果解析失败: " + json, e);
+            throw new IllegalStateException("Lua 位图替换结果解析失败: " + json, e);
+        }
+    }
+
+    /**
+     * 清理重建残留的临时 key —— 只删临时 key, 正式位图一个字节都不碰。
+     */
+    private void cleanupRebuildKeys(String tmpLock, String tmpSold) {
+        try {
+            redisTemplate.delete(List.of(tmpLock, tmpSold));
+        } catch (Exception e) {
+            log.warn("[SeatLua] 清理位图重建临时 key 失败 tmpLock={} tmpSold={} err={}",
+                    tmpLock, tmpSold, e.toString());
         }
     }
 

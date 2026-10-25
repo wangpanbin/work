@@ -3,6 +3,7 @@ package com.cinema.modules.order.service;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.cinema.common.exception.BizException;
 import com.cinema.infra.redis.RedisKeys;
+import com.cinema.infra.redis.SeatBitmapGuard;
 import com.cinema.infra.redis.SeatLuaService;
 import com.cinema.infra.redis.SeatWrite;
 import com.cinema.infra.ws.AdminEventPublisher;
@@ -48,6 +49,38 @@ public class OrderPayService {
     private final SessionMapper sessionMapper;
     private final OrderCore orderCore;
     private final TicketService ticketService;
+    private final SeatBitmapGuard seatBitmapGuard;
+
+    /**
+     * 支付确认(锁位 → 售位), 位图写失败时**当场重建**(2026-10-24)。
+     *
+     * <p><b>为什么必须有兜底</b>: 支付是「先 CAS 改订单状态, 再写位图」两步。
+     * CAS 已把订单推进到 PAID, 这时若 {@code confirm_seat.lua} 抛错(Redis 抖动),
+     * 订单是 PAID 而位图还停在 lock=1 / sold=0 —— 座位对所有人永久显示「被锁」。
+     * 而超时扫描器与补偿任务**只捞 status=0 的待支付单**, 没有任何流程会再碰这笔单,
+     * 座位只能靠人工跑 {@code POST /api/admin/sessions/bitmaps/recover} 才能回来。
+     *
+     * <p><b>补救方式</b>: 从 DB 重建该场次位图(DB 里这笔单已是 PAID,
+     * 重建出来的 sold 位会把它正确置上)。重建失败也**不删位图** ——
+     * 删掉等于把「座位被锁死」变成「座位看起来可选」, 那是**超卖**方向, 比锁死更危险。
+     * 宁可锁死(安全)也不可误放(超卖), 此时记 error 日志, 提示走管理端手动恢复。
+     */
+    private void confirmPaidWithBitmapRecovery(Order order, List<Integer> seats) {
+        try {
+            seatLuaService.confirmPaid(order.getSessionId(), seats);
+        } catch (Exception e) {
+            log.error("[支付] orderNo={} 位图置售失败(订单已是 PAID), 尝试从 DB 重建该场次位图 err={}",
+                    order.getOrderNo(), e.toString());
+            try {
+                seatBitmapGuard.forceRecover(order.getSessionId());
+                log.warn("[支付] orderNo={} 位图已从 DB 重建, 座位恢复为已售", order.getOrderNo());
+            } catch (Exception ex) {
+                log.error("[支付] orderNo={} 位图重建也失败, 该场次座位将持续显示为已锁, "
+                                + "需管理端手动恢复位图 POST /api/admin/sessions/bitmaps/recover err={}",
+                        order.getOrderNo(), ex.toString());
+            }
+        }
+    }
 
     /** 模拟支付 */
     public void pay(String orderNo, Long userId) {
@@ -72,7 +105,7 @@ public class OrderPayService {
 
         // 锁 → 售
         List<Integer> seats = orderCore.seatIndexesOf(order);
-        seatLuaService.confirmPaid(order.getSessionId(), seats);
+        confirmPaidWithBitmapRecovery(order, seats);
         // 清理 user:pending 与 user:locked
         redisTemplate.delete(RedisKeys.userPending(order.getUserId(), order.getSessionId()));
         orderCore.clearUserLockedHash(order.getUserId(), order.getSessionId());
@@ -126,9 +159,12 @@ public class OrderPayService {
 
         // 释放座位 (已售 → 可选)。P1-1 修复:必须用 refundSold 清 sold 位,
         // releaseUnpaid 只清未售座位,对已支付单(sold=1)一个位都不动 → 退票后座位永久不可售
+        // 2026-10-24: 带 orderNo 走「按订单幂等」通道 —— 本单座位只会被释放一次。
+        // 原因见 refund_seat.lua 顶部注释:释放后若本单卡在 REFUNDING,补偿任务会二次释放,
+        // 那时座位若已被他人买走,第二次清位就会把别人已付款的座位清成可选 → 超卖。
         List<Integer> seats = orderCore.seatIndexesOf(order);
         List<Integer> releasedSeats = seatLuaService.refundSold(
-                new SeatWrite.Paid(order.getSessionId(), seats));
+                new SeatWrite.Paid(order.getSessionId(), seats, order.getOrderNo()));
         if (releasedSeats.size() != seats.size()) {
             // 位图与订单不一致(位图漂移):退票本身仍应完成,记录告警供管理端「手动恢复位图」兜底
             log.warn("[退票] orderNo={} 位图释放数量不符 期望={} 实际={} (可能存在历史位图漂移)",

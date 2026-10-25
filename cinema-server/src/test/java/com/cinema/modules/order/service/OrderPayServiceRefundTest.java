@@ -1,6 +1,7 @@
 package com.cinema.modules.order.service;
 
 import com.cinema.common.exception.BizException;
+import com.cinema.infra.redis.SeatBitmapGuard;
 import com.cinema.infra.redis.SeatLuaService;
 import com.cinema.infra.redis.SeatWrite;
 import com.cinema.infra.ws.AdminEventPublisher;
@@ -53,6 +54,7 @@ class OrderPayServiceRefundTest {
     @Mock private SessionMapper sessionMapper;
     @Mock private OrderCore orderCore;
     @Mock private TicketService ticketService;
+    @Mock private SeatBitmapGuard seatBitmapGuard;
 
     private OrderPayService service;
 
@@ -60,7 +62,7 @@ class OrderPayServiceRefundTest {
     void setUp() {
         service = new OrderPayService(orderMapper, refundLogMapper, seatLuaService,
                 seatEventPublisher, adminEventPublisher, redisTemplate, mockPaymentService,
-                mockRefundService, sessionMapper, orderCore, ticketService);
+                mockRefundService, sessionMapper, orderCore, ticketService, seatBitmapGuard);
     }
 
     @Test
@@ -81,7 +83,8 @@ class OrderPayServiceRefundTest {
 
         verify(orderMapper).casMarkRefunding(orderNo);
         // P1-1:必须是 refundSold(清 sold 位),releaseUnpaid 对已售座位一个位都不动
-        verify(seatLuaService).refundSold(eq(new SeatWrite.Paid(1L, List.of(10, 11))));
+        // 2026-10-24: 必须带上 orderNo —— 退票释放按订单幂等,靠这个 key 挡二次释放
+        verify(seatLuaService).refundSold(eq(new SeatWrite.Paid(1L, List.of(10, 11), orderNo)));
         verify(seatLuaService, never()).releaseUnpaid(any(SeatWrite.Unpaid.class));
         verify(mockRefundService).mockRefundChannel(eq(orderNo), any(BigDecimal.class));
         verify(refundLogMapper).insert(any(com.cinema.modules.order.entity.RefundLog.class));
@@ -109,7 +112,7 @@ class OrderPayServiceRefundTest {
 
         service.refund(orderNo, userId);
 
-        verify(seatLuaService).refundSold(eq(new SeatWrite.Paid(1L, List.of(7, 8))));
+        verify(seatLuaService).refundSold(eq(new SeatWrite.Paid(1L, List.of(7, 8), orderNo)));
         verify(seatLuaService, never()).releaseUnpaid(any(SeatWrite.Unpaid.class));
     }
 

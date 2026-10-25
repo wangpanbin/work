@@ -31,6 +31,13 @@ import static org.mockito.Mockito.when;
  * <p>锁住 F5 的核心契约: <b>卡死退款单降级时必须释放座位</b>。
  * 退款中的座位是已售状态, 只把订单改成「已取消」而不清位图, 座位就永远占着 ——
  * 订单已死, 再没有流程会碰它(联调报告 F5)。
+ *
+ * <p>另锁 2026-10-24 新增的防超卖契约: 释放走<b>按订单幂等</b>的退票通道
+ * (必须带 orderNo), 否则退票主流程中途中断后, 本任务二次释放会把
+ * 已被他人买走的座位清成可选 —— 同一座位两张 PAID 订单。
+ *
+ * <p>顺序契约: <b>先释放座位 → 再 CAS 改状态</b>。反过来会在 CAS 成功后、
+ * 座位还没释放时留下泄漏窗口(订单已终结, 再没有流程会碰它), 正是 F5 的形状。
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -73,6 +80,8 @@ class OrderTimeoutCompensateJobTest {
         verify(seatLuaService).refundSold(captor.capture());
         assertThat(captor.getValue().sessionId()).isEqualTo(42L);
         assertThat(captor.getValue().seats()).containsExactly(10, 11);
+        // 2026-10-24: 必须带 orderNo —— 释放按订单幂等,靠它挡「二次释放掉他人已付款的座位」
+        assertThat(captor.getValue().orderNo()).isEqualTo("ORD-R1");
 
         verify(orderMapper).casStuckRefundingAsCancelled("ORD-R1");
         verify(seatEventPublisher).publishReleased(42L, List.of(10, 11));

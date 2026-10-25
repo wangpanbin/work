@@ -18,6 +18,26 @@ public final class RedisKeys {
         return "cinema:session:" + sessionId + ":sold";
     }
 
+    /**
+     * 位图重建的**临时** lock key(2026-10-25)。
+     *
+     * <p>原子替换位图时, 位图先建在这个临时 key 上, 建好后再 RENAME 覆盖正式 key。
+     * 正式位图在换名之前原封不动 —— 重建失败时座位保持「已锁/已售」(宁可锁死也不误放),
+     * 不会出现「位图被清空 → 全场可选 → 超卖」的窗口。
+     *
+     * <p>用完即随 RENAME 消失; 重建失败时由调用方清理残留。
+     */
+    public static String sessionLockRebuild(Long sessionId) {
+        return sessionLock(sessionId) + ":rebuild";
+    }
+
+    /**
+     * 位图重建的**临时** sold key(2026-10-25)。见 {@link #sessionLockRebuild(Long)}。
+     */
+    public static String sessionSoldRebuild(Long sessionId) {
+        return sessionSold(sessionId) + ":rebuild";
+    }
+
     /** 场次信息缓存 Hash */
     public static String sessionInfo(Long sessionId) {
         return "cinema:session:info:" + sessionId;
@@ -72,6 +92,30 @@ public final class RedisKeys {
     public static String userLocked(Long userId, Long sessionId) {
         return "cinema:user:locked:" + userId + ":" + sessionId;
     }
+
+    /**
+     * 退票座位释放的**按订单幂等标记**(2026-10-24)。
+     *
+     * <p><b>为什么需要它</b>: 退票主流程「CAS PAID→REFUNDING → 释放座位 → 调渠道退款 →
+     * CAS REFUNDING→REFUNDED」在释放座位之后还有几步。若中途中断(进程被杀 / DB 写入异常),
+     * 订单会停在 {@code REFUNDING}, 而座位**已经被释放回可选池** ——
+     * 补偿任务 5 分钟后会再调一次退票释放通道。此时该座位若已被他人买走(sold=1),
+     * 第二次释放会把**别人已付款的座位**清成可选 → 同一座位两张 PAID 订单 = 超卖。
+     *
+     * <p>位图里没有「这张 sold 位属于哪张单」的信息, 光看位图判断不了归属。
+     * 所以释放动作本身必须**按订单幂等**: 标记与清位在同一个 Lua 里原子完成,
+     * 于是「本单座位已释放过」这件事被持久化下来, 补偿任务第二次调用时直接跳过 ——
+     * 无论那批座位此刻归谁, 都不会再被清一次。
+     *
+     * <p>TTL 取 {@link #SEAT_RELEASED_TTL_SECONDS}: 覆盖「支付窗口 900s + 补偿任务 5min」
+     * 的量级, 超时后标记消失, 理论上允许再释放一次 —— 但那时订单早已终结, 补偿任务不会再扫到它。
+     */
+    public static String orderSeatReleased(String orderNo) {
+        return "cinema:order:seat-released:" + orderNo;
+    }
+
+    /** 退票释放幂等标记的存活时长(秒)。 */
+    public static final long SEAT_RELEASED_TTL_SECONDS = 86_400L;
 
     /**
      * 对话助手的下单提案快照(ADR-0004)。

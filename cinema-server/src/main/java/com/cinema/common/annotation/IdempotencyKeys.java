@@ -84,4 +84,33 @@ public final class IdempotencyKeys {
      */
     public static final String RATE_CHAT_CONFIRM_BY_USER =
             "(T(com.cinema.common.context.UserContext).userId() ?: 'anon') + ':chat:confirm'";
+
+    /**
+     * 登录 rate limit: **来源 IP + 账号名**(2026-10-24)。
+     *
+     * <p>登录前没有 userId, 只能按来源分桶。但纯粹按 IP 分桶会误伤
+     * {@code test/load_test.py} 与 {@code test/concurrency_strict.py} ——
+     * 它们一次要注册并登录 50~100 个用户, 同一 IP 的登录次数天然是三位数。
+     *
+     * <p>所以桶键带账号名: <b>爆破同一个账号</b>会被按住(每分钟 10 次),
+     * 而「批量建号后各登一次」这种正常用法不受影响 —— 每个用户名一个独立桶。
+     *
+     * <p>这是「防撞库」与「不误伤脚本」之间取的折中: 攻击者要打穿一个账号得逐个账号来,
+     * 批量撞库则会被整体速率拖慢。
+     */
+    public static final String RATE_LOGIN_BY_IP_AND_ACCOUNT =
+            "'login:' + #request.remoteAddr + ':' + #dto.username";
+
+    /**
+     * 注册 rate limit: **来源 IP**(2026-10-24)。
+     *
+     * <p>注册是批量造号的入口, 所以只按 IP 分桶(不看用户名 —— 否则每个新用户名
+     * 一个独立桶, 限制等于不存在)。
+     *
+     * <p>额度按**小时**计(120 次/小时/IP)而不是按分钟: 仓库自带的压测脚本
+     * {@code test/load_test.py --users 100} 与 {@code test/concurrency_strict.py}
+     * 会一次性注册 50~100 个用户, 分钟级额度会把它们打崩, 而小时级额度既容得下
+     * 一次性建号, 又把「无限注册」按住了。
+     */
+    public static final String RATE_REGISTER_BY_IP = "'register:' + #request.remoteAddr";
 }
