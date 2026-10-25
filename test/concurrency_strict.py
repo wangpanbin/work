@@ -1,6 +1,11 @@
-"""并发防超卖验证(严格版): 注册 50 个新用户, 每个发 5 个并发锁座 [30,31]
+"""并发防超卖验证(严格版): 复用 50 人测试池, 每个发 5 个并发锁座同一组座位
 期望: 250 个并发请求中, 最多 1 张订单成功(同场次只能 1 张待支付), 0 超卖;
-锁位图最终只有 [30,31] 锁定"""
+锁位图最终只有目标座位锁定(场次与座位由 `pick_target()` 动态挑, 不再硬编码)
+
+⚠️ 用户池与 `test/load_test.py` **共用**(`tuser0`..`tuser49`): 注册端点按 IP 限流
+120 次/小时, 两批独立用户的话一轮演示就要注册 100 个, 额度会被吃光(实测表现是
+登录报「用户名或密码错误」, 指向错误的根因)。**改池大小必须两处一起改。**
+"""
 import concurrent.futures
 import datetime
 import urllib.request
@@ -88,7 +93,12 @@ SID, SEATS = pick_target()
 SEATS_STR = ",".join(str(s) for s in SEATS)
 print(f"[setup] 选用场次 id={SID}, 目标座位 {SEATS}")
 
-# 注册 N 个用户(只注册一次, 失败说明已注册 → 登录)
+#: 测试用户池大小 —— 必须与 `test/load_test.py` 的 `--users` 默认值一致。
+#: 两边用户名同源(`tuser{i}`), 池大小不一致时只会有「建到 49」这种半截状态。
+USERS = 50
+
+
+# 准备 N 个用户(只注册一次, 已存在就直接登录)
 def ensure_users(n):
     tokens = []
     # ⚠️ 2026-10-25: 用户名**稳定**(原来带时间戳后缀) —— 注册端点按 IP 限流
@@ -96,6 +106,7 @@ def ensure_users(n):
     # 第二次跑就 42900 注册被拒 → 用户没建出来 → 登录拿不到 token → 报成
     # 「TypeError: 'NoneType' object is not subscriptable」(实测撞到)。
     # 稳定用户名: 用户只建一次, 之后每次跑直接登录复用。
+    # ⚠️ 这批 `tuser{i}` 与 `test/load_test.py` **共用** —— 见本文件头。
     for i in range(n):
         uname = f"tuser{i}"
         try:
@@ -129,8 +140,8 @@ def lock(token):
     except urllib.error.HTTPError as e:
         return json.loads(e.read())
 
-print("注册 50 用户...")
-TOKENS = ensure_users(50)
+print(f"准备 {USERS} 个测试用户(与 load_test.py 共用同一池)...")
+TOKENS = ensure_users(USERS)
 print(f"已就绪 {len(TOKENS)} 个 token")
 
 # 每个用户 5 个并发请求

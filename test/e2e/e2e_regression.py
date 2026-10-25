@@ -21,6 +21,7 @@
                         --server "cd cinema-web && pnpm dev" --port 5173 --timeout 120
                         -- python test/e2e/e2e_regression.py
 """
+import argparse
 import base64
 import json
 import re
@@ -768,13 +769,34 @@ def s21_admin_usage_dashboard(page_c):
     return f"四项指标(调用量/失败率/P95/估算成本) + 红线指标都在看板上, 数值非空 ✓ ({len(values)} 个值)"
 
 
+def chat_provider():
+    """后端当前跑的是真 LLM 还是确定性 stub(GET /api/chat/status)。"""
+    try:
+        d = api_ok("GET", "/chat/status")
+        return (d or {}).get("provider") or "unknown"
+    except Exception as e:
+        print(f"[setup] 读 /api/chat/status 失败: {e}", flush=True)
+        return "unknown"
+
+
+def my_order_nos(token):
+    """当前用户的订单号集合 —— 拿来判「有没有新订单」(语言无关, 不依赖界面文案)。"""
+    d = api_ok("GET", "/orders/my?page=1&size=100", token=token) or {}
+    return {r.get("orderNo") for r in (d.get("records") or []) if r.get("orderNo")}
+
+
 def s22_chat_widget_flow(page):
     """对话助手浮窗(浏览器): 开浮窗 → 发消息 → 助手回复 → 出卡则点「确认下单」→ 订单建成
 
-    ⚠️ **不伪造通过**: 助手出不下下单卡取决于 LLM —— 它是模型自由发挥的。
+    ⚠️ **不伪造通过**: 真实 LLM 下助手出不下下单卡取决于模型自由发挥。
     出卡了 → 点「确认下单」→ 验订单建成(这才是 AC-20 那条链路的真覆盖);
     没出卡 → 记 **SKIP**(附原因), 不许记 PASS —— 记 PASS 就是把「没验」说成「验过了」。
+
+    ⚠️ 但后端以 `cinema.chat.provider=stub` 启动时(确定性夹具), **必须**出卡 ——
+    没出卡/没回复就是真回归, 这时记 FAIL 而不是 SKIP。stub 让这条验收可回归。
     """
+    provider = chat_provider()
+    print(f"[setup] 对话模型来源 = {provider}", flush=True)
     page.goto(FRONT + "/")
     page.wait_for_load_state("networkidle")
     # 打开聊天浮窗
@@ -794,29 +816,47 @@ def s22_chat_widget_flow(page):
             break
         page.wait_for_timeout(500)
     if not replied:
+        if provider == "stub":
+            raise AssertionError("stub 模式下 45s 内助手必须回复 —— 没回复就是回归")
         raise Skipped("45s 内助手没回复(LLM 不可用或被限流) —— 本次没法验证这条链路")
 
-    # 出卡了吗? 没出卡就是 LLM 没给下单建议 —— 同样按 SKIP 记
+    # 卡片与回复同批返回, 但前端可能分两拍渲染 → 给它一点时间
+    try:
+        page.locator(".order-card").first.wait_for(state="visible", timeout=8000)
+    except Exception:
+        pass
+
+    # 出卡了吗? 没出卡就是 LLM 没给下单建议 —— 按 provider 分开定性
     card = page.locator(".order-card")
     if card.count() == 0:
         shot(page, "s22-chat-no-card")
+        if provider == "stub":
+            raise AssertionError("stub 模式下助手必须给出下单卡 —— 没出卡就是回归"
+                                 "(查 /api/chat/status 与后端启动参数 CINEMA_CHAT_PROVIDER)")
         raise Skipped("助手这次没给下单卡(LLM 自由发挥) —— 卡片链路本次没法验证")
 
     shot(page, "s22-chat-card")
+    # 判据用**服务端事实**(user1 的订单列表里冒出新订单) + **语言无关的选择器**(.pending-card),
+    # 不用「界面上出现『订单号』这几个字」: S19 把界面切成了英文, 拿中文文案当判据
+    # = 测试与场景顺序耦合(2026-10-25 实测踩到: 订单早建成了, 却报「没看到订单号」)。
+    before = my_order_nos(S["token1"])
     page.locator(".order-card-btn").first.click(timeout=8000)
 
-    # 确认后前端会发确认请求 —— 订单建成的判据是**出现了订单号**
     deadline, order_no = time.time() + 20, None
     while time.time() < deadline:
-        for txt in page.locator(".chat-panel").all_text_contents():
-            m = re.search(r"订单号[\s:：]*([0-9]{6,})", txt)
-            if m:
-                order_no = m.group(1)
-                break
-        if order_no:
+        new_nos = my_order_nos(S["token1"]) - before
+        if new_nos:
+            order_no = sorted(new_nos)[0]
             break
         page.wait_for_timeout(500)
-    assert order_no, "点了「确认下单」但没看到订单号"
+    assert order_no, "点了「确认下单」但服务端没有出现新订单"
+
+    # 前端应追加一张「待支付」卡(.pending-card —— 与语言无关)
+    try:
+        page.locator(".pending-card").first.wait_for(state="visible", timeout=8000)
+    except Exception:
+        pass
+    assert page.locator(".pending-card").count() > 0, "确认成功后前端没有渲染待支付卡"
 
     # 服务端对账: 这笔单真的存在
     d = api_ok("GET", f"/orders/{order_no}", token=S["token1"])
@@ -851,7 +891,7 @@ def s20_rebuild_keeps_lock(page, page_c):
 
 # ---------------- 主流程 ----------------
 
-def run():
+def run(only=None):
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         ctx_a = browser.new_context(viewport={"width": 1440, "height": 900})  # user1
@@ -895,6 +935,16 @@ def run():
             # 排在前面会让后面所有需要登录的场景被路由守卫踢回 /login。
             ("S07 登出+路由守卫", lambda: s07_logout(page)),
         ]
+        if only:
+            wanted = {w.strip().upper() for w in only.split(",") if w.strip()}
+
+            def _keep(s):
+                code = s[0].split()[0].upper()
+                # S02(登录)始终保留 —— 它是后面场景的前置(token 存在 S["token1"])。
+                return code in wanted or code == "S02"
+
+            scenarios = [s for s in scenarios if _keep(s)]
+            print(f"[setup] --only {only} → 跑: {[s[0].split()[0] for s in scenarios]}", flush=True)
         for name, fn in scenarios:
             try:
                 detail = fn()
@@ -941,4 +991,7 @@ def run():
 
 
 if __name__ == "__main__":
-    sys.exit(run())
+    ap = argparse.ArgumentParser(description="E2E 回归套件(Playwright)")
+    ap.add_argument("--only", help="只跑指定场景(编号逗号分隔, 如 S22 / S21,S22); S02 登录始终保留")
+    args = ap.parse_args()
+    sys.exit(run(args.only))
