@@ -32,10 +32,27 @@ public final class RedisKeys {
     }
 
     /**
-     * 位图重建的**临时** sold key(2026-10-25)。见 {@link #sessionLockRebuild(Long)}。
+     * 位图重建的**临时** lock 快照 key(2026-10-25)。见 {@link #sessionLockRebuild(Long)}。
      */
     public static String sessionSoldRebuild(Long sessionId) {
         return sessionSold(sessionId) + ":rebuild";
+    }
+
+    /**
+     * 位图重建的**合并结果** lock key(2026-10-25 二次评审修复)。
+     *
+     * <p>重建语义是「正式位图 OR DB 快照」(只加不减),BITOP 的 dest 不能与源相同,
+     * 所以合并结果要落在第三个临时 key 上, 再 RENAME 覆盖正式 key。
+     */
+    public static String sessionLockMerged(Long sessionId) {
+        return sessionLock(sessionId) + ":merged";
+    }
+
+    /**
+     * 位图重建的**合并结果** sold key(2026-10-25 二次评审修复)。见 {@link #sessionLockMerged(Long)}。
+     */
+    public static String sessionSoldMerged(Long sessionId) {
+        return sessionSold(sessionId) + ":merged";
     }
 
     /** 场次信息缓存 Hash */

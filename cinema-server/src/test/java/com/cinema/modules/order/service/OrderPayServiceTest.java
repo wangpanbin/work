@@ -147,7 +147,7 @@ class OrderPayServiceTest {
 
         // 本用例只锁「调用方不自己删位图」这一层。
         // 「重建失败时位图本身不被清空」那条保证落在 SeatBitmapGuardTest#forceRecover_rebuildFails_keepsBitmap
-        // 与 SeatLuaServiceBitmapRoundTripTest#replaceSeats_scriptFails_keepsRealBitmapKeys ——
+        // 与 SeatLuaServiceBitmapRoundTripTest#mergeSeats_scriptFails_keepsRealBitmapKeys ——
         // 这里的 guard 是 mock, 断言不到真实实现。
         verify(seatBitmapGuard, never()).clear(anyLong());
     }

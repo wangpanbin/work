@@ -57,7 +57,7 @@ class SeatBitmapGuardTest {
 
         assertThat(recovered).isFalse();
         verify(orderMapper, never()).selectList(any(LambdaQueryWrapper.class));
-        verify(seatLuaService, never()).replaceSeats(anyLong(), anyList(), anyList());
+        verify(seatLuaService, never()).mergeSeats(anyLong(), anyList(), anyList());
     }
 
     @Test
@@ -69,11 +69,11 @@ class SeatBitmapGuardTest {
         boolean recovered = guard.ensureBitmaps(1L);
 
         assertThat(recovered).isFalse();
-        verify(seatLuaService, never()).replaceSeats(anyLong(), anyList(), anyList());
+        verify(seatLuaService, never()).mergeSeats(anyLong(), anyList(), anyList());
     }
 
     @Test
-    @DisplayName("位图缺失且 DB 有订单: 触发重建, lock + sold 一起交给原子替换")
+    @DisplayName("位图缺失且 DB 有订单: 触发重建, lock + sold 一起交给原子合并")
     void ensure_withOrders() {
         when(redisTemplate.hasKey(anyString())).thenReturn(false);
 
@@ -89,34 +89,34 @@ class SeatBitmapGuardTest {
         OrderItem i3 = item(2L, 1L, 20);
         when(orderItemMapper.selectList(any(LambdaQueryWrapper.class)))
                 .thenReturn(List.of(i1, i2, i3));
-        when(seatLuaService.replaceSeats(anyLong(), anyList(), anyList()))
+        when(seatLuaService.mergeSeats(anyLong(), anyList(), anyList()))
                 .thenReturn(new RecoverResult(3, 1));
 
         boolean recovered = guard.ensureBitmaps(1L);
 
         assertThat(recovered).isTrue();
         // lock 集合含 10, 11, 20; sold 集合只含 20
-        verify(seatLuaService).replaceSeats(
+        verify(seatLuaService).mergeSeats(
                 eq(1L),
                 eq(List.of(10, 11, 20)),
                 eq(List.of(20)));
     }
 
     @Test
-    @DisplayName("forceRecover: 原子替换位图, **不删**正式位图(先删后建会开超卖窗口)")
+    @DisplayName("forceRecover: 合并位图(只加不减), **不删**正式位图(先删后建会开超卖窗口)")
     void forceRecover() {
         when(orderMapper.selectList(any(LambdaQueryWrapper.class)))
                 .thenReturn(List.of(order(1L, 1L, OrderStatus.PAID.getCode())));
         when(orderItemMapper.selectList(any(LambdaQueryWrapper.class)))
                 .thenReturn(List.of(item(1L, 1L, 5)));
-        when(seatLuaService.replaceSeats(anyLong(), anyList(), anyList()))
+        when(seatLuaService.mergeSeats(anyLong(), anyList(), anyList()))
                 .thenReturn(new RecoverResult(1, 1));
 
         RecoverResult result = guard.forceRecover(1L);
 
         assertThat(result.lock()).isEqualTo(1);
         assertThat(result.sold()).isEqualTo(1);
-        verify(seatLuaService).replaceSeats(eq(1L), eq(List.of(5)), eq(List.of(5)));
+        verify(seatLuaService).mergeSeats(eq(1L), eq(List.of(5)), eq(List.of(5)));
         // 关键断言: 正式位图从来没有被删过。
         // 「先 DEL 再重建」在两次调用之间位图是空的 → 已付款的座位看起来可选 = 超卖。
         verify(redisTemplate, never()).delete(RedisKeys.sessionLock(1L));
@@ -130,7 +130,7 @@ class SeatBitmapGuardTest {
                 .thenReturn(List.of(order(1L, 1L, OrderStatus.PAID.getCode())));
         when(orderItemMapper.selectList(any(LambdaQueryWrapper.class)))
                 .thenReturn(List.of(item(1L, 1L, 5)));
-        when(seatLuaService.replaceSeats(anyLong(), anyList(), anyList()))
+        when(seatLuaService.mergeSeats(anyLong(), anyList(), anyList()))
                 .thenThrow(new RuntimeException("模拟 Redis 不可用"));
 
         assertThatThrownBy(() -> guard.forceRecover(1L))
@@ -142,11 +142,15 @@ class SeatBitmapGuardTest {
     }
 
     /**
-     * forceRecover 在 DB 无订单时, 应清空位图 + 返 RecoverResult(0, 0), 不调重建。
-     * 覆盖 scout 报告里 L97-L102 的未测试分支。
+     * forceRecover 在 DB 无订单时, **不动**位图(返 0/0, 不调合并)。
+     *
+     * <p>2026-10-25 二次评审修复: 原实现在这里调 {@code clear(sessionId)} 把位图删空。
+     * 但「位图有位而 DB 无单」正是泄漏位, 而清位会放走「已锁座但订单尚未落库」的锁
+     * → 同一座位两张待支付单 = <b>超卖</b>。在线重建只补齐、不清位;
+     * 泄漏位与体积收缩交给离线工具 {@code tools/reconcile_seat_bitmap.py --fix}。
      */
     @Test
-    @DisplayName("forceRecover 无订单: 清空位图 + 返 0/0, 不重建")
+    @DisplayName("forceRecover 无订单: **不动**位图 + 返 0/0, 不合并(清位会放走未落库的锁)")
     void forceRecover_emptyOrders() {
         when(orderMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of());
 
@@ -154,9 +158,10 @@ class SeatBitmapGuardTest {
 
         assertThat(result.lock()).isEqualTo(0);
         assertThat(result.sold()).isEqualTo(0);
-        verify(redisTemplate).delete(RedisKeys.sessionLock(1L));
-        verify(redisTemplate).delete(RedisKeys.sessionSold(1L));
-        verify(seatLuaService, never()).replaceSeats(anyLong(), anyList(), anyList());
+        // 关键断言: 正式位图一个 key 都没被删 —— 清位 = 放走未落库的锁 = 超卖
+        verify(redisTemplate, never()).delete(RedisKeys.sessionLock(1L));
+        verify(redisTemplate, never()).delete(RedisKeys.sessionSold(1L));
+        verify(seatLuaService, never()).mergeSeats(anyLong(), anyList(), anyList());
     }
 
     /**
@@ -170,13 +175,13 @@ class SeatBitmapGuardTest {
         when(orderMapper.selectList(any(LambdaQueryWrapper.class)))
                 .thenReturn(List.of(order(1L, 1L, OrderStatus.PENDING_PAY.getCode())));
         when(orderItemMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of());
-        when(seatLuaService.replaceSeats(anyLong(), anyList(), anyList()))
+        when(seatLuaService.mergeSeats(anyLong(), anyList(), anyList()))
                 .thenReturn(new RecoverResult(0, 0));
 
         boolean recovered = guard.ensureBitmaps(1L);
 
         assertThat(recovered).isTrue();
-        verify(seatLuaService).replaceSeats(
+        verify(seatLuaService).mergeSeats(
                 eq(1L),
                 eq(List.of()),
                 eq(List.of()));

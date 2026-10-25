@@ -228,16 +228,16 @@ class SeatLuaServiceBitmapRoundTripTest {
     }
 
     @Test
-    @DisplayName("原子替换位图: 旧位一个不剩, 新位全部就位, 临时 key 不留残留")
-    void replaceSeats_replacesWholeBitmap() {
-        // 先造一个与新向量完全不同的旧位图
+    @DisplayName("原子合并位图: DB 快照的位补齐, **旧位一个都不掉**(只加不减)")
+    void mergeSeats_keepsExistingBits() {
+        // 先造一个与新向量完全不同的旧位图: 座位 11 被锁(未售), 座位 10 已售
         assertThat(seatLuaService.lock(SESSION_ID, List.of(10, 11)).ok()).isTrue();
         seatLuaService.confirmPaid(SESSION_ID, List.of(10));
         assertThat(lockBit(11)).isEqualTo(1);
         assertThat(soldBit(10)).isEqualTo(1);
 
-        // 原子替换: 新向量 = lock {20,21} / sold {30}
-        RecoverResult result = seatLuaService.replaceSeats(SESSION_ID, List.of(20, 21), List.of(30));
+        // 原子合并: 新向量 = lock {20,21} / sold {30}
+        RecoverResult result = seatLuaService.mergeSeats(SESSION_ID, List.of(20, 21), List.of(30));
         assertThat(result.lock()).isEqualTo(2);
         assertThat(result.sold()).isEqualTo(1);
 
@@ -245,19 +245,50 @@ class SeatLuaServiceBitmapRoundTripTest {
         assertThat(lockBit(20)).isEqualTo(1);
         assertThat(lockBit(21)).isEqualTo(1);
         assertThat(soldBit(30)).isEqualTo(1);
-        // 旧位一个都不剩 —— 这正是「先删后建」原本要达到的效果, 现在没有空窗期
-        assertThat(lockBit(10)).isEqualTo(0);
-        assertThat(lockBit(11)).isEqualTo(0);
-        assertThat(soldBit(10)).isEqualTo(0);
+        // 旧位**一个都没掉** —— 合并是「正式位图 OR DB 快照」, 只加不减
+        assertThat(lockBit(11)).isEqualTo(1);
+        assertThat(soldBit(10)).isEqualTo(1);
 
-        // 临时 key 随换名消失, 不留残留
+        // 临时 key 随换名/清理消失, 不留残留
         assertThat(redisTemplate.hasKey(RedisKeys.sessionLockRebuild(SESSION_ID))).isFalse();
         assertThat(redisTemplate.hasKey(RedisKeys.sessionSoldRebuild(SESSION_ID))).isFalse();
+        assertThat(redisTemplate.hasKey(RedisKeys.sessionLockMerged(SESSION_ID))).isFalse();
+        assertThat(redisTemplate.hasKey(RedisKeys.sessionSoldMerged(SESSION_ID))).isFalse();
+    }
+
+    /**
+     * 回归(2026-10-25 二次评审): 合并**不会**抹掉「DB 快照之后才产生」的锁。
+     *
+     * <p>这正是旧实现(拿 DB 快照 RENAME 覆盖正式位图)的超卖窗口: DB 快照是在
+     * {@code SeatBitmapRebuilder} 里查库取的, 快照与换名之间隔着一次网络往返。
+     * 那段时间里任何一次锁座都会把位写进正式位图, 而这份锁**不在快照里**
+     * (订单行可能还没提交) → 覆盖式重建把它抹掉 → 座位回落为「可选」
+     * → 另一人可以锁到同一座位 → 同一座位两张待支付单 = <b>超卖</b>。
+     *
+     * <p>本用例把「快照之后新产生的锁」模拟成: 先在正式位图上落一把锁,
+     * 再用**不含这把锁**的快照去合并 —— 合并之后那把锁必须还在。
+     *
+     * <p>旧实现下这条断言会红(座位 40 变成可选)。
+     */
+    @Test
+    @DisplayName("回归: 合并不会抹掉快照之后新产生的锁(旧实现开超卖窗口)")
+    void mergeSeats_doesNotWipeLockCreatedAfterSnapshot() {
+        // 模拟「快照之后」的锁: 正式位图上已经落了一把锁(座位 40)
+        assertThat(seatLuaService.lock(SESSION_ID, List.of(40)).ok()).isTrue();
+        assertThat(lockBit(40)).isEqualTo(1);
+
+        // 用**不含座位 40** 的 DB 快照去合并 —— 旧实现(覆盖)会把它抹掉
+        seatLuaService.mergeSeats(SESSION_ID, List.of(20), List.of());
+
+        // 关键: 那把锁还在 → 座位不会被误放成可选
+        assertThat(lockBit(40)).isEqualTo(1);
+        // 快照的位也补上了
+        assertThat(lockBit(20)).isEqualTo(1);
     }
 
     @Test
-    @DisplayName("原子替换位图: 脚本失败时只清临时 key, 正式位图一个字节都不碰")
-    void replaceSeats_scriptFails_keepsRealBitmapKeys() {
+    @DisplayName("原子合并位图: 脚本失败时只清临时 key, 正式位图一个字节都不碰")
+    void mergeSeats_scriptFails_keepsRealBitmapKeys() {
         // 真实 Redis 上先造出正式位图: 座位 10 已售
         assertThat(seatLuaService.lock(SESSION_ID, List.of(10)).ok()).isTrue();
         seatLuaService.confirmPaid(SESSION_ID, List.of(10));
@@ -268,14 +299,15 @@ class SeatLuaServiceBitmapRoundTripTest {
                 .thenThrow(new RuntimeException("模拟 Redis 不可用"));
         SeatLuaService failingService = new SeatLuaService(failing, new ObjectMapper());
 
-        assertThatThrownBy(() -> failingService.replaceSeats(SESSION_ID, List.of(), List.of(30)))
+        assertThatThrownBy(() -> failingService.mergeSeats(SESSION_ID, List.of(), List.of(30)))
                 .isInstanceOf(RuntimeException.class);
 
         // 关键: 只删了**临时** key —— 正式位图一个 key 都没被删
         ArgumentCaptor<Collection<String>> deleted = ArgumentCaptor.forClass(Collection.class);
         verify(failing).delete(deleted.capture());
         assertThat(deleted.getValue()).containsExactlyInAnyOrder(
-                RedisKeys.sessionLockRebuild(SESSION_ID), RedisKeys.sessionSoldRebuild(SESSION_ID));
+                RedisKeys.sessionLockRebuild(SESSION_ID), RedisKeys.sessionSoldRebuild(SESSION_ID),
+                RedisKeys.sessionLockMerged(SESSION_ID), RedisKeys.sessionSoldMerged(SESSION_ID));
         verify(failing, never()).delete(RedisKeys.sessionLock(SESSION_ID));
         verify(failing, never()).delete(RedisKeys.sessionSold(SESSION_ID));
 
