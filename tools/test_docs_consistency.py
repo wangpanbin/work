@@ -38,7 +38,7 @@ REPO = Path(__file__).resolve().parent.parent
 CURRENT_CLAIM_DOCS = [
     "README.md",
     "AGENTS.md",
-    "docs/发布说明-v0.3.0.md",
+    "docs/发布说明-v0.4.0.md",
     "docs/实现方案.md",
     "cinema-web/PRODUCT.md",
     "cinema-web/CLAUDE.md",
@@ -49,13 +49,18 @@ CURRENT_CLAIM_DOCS = [
 HISTORICAL_DOCS = {
     "docs/稳定性测试报告-2026-10-11.md": "2026-10-11 的历史快照,数字是当时的",
     "docs/发布说明-v0.2.0.md": "v0.2.0 的历史发布说明",
+    "docs/发布说明-v0.3.0.md": "v0.3.0 的历史发布说明(它记录的是 v0.3.0 交付时的用例数)",
 }
 
 MD_LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)")
 BACKTICK = re.compile(r"`([^`\n]+)`")
-SKIP_SUBSTRINGS = ("/", " ", "{", "}", "(", ")", "=", "@", "*", "$", ":", "\\", "|")
+#: 片段里出现这些字符就**不是**路径。
+#: ⚠️ 这里**不能**把 "/" 列进来 —— 带了目录分隔符的恰恰是最像路径的那类,
+#:    把它们全排除掉等于把检查器的主要战场扔了(2026-10-25 二次评审发现)。
+SKIP_SUBSTRINGS = (" ", "{", "}", "(", ")", "=", "@", "*", "$", ":", "\\", "|", "?", "<", ">",
+                  "...")   # "..." 是文档里的省略写法(test/.../X.java), 不是字面路径
 TOP_DIRS = ("docs/", "sql/", "tools/", "cinema-web/", "cinema-server/", "plans/", "test/",
-            "scripts/", ".github/")
+            "scripts/", ".github/", ".scratch/", "deck/")
 
 # ---- 数字声明的模式(每条都贴着真实文案写,不做宽泛匹配) ----
 BACKEND_TEST_PATTERNS = [
@@ -88,6 +93,21 @@ PYTHON_PATTERNS = [
 GLUE = re.compile(r"(?<=[\u4e00-\u9fff。，：、；])(?:-|\*|\+|\d+\.)\s")
 #: 粘住之后必须紧跟**强调**或**代码**
 GLUE_AFTER = re.compile(r"^\s*(\*\*|`)")
+
+
+#: 文档里**明确说明「不存在 / 从未创建」**的路径 —— 它们不是引用, 是叙述。
+KNOWN_ABSENT_PATHS = {
+    "docs/api.md": "实现方案 §3 明说: 早期版本列过, 从未创建, 已移除",
+    "docs/架构设计.md": "同上",
+}
+
+#: 历史文档 —— 里面指向的是**当时**的文件名(有的后来被重构掉了)。
+#: 那不是断链, 是历史; 按仓库口径「历史记录不改写」豁免。
+REFERENCE_EXEMPT_DOCS = {
+    "docs/压测报告-v2.md": "2026-10 的历史压测报告, 引用的是当时的文件名",
+    "docs/superpowers/specs/2026-08-31-p0-increment-design.md": "历史 spec",
+    "test/playwright-cli/RESULTS.md": "2026-08 的人工 CLI 验收记录",
+}
 
 
 def repo_markdown_files() -> list:
@@ -131,6 +151,8 @@ class DocReferenceTest(unittest.TestCase):
             path = REPO / rel
             if not path.exists():
                 continue
+            if rel in REFERENCE_EXEMPT_DOCS:
+                continue
             text = read(rel)
             base = path.parent
             seen = set()
@@ -140,6 +162,8 @@ class DocReferenceTest(unittest.TestCase):
                     continue
                 target = target.split("#")[0].split("?")[0]
                 if not target:
+                    continue
+                if target in KNOWN_ABSENT_PATHS:
                     continue
                 cand = (base / target).resolve()
                 checked += 1
@@ -151,6 +175,8 @@ class DocReferenceTest(unittest.TestCase):
             for m in BACKTICK.finditer(text):
                 target = m.group(1).strip()
                 if not is_path_like(target):
+                    continue
+                if target in KNOWN_ABSENT_PATHS:
                     continue
                 cand = (REPO / target).resolve()
                 checked += 1
@@ -244,6 +270,63 @@ class CrossDocCountTest(unittest.TestCase):
         self.assertTrue(claims, "一条 Python 数字声明都没扫到 —— 检查器本身失效了")
         values = {c[3] for c in claims}
         self.assertEqual(1, len(values), "Python 用例数在文档之间不一致: " + str(sorted(values)))
+
+
+#: 明确「就是要不入库」的路径 —— 逐条写清理由, 不做通配豁免。
+#: 不在白名单里的「磁盘上有、但没入库」= 证据没进仓库 = 新克隆拿不到。
+UNTRACKED_ALLOWED = {
+    # 本机配置(含数据库口令), 必须 gitignore —— 它是**故意**不入库的
+    "cinema-server/src/main/resources/application-dev.yml",
+}
+
+
+def git_tracked_files() -> set:
+    """git ls-files 的结果(仓库相对路径, posix 分隔)。
+
+    ⚠️ 必须加 ``-c core.quotepath=false``: 否则 git 把中文路径转义成八进制
+    (``docs/\\345\\217\\213...``), 中文文档名一个都命中不了, 检查器会误报一片。
+    """
+    out = subprocess.run(["git", "-c", "core.quotepath=false", "ls-files"], cwd=str(REPO),
+                         capture_output=True, text=True, encoding="utf-8").stdout
+    return {line.strip() for line in out.split("\n") if line.strip()}
+
+
+class TrackedReferenceTest(unittest.TestCase):
+    """⑤ 文档引用的仓库内文件必须**已入库** —— 磁盘上存在不等于仓库里有。
+
+    <p>第 ① 项查的是「文件在不在磁盘上」; 这一项查的是「它在不在仓库里」。
+    两者中间隔着 .gitignore —— 指向被忽略的文件的文档引用, 对**新克隆仓库的读者**
+    就是死链(E2E 报告与验收截图那两处就是活例子)。
+    """
+
+    def test_referenced_paths_are_tracked(self):
+        tracked = git_tracked_files()
+        self.assertTrue(tracked, "git ls-files 没返回任何文件 —— 检查器失效了")
+        offenders = []
+        checked = 0
+        for rel in repo_markdown_files():
+            p = REPO / rel
+            if not p.exists():
+                continue
+            if rel in REFERENCE_EXEMPT_DOCS:
+                continue
+            text = read(rel)
+            base = p.parent
+            for m in BACKTICK.finditer(text):
+                target = m.group(1).strip()
+                if not is_path_like(target):
+                    continue
+                checked += 1
+                if target in tracked or target in UNTRACKED_ALLOWED:
+                    continue
+                # 磁盘上都没有的, 归第 ① 项管(悬空引用), 这里不重复报
+                if not (REPO / target).exists():
+                    continue
+                offenders.append(f"{rel}:{line_of(text, m.start())}  {target}")
+        self.assertEqual([], offenders,
+                         "文档引用了**没入库**的文件 —— 本机有, 新克隆的仓库里没有:\n  "
+                         + "\n  ".join(offenders))
+        self.assertGreater(checked, 0, "一条带目录的引用都没扫到 —— 检查器本身失效了")
 
 
 class ListMarkerTest(unittest.TestCase):
