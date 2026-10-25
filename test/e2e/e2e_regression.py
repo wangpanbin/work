@@ -8,7 +8,7 @@
 >>>   pytest -m web -q     # 仅 Web (12 用例, 含本文件 S01~S12 等价用例)
 >>>   pytest -q web/test_seat.py::test_seat_lock_ws_sync   # 单场景
 >>>   # 报告: test-report.html, reports/junit.xml, test-results/*/trace.zip
->>> 旧文件保留用于对照回归, 不再主动维护. 详见 F:/test/work/tests/README.md.
+>>> 旧文件保留用于对照回归, 不再主动维护。详见 F:/test/work/tests/README.md。
 
 影院抢票选座系统 E2E 回归测试 (Python Playwright)
 覆盖 S01~S12 十二个场景, 重点回归上次修复的三个 Bug:
@@ -24,6 +24,7 @@
 import argparse
 import base64
 import json
+import os
 import re
 import subprocess
 import sys
@@ -35,8 +36,10 @@ from pathlib import Path
 import requests
 from playwright.sync_api import sync_playwright
 
-FRONT = "http://localhost:5173"
-API = "http://localhost:8080/api"
+FRONT = os.environ.get("CINEMA_E2E_FRONT", "http://localhost:5173")
+API = os.environ.get("CINEMA_E2E_API", "http://localhost:8080/api")
+#: 后端基址(去掉 /api)—— /actuator/health 与 /swagger-ui.html 不在 /api 下面
+BACKEND = API[:-4] if API.endswith("/api") else API
 ROOT = Path(r"F:\test\work")
 SHOT = ROOT / "test" / "e2e" / "screenshots"
 SHOT.mkdir(parents=True, exist_ok=True)
@@ -201,12 +204,91 @@ def dialog_form_item(page, label):
     return page.locator(f".el-dialog .el-form-item:has(.el-form-item__label:text('{label}'))")
 
 
+def confirm_pending_order_dialog(page, lock_sent, timeout=12000):
+    """点掉「同场次已有待支付单」的确认框; 返回 (是否弹过这个框, 锁座请求是否已发出)。
+
+    <p>**为什么需要它**(2026-10-25 交互流程审查 P0-2): 选座页在发出锁座请求**之前**
+    会弹一个确认框 ——「你在本场次还有一笔待支付订单 XXX, 重新选座将取消它」。
+    不点它就**根本不会发请求**, 于是脚本等不到「锁座成功」toast。
+
+    <p>**为什么它是夹具漂移而不是产品缺陷**: 上一轮场景 S16(对话一键下单)会留下一笔
+    待支付单, 支付窗口 900s。**15 分钟内连跑两遍套件**, 第二遍的 S03 就会撞上这个框
+    —— 第一遍跑不到(自己的 S16 还没执行)。所以场景必须能处理这个框, 否则套件不可重入。
+
+    <p>⚠️ **不能死等这个框**(2026-10-25 第三轮评审后实测踩到): 选座页现在锁座前会
+    **先权威重拉一次座位图**, 之后才可能弹框。**没有**待支付单时, 点完按钮就直接
+    发锁座请求并弹「锁座成功」toast —— 而 Element Plus 的 message **3 秒就自动消失**。
+    死等一个永远不会出现的框(上一版等 4 秒), 那个 toast 就被等没了, 后面
+    {@code wait_toast} 必然误判失败。**那是测试脚本自己的时序问题, 不是产品缺陷** ——
+    服务端日志里那次锁座是成功的。
+
+    <p>所以这里同时盯两件事, 哪个先来按哪个走:
+    <ol>
+      <li>确认框出现 → 点它的主按钮(语言无关: {@code .el-message-box__btns .el-button--primary},
+          不点中文按钮文案 —— S19 会把界面切成英文);</li>
+      <li>锁座请求已发出({@code lock_sent} 非空)→ 说明没有框, **立刻返回**,
+          好让调用方去抓那个还在寿命期的 toast。</li>
+    </ol>
+
+    @param lock_sent 列表, 调用方注册的请求监听器往里塞「已发出的锁座请求」
+    @return (是否弹过确认框, 是否已发出锁座请求)
+    """
+    deadline = time.time() + timeout / 1000
+    saw_dialog = False
+    while time.time() < deadline:
+        box = page.locator(".el-message-box")
+        if box.count() and box.first.is_visible():
+            if not saw_dialog:
+                saw_dialog = True
+                page.locator(".el-message-box__btns .el-button--primary").first.click(timeout=8000)
+        elif lock_sent:
+            break
+        page.wait_for_timeout(150)
+    return saw_dialog, bool(lock_sent)
+
+
+# ---------------- 座位图工具(S23 用)----------------
+
+def seat_map_of(sid, token=None):
+    """某个场次的座位图。
+
+    <p>**必须带 token 拿**: 自己的待支付单锁住的座位在位图里也是锁位,
+    不带 token 看到的「可选数」跟用户实际看到的不是一回事。
+    """
+    return api_ok("GET", f"/sessions/{sid}/seat-map", token=token or S.get("token1"))
+
+
+def available_bits(sm):
+    """座位图里「可选」的位(既没被锁也没被卖)—— 与 SeatAvailability.isAvailable 同口径。"""
+    lock = decode_bitmap(sm["lockBitmap"], sm["seatCount"])
+    sold = decode_bitmap(sm["soldBitmap"], sm["seatCount"])
+    return [not lock[i] and not sold[i] for i in range(sm["seatCount"])]
+
+
+def longest_row_run(sm):
+    """最长的一段**同行连续**可选座位(与 SeatAvailability.RunPolicy.FIRST_ROW 同口径)。
+
+    <p>跨行的相邻索引不算 —— 服务端找连座就是按行扫的, 这里必须同口径,
+    否则会挑出一个「服务端根本找不到连座」的场次, 场景就变成测运气了。
+    """
+    bits = available_bits(sm)
+    cols = sm["cols"]
+    best = run = 0
+    for i, ok in enumerate(bits):
+        if not ok:
+            run = 0
+            continue
+        run = run + 1 if (i > 0 and i % cols != 0) else 1
+        best = max(best, run)
+    return best
+
+
 # ---------------- 场景 ----------------
 
 def s12_health(page):
     """健康检查 / Swagger 静态端点"""
-    r1 = requests.get("http://localhost:8080/actuator/health", timeout=10)
-    r2 = requests.get("http://localhost:8080/swagger-ui.html", timeout=10, allow_redirects=False)
+    r1 = requests.get(f"{BACKEND}/actuator/health", timeout=10)
+    r2 = requests.get(f"{BACKEND}/swagger-ui.html", timeout=10, allow_redirects=False)
     assert r1.status_code == 200 and r1.json().get("status") == "UP", f"health={r1.status_code} {r1.text[:100]}"
     assert r2.status_code in (200, 302), f"swagger={r2.status_code}"
     return f"/actuator/health=200 UP; /swagger-ui.html={r2.status_code}"
@@ -288,7 +370,21 @@ def s03_seat_ws(page, page_b):
     # 前半段 `.seats-grid .seat` 会匹配全部 240 个座位, count() 恒等于座位总数。
     # `.seat` 只有座位子组件有, 直接用它选状态类。
     assert page.locator(".seat.selected").count() == 1, "点击后未出现 selected 座位"
+    # 盯住锁座请求: 「有没有待支付单确认框」只能靠它判定(见 helper 注释)。
+    # 监听器在**点击之前**挂上 —— 点了之后请求可能几毫秒就发出去了。
+    lock_sent = []
+
+    def _on_lock_request(req):
+        if req.method == "POST" and "/orders/lock" in req.url:
+            lock_sent.append(req)
+
+    page.on("request", _on_lock_request)
     page.get_by_role("button", name="确认锁座下单").click()
+    # 同场次有旧待支付单时, 前端会先弹确认框, 不点它就不发锁座请求(见 helper 注释)
+    had_pending, lock_requested = confirm_pending_order_dialog(page, lock_sent)
+    page.remove_listener("request", _on_lock_request)
+    assert lock_requested, ("点「确认锁座下单」后既没弹待支付单确认框, 也没发出锁座请求 —— "
+                             "查浏览器控制台与「你已选的 N 个座位被他人锁定」提示(重拉后发现选座变了会中止)")
     assert wait_toast(page, "锁座成功"), "未出现 '锁座成功' toast"
     page.wait_for_url(re.compile("/payment"), timeout=8000)
     page.wait_for_load_state("networkidle")
@@ -312,16 +408,28 @@ def s03_seat_ws(page, page_b):
            json_body={"sessionId": S["sid"], "seatIndexes": seats_bc})
 
     # Bug A 回归: user1 页面在无刷新情况下通过 WS 收到 LOCKED 推送
-    deadline, ws_ok = time.time() + 8, False
+    #
+    # ⚠️ 判据盯**被锁的那几个座位本身**, 不盯「locked_other 总数」。
+    # 总数法在两种情况下会假红(2026-10-25 实测踩到):
+    #   ① 同场次有别人的旧待支付单 → 新锁座会**顶掉**旧单并释放旧座位,
+    #      于是「新增 2 个他人锁定」与「释放 2 个他人锁定」互相抵消, 总数不变;
+    #   ② 别的场景在同一时间改动了同一场次。
+    # 盯具体座位才是在验「WS 推送到了没有」, 也才是这条场景本来要验的东西。
+    deadline, ws_ok, locked_other_after = time.time() + 8, False, -1
     while time.time() < deadline:
-        if page.locator(".seat.locked_other").count() >= locked_other_before + 2:
+        locked_other_after = page.locator(".seat.locked_other").count()
+        if all("locked_other" in (page.locator(SEAT_ITEM_SEL).nth(i).get_attribute("class") or "")
+               for i in seats_bc):
             ws_ok = True
             break
         page.wait_for_timeout(300)
     shot(page, "s03-ws-sync")
-    assert ws_ok, f"8s 内 WS 未推送他人锁座 (locked_other 未从 {locked_other_before} 增加)"
+    assert ws_ok, (f"8s 内 WS 未把 user2 锁的座位 {seats_bc} 推成 locked_other "
+                   f"(locked_other {locked_other_before}→{locked_other_after})")
     return (f"user1 UI锁座{seat_a}→支付页(orderNo={S['order_no1'][:12]}…); 自锁座位显示 locked_mine ✓; "
-            f"user2 API锁{seats_bc} → user1 无刷新 WS 更新 locked_other {locked_other_before}→+2 ✓")
+            f"user2 API锁{seats_bc} → user1 无刷新 WS 收到推送, 这几个座位变 locked_other ✓ "
+            f"(locked_other 总数 {locked_other_before}→{locked_other_after})"
+            + ("; 撞到同场次旧待支付单确认框, 已确认" if had_pending else ""))
 
 
 def s04_pay_cancel(page, page_b):
@@ -863,6 +971,155 @@ def s22_chat_widget_flow(page):
     assert d and d.get("orderNo"), f"订单 {order_no} 查不到"
     return f"聊天浮窗 → 发消息 → 助手给出下单卡 → 点「确认下单」→ 订单 {order_no} 建成 ✓"
 
+
+def s23_seat_session_switch(page):
+    """选座页换场次必须重载(P0-1): /seat/A → 点助手座位建议卡 → /seat/B, 页面必须变成 B 场
+
+    <p>Vue Router 4 对**同一路由记录只换 params** 会复用组件实例(`onMounted` 不再触发)。
+    修复前: URL 变成 /seat/B, 页面仍是 A 场的座位图, WS 还连着 A, preselect 也没生效 ——
+    用户在 A 的图上选座、点确认 → 发出的是 B 的 sessionId + A 的座位索引 → 锁错场次的钱付了。
+
+    <p>判据全部**与语言无关**(S19 会把界面切成英文, 拿中文文案当判据 = 测试与场景顺序耦合):
+      ① 选座页 header 的影片名 == B 场的 movieTitle;
+      ② 渲染出的座位数 == B 场的 seatCount;
+      ③ preselect 生效: URL 上的 preselect 索引在页面上确实是 selected 座位;
+      ④ WS 重连到了 B: 浏览器真的新建了一条指向 B 场的 WS 连接。
+
+    <p>⚠️ A、B 必须**可区分**(影片名 / 座位数至少有一个不同)——
+    否则 ①② 两条判据在 A、B 相同的情况下也成立, 那是假绿灯。
+    找不到可区分的一对就 SKIP, 不拿一条恒真的断言充数。
+    """
+    provider = chat_provider()
+    print(f"[setup] 对话模型来源 = {provider}", flush=True)
+
+    # ---------- 1. 挑两个「在售 + 未开场 + 有连座」且可区分的场次 ----------
+    raw = db_exec("SELECT id FROM `session` WHERE status=1 AND start_time > NOW() "
+                  "ORDER BY start_time, id LIMIT 40")
+    cands = []
+    for raw_id in raw.split():
+        if not raw_id.isdigit():
+            continue
+        try:
+            sm = seat_map_of(int(raw_id))
+        except Exception:
+            continue
+        # 至少要有两个**同行连续**的可选座位, 否则服务端找不到连座 → stub 不会出卡
+        if longest_row_run(sm) < 2:
+            continue
+        cands.append((int(raw_id), sm))
+        if len(cands) >= 12:
+            break
+    if len(cands) < 2:
+        raise Skipped(f"库里「在售 + 未开场 + 有连座」的场次只有 {len(cands)} 个 —— 本次没法验证")
+
+    pair = None
+    for sid_a, sm_a in cands:
+        for sid_b, sm_b in cands:
+            if sid_a == sid_b:
+                continue
+            dims = []
+            if sm_a["movieTitle"] != sm_b["movieTitle"]:
+                dims.append("movieTitle")
+            if sm_a["seatCount"] != sm_b["seatCount"]:
+                dims.append("seatCount")
+            if dims:
+                pair = (sid_a, sm_a, sid_b, sm_b, dims)
+                break
+        if pair:
+            break
+    if not pair:
+        raise Skipped("演示库里找不到两个可区分的场次(影片名与座位数都相同) —— 本次没法验证")
+    sid_a, sm_a, sid_b, sm_b, dims = pair
+    print(f"[setup] S23 场次 A={sid_a}({sm_a['movieTitle']}/{sm_a['seatCount']}座) "
+          f"B={sid_b}({sm_b['movieTitle']}/{sm_b['seatCount']}座) 可区分维度={dims}", flush=True)
+
+    # ---------- 2. 记住 WS 连接(判据④: WS 确实重连到了 B) ----------
+    ws_urls = []
+    page.on("websocket", lambda w: ws_urls.append(w.url))
+
+    goto_seat_map(page, sid_a)
+    title_a = page.locator(".header-card .title").inner_text().strip()
+    seats_a = page.locator(SEAT_ITEM_SEL).count()
+    assert seats_a == sm_a["seatCount"], (
+        f"A 场渲染出 {seats_a} 个座位, 库里 seatCount={sm_a['seatCount']} —— 前置数据对不上")
+    shot(page, "s23-seat-a")
+
+    # ---------- 3. 聊天浮窗: 发一条「带 B 的场次 ID 且在问座位」的消息 ----------
+    if page.locator(".chat-panel").count() == 0:
+        page.locator("button.chat-fab").first.click(timeout=8000)
+        page.wait_for_selector(".chat-panel", timeout=8000)
+    page.wait_for_selector(".chat-input textarea", timeout=8000)
+    page.locator(".chat-input textarea").fill(f"场次 {sid_b} 的座位有连座吗")
+    page.locator(".chat-send-btn").click()
+
+    # 座位建议卡渲染成 .action-card(下单卡是 .order-card, 两者不串)
+    deadline, got_card = time.time() + 45, False
+    while time.time() < deadline:
+        if page.locator(".action-card").count() > 0:
+            got_card = True
+            break
+        page.wait_for_timeout(500)
+    if not got_card:
+        shot(page, "s23-chat-no-card")
+        if provider == "stub":
+            raise AssertionError("stub 模式下助手必须给出座位建议卡 —— 没出卡就是回归"
+                                 "(查 /api/chat/status 与后端启动参数 CINEMA_CHAT_PROVIDER)")
+        raise Skipped("助手这次没给座位建议卡(LLM 自由发挥) —— 本次没法验证这条链路")
+    shot(page, "s23-chat-card")
+
+    # ---------- 4. 点卡片 → URL 变成 /seat/B ----------
+    ws_before = len(ws_urls)
+    page.locator(".action-card-btn").first.click(timeout=8000)
+    page.wait_for_url(re.compile(rf"/seat/{sid_b}(?:\?|$)"), timeout=10000)
+    # 座位图要重新拉 —— 等 header 换成 B 场的身份
+    page.wait_for_function(
+        "(title) => { const el = document.querySelector('.header-card .title');"
+        " return !!el && el.textContent.trim() === title; }",
+        arg=sm_b["movieTitle"], timeout=15000)
+    page.wait_for_function(
+        "(n) => document.querySelectorAll('.seats-grid .seat, .seats .seat').length === n",
+        arg=sm_b["seatCount"], timeout=15000)
+
+    # ---------- 5. 核心断言: 页面显示的是 B 场, 不是 A 场 ----------
+    title_b = page.locator(".header-card .title").inner_text().strip()
+    seats_b = page.locator(SEAT_ITEM_SEL).count()
+    assert title_b == sm_b["movieTitle"], (
+        f"选座页显示的是「{title_b}」, 但 B 场是「{sm_b['movieTitle']}」 —— 页面没换场次")
+    assert seats_b == sm_b["seatCount"], (
+        f"选座页渲染了 {seats_b} 个座位, B 场应是 {sm_b['seatCount']} 个 —— 座位图没换场次")
+    if "movieTitle" in dims:
+        assert title_b != title_a, (
+            f"A、B 两场影片名不同, 但页面仍显示 A 场的「{title_a}」 —— 换场次没生效")
+    if "seatCount" in dims:
+        assert seats_b != seats_a, (
+            f"A、B 两场座位数不同, 但页面仍渲染着 A 场的 {seats_a} 个座位 —— 换场次没生效")
+    shot(page, "s23-seat-b")
+
+    # ---------- 6. preselect 生效(卡片带来的预选座位被选中) ----------
+    m = re.search(r"preselect=([0-9,]+)", page.url)
+    assert m, f"URL 上没有 preselect 参数: {page.url}"
+    preselect = [int(x) for x in m.group(1).split(",") if x != ""]
+    assert preselect, f"preselect 参数是空的: {page.url}"
+    selected_count = page.locator(".seat.selected").count()
+    assert selected_count == len(preselect), (
+        f"preselect 带了 {len(preselect)} 个座位, 页面上只有 {selected_count} 个 selected —— 预选没生效")
+    for idx in preselect:
+        cls = page.locator(SEAT_ITEM_SEL).nth(idx).get_attribute("class")
+        assert "selected" in (cls or ""), f"座位 {idx} 没被预选(class={cls})"
+
+    # ---------- 7. WS 确实重连到了 B ----------
+    new_ws = ws_urls[ws_before:]
+    ws_b_re = re.compile(rf"/ws/seat/{sid_b}(?:$|\?)")
+    assert any(ws_b_re.search(u) for u in new_ws), (
+        f"点击卡片后没有新建指向 B 场({sid_b})的 WS 连接, 新建的连接是: {new_ws}")
+
+    return (f"A={sid_a}({sm_a['movieTitle']}/{sm_a['seatCount']}座) → 座位建议卡 → "
+            f"B={sid_b}({sm_b['movieTitle']}/{sm_b['seatCount']}座); "
+            f"URL 已换且页面显示 B 场(影片名+座位数都对上, 可区分维度={dims}); "
+            f"preselect {preselect} 生效(座位数与 selected 数一致); "
+            f"WS 已重连到 /ws/seat/{sid_b} ✓")
+
+
 def s20_rebuild_keeps_lock(page, page_c):
     """位图合并语义(v0.4.0 超卖修复): 重建位图**不清掉**已锁座位"""
     goto_seat_map(page)
@@ -931,6 +1188,7 @@ def run(only=None):
             ("S20 位图合并不抹掉已锁座位", lambda: s20_rebuild_keeps_lock(page, page_c)),
             ("S21 管理端助手用量看板", lambda: s21_admin_usage_dashboard(page_c)),
             ("S22 对话浮窗→下单卡→确认下单", lambda: s22_chat_widget_flow(page)),
+            ("S23 选座页换场次必须重载", lambda: s23_seat_session_switch(page)),
             # ⚠️ 登出**必须排最后** —— 它会清掉 user1 的 token,
             # 排在前面会让后面所有需要登录的场景被路由守卫踢回 /login。
             ("S07 登出+路由守卫", lambda: s07_logout(page)),
@@ -971,7 +1229,7 @@ def run(only=None):
     lines = [
         "# E2E 回归测试报告 (Python Playwright)",
         "",
-        f"> 执行时间: {datetime.now().strftime('%Y-%m-%d %H:%M')} · Chromium headless · 前端 5173 / 后端 8080",
+        f"> 执行时间: {datetime.now().strftime('%Y-%m-%d %H:%M')} · Chromium headless · 前端 {FRONT} / 后端 {BACKEND}",
         "> 目的: 上轮修复 Bug A(WS 推送)/Bug B(myLockedSeats)/Bug C(snowflake ID) 后的全场景回归",
         "",
         "| 场景 | 状态 | 证据 |",
