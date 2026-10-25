@@ -60,7 +60,7 @@ web
 - `seatIndexes` 上界必须按场次的 `seatCount` 校验;越界索引会直接落进 `lock_seat.lua` 的 `SETBIT`,位图按 offset 立即分配且**永不回收**。
 - **Redis 位图不会自动收缩**:清零高位后 `STRLEN` 不变,体积只增不减 —— 已撑大的位图要用 `tools/reconcile_seat_bitmap.py --purge-ghost-orders --fix` 重建(它是 DEL + 按合法位重写)。
 - 退票释放座位必须**按订单幂等**(`refund_seat.lua` 的第三个 key):否则补偿任务二次释放会把**别人已付款的座位**清成可选。
-- 位图重建必须走**临时 key + 原子换名**(`replace_seat_bitmap.lua`):「先删正式位图再重建」会在两次 Redis 调用之间留下空位图窗口 —— 此刻的锁座会认为已付款座位可选 = 超卖。重建失败时正式位图一个位都不动(宁可锁死也不误放)。
+- 位图重建必须走**合并(只加不减)**(`merge_seat_bitmap.lua`):合并结果 = 正式位图 OR DB 快照,座位只可能变不可选、绝不可能变可选(宁可锁死也不误放)。「先删正式位图再重建」会留下空位图窗口(超卖);「用 DB 快照 RENAME 覆盖」会抹掉快照与换名之间新产生的锁(同样是超卖)—— 合并必须在同一个脚本里原子完成。位图不再自动收缩,泄漏位用 `tools/reconcile_seat_bitmap.py --fix` 离线清。
 - 对话助手的 `@Tool` 方法**不允许**出现 `userId` 形参,身份由服务端 `UserContext` 注入(`ChatToolsStructureTest` 反射锁死);任何写方法被 `@Tool` 注解即测试红。
 - 前端 vitest 跑在 `environment: 'node'`,未装 jsdom / `@vue/test-utils`,挂不了 Vue 组件;视图层验证只有三条路:下沉纯函数、`.vue` 源码静态契约断言、真浏览器。
 - 无 linter;`pnpm build` 与 `pnpm type-check` 查出的问题不重叠,两个都要跑。

@@ -239,8 +239,10 @@ async function reloadSessions() {
 
 <style scoped>
 /* 加载失败态(2026-10-24): 居中的错误提示 + 重试, 不再是一整页空白。
-   样式已抽到 main.css 的共享 `.load-error` —— 五个视图共用同一份, 不再各抄一份。 */
-/* 场次区加载失败: 与「暂无场次」区分开 —— 两者不能长得一样 */
+   整页加载失败的样式在 main.css 的共享 `.load-error` —— 五个视图共用同一份, 不再各抄一份。 */
+/* ⚠️ 下面这两个是**另一回事**: 场次区加载失败(影片详情出来了, 但场次没加载出来),
+   必须与「暂无场次」区分开 —— 两者不能长得一样。
+   所以它不是 `.load-error` 的副本, 是刻意更紧凑的一个独立状态。 */
 .sessions-error {
   display: flex;
   flex-direction: column;

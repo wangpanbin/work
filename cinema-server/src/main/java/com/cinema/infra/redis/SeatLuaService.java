@@ -15,7 +15,7 @@ import java.util.List;
 
 /**
  * 座位位图 Lua 脚本封装
- * <p>Phase B-④ 优化: 启动期通过 SCRIPT LOAD 把 3 个脚本预热到 Redis,
+ * <p>Phase B-④ 优化: 启动期通过 SCRIPT LOAD 把座位相关脚本预热到 Redis(锁座/确认/释放/退票/位图合并共 5 个),
  * 后续业务调用由 Spring Data Redis 走 EVALSHA(若 Redis 重启脚本丢失,
  * Spring Data Redis 会自动 fallback EVAL, 不影响功能)。
  * <p>脚本经 DefaultRedisScript 预加载(首次执行后缓存于 Redis, 后续只传 SHA)
