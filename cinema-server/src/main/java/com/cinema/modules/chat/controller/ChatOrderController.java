@@ -4,12 +4,15 @@ import com.cinema.common.annotation.IdempotencyKeys;
 import com.cinema.common.annotation.Idempotent;
 import com.cinema.common.annotation.RateLimit;
 import com.cinema.common.context.UserContext;
+import com.cinema.common.exception.BizException;
 import com.cinema.common.result.R;
 import com.cinema.common.result.ResultCode;
+import com.cinema.modules.chat.entity.ChatAssistantLog;
 import com.cinema.modules.chat.order.OrderProposal;
 import com.cinema.modules.chat.order.OrderProposalService;
 import com.cinema.modules.chat.order.dto.OrderProposalDTO;
 import com.cinema.modules.chat.order.vo.OrderProposalVO;
+import com.cinema.modules.chat.service.ChatAssistantLogService;
 import com.cinema.modules.order.dto.LockSeatsDTO;
 import com.cinema.modules.order.service.OrderLockService;
 import com.cinema.modules.order.vo.LockResultVO;
@@ -61,13 +64,17 @@ public class ChatOrderController {
     private final OrderProposalService proposalService;
     private final OrderLockService orderLockService;
     private final boolean orderEnabled;
+    /** 写审计落库服务(IT-05)。 */
+    private final ChatAssistantLogService logService;
 
     public ChatOrderController(OrderProposalService proposalService,
                                OrderLockService orderLockService,
-                               @Value("${cinema.chat.order-enabled:true}") boolean orderEnabled) {
+                               @Value("${cinema.chat.order-enabled:true}") boolean orderEnabled,
+                               ChatAssistantLogService logService) {
         this.proposalService = proposalService;
         this.orderLockService = orderLockService;
         this.orderEnabled = orderEnabled;
+        this.logService = logService;
     }
 
     /**
@@ -104,26 +111,67 @@ public class ChatOrderController {
             permits = 3, window = 1, unit = TimeUnit.MINUTES,
             message = "下单操作过于频繁,请稍后再试")
     public R<OrderProposalVO> confirm(@PathVariable String proposalId) {
-        if (!orderEnabled) {
-            return R.fail(ResultCode.ORDER_DISABLED.getCode(), "下单功能当前未启用");
-        }
         // 纵深防御: AuthRequiredInterceptor 已先返 40101, 这里再挡一道 ——
         // 万一拦截器路径配置被改, 也不至于带着 null userId 去建提案。
         Long userId = UserContext.userId();
+        if (!orderEnabled) {
+            // 用户确实点了确认 —— 记一条 DISABLED, 不算事故(confirmed_by_user=1)
+            recordAudit(userId, proposalId, null, ChatAssistantLog.RESULT_DISABLED);
+            return R.fail(ResultCode.ORDER_DISABLED.getCode(), "下单功能当前未启用");
+        }
         if (userId == null) {
             return R.fail(ResultCode.UNAUTHORIZED);
         }
         // 一次性消费: 读出即删 + 归属校验
-        OrderProposal proposal = proposalService.consumeProposal(proposalId, userId);
+        OrderProposal proposal;
+        try {
+            proposal = proposalService.consumeProposal(proposalId, userId);
+        } catch (BizException e) {
+            // 提案过期/已被消费/不属于当前用户 —— 也要留痕(失败率指标)
+            recordAudit(userId, proposalId, null, ChatAssistantLog.RESULT_EXPIRED);
+            throw e;
+        }
 
         // 座位只来自快照 —— 不接受任何客户端传入的座位
         LockSeatsDTO dto = new LockSeatsDTO();
         dto.setSessionId(proposal.getSessionId());
         dto.setSeatIndexes(proposal.getSeatIndexes());
 
-        LockResultVO lock = orderLockService.lockSeats(userId, dto);
+        LockResultVO lock;
+        try {
+            lock = orderLockService.lockSeats(userId, dto);
+        } catch (BizException e) {
+            // 座位被抢(40002)—— 留痕, 但订单没建
+            recordAudit(userId, proposalId, null, ChatAssistantLog.RESULT_CONFLICT);
+            throw e;
+        }
+        // 写审计(IT-05): 记在锁座**之后** —— 这样 orderNo 与最终结果一致,
+        // 不会出现「审计说成功但订单没建」。
+        recordAudit(userId, proposalId, lock.getOrderNo(), ChatAssistantLog.RESULT_OK);
         log.info("[chat-order] 确认下单 proposalId={} user={} orderNo={}",
                 proposalId, userId, lock.getOrderNo());
         return R.ok(OrderProposalVO.ofLocked(proposal, lock));
+    }
+
+    /**
+     * 记一条「确认下单」写审计(IT-05 红线口径)。
+     *
+     * <p><b>confirmedByUser 恒为 1</b>: 这个端点本身就是「用户在确认卡上点了确认」
+     * 这一动作 —— 用户确实显式确认了。将来若新增任何**非**用户确认触发的写入口,
+     * 那条路径必须显式传 0, 红线查询(未确认写数)会立刻把它数出来。
+     *
+     * <p><b>审计写失败绝不影响下单结果</b> —— service 层已 try/catch, 这里再兜一层。
+     */
+    private void recordAudit(Long userId, String proposalId, String orderNo, String result) {
+        if (logService == null) {
+            return;
+        }
+        try {
+            // chatSessionId 留空: 确认端点拿不到对话会话 id(快照里没有),
+            // 写事件靠 userId + proposalId 归属。
+            logService.recordWriteConfirm("", userId, proposalId, orderNo, result, 1, null);
+        } catch (Exception e) {
+            log.warn("[chat-log] 记录写审计失败 proposalId={}: {}", proposalId, e.getMessage());
+        }
     }
 }

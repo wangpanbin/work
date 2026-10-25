@@ -57,9 +57,10 @@ class ChatOrderControllerTest {
 
     @Mock private OrderProposalService proposalService;
     @Mock private OrderLockService orderLockService;
+    @Mock private com.cinema.modules.chat.service.ChatAssistantLogService logService;
 
     private ChatOrderController controller(boolean enabled) {
-        return new ChatOrderController(proposalService, orderLockService, enabled);
+        return new ChatOrderController(proposalService, orderLockService, enabled, logService);
     }
 
     @AfterEach

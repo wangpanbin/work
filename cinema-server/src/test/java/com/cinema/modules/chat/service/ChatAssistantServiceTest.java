@@ -4,6 +4,7 @@ import com.cinema.modules.chat.agent.CinemaAssistant;
 import com.cinema.modules.chat.memory.ChatMemoryStore;
 import com.cinema.modules.chat.vo.ChatResponseVO;
 import dev.langchain4j.memory.ChatMemory;
+import dev.langchain4j.service.Result;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -49,6 +50,16 @@ import static org.mockito.Mockito.when;
  */
 class ChatAssistantServiceTest {
 
+    /**
+     * 造一个带文本内容的 {@code Result<String>}。
+     *
+     * <p>助手接口从 v0.4.0 起返回 {@code Result<String>}(为了拿得到 tokenUsage),
+     * 所以 mock 也得跟着变。tokenUsage 留空 = 用量未知(不是 0)。
+     */
+    private static Result<String> text(String content) {
+        return Result.<String>builder().content(content).build();
+    }
+
     private ObjectProvider<CinemaAssistant> provider;
     private CinemaAssistant assistant;
     private ChatMemoryStore store;
@@ -67,7 +78,7 @@ class ChatAssistantServiceTest {
                 .build());
         clock = Clock.fixed(Instant.parse("2026-09-21T10:00:00Z"), ZoneId.of("UTC"));
         when(provider.getIfAvailable()).thenReturn(assistant);
-        when(assistant.chat(anyString(), anyString(), anyString())).thenReturn("ok");
+        when(assistant.chat(anyString(), anyString(), anyString())).thenReturn(text("ok"));
         service = new ChatAssistantService(provider, store, clock);
     }
 
@@ -129,7 +140,7 @@ class ChatAssistantServiceTest {
     @Test
     @DisplayName("CinemaAssistant Bean 存在时 chat() 调 chat(chatSessionId, message) 并转 VO(reply 透传,cards/followUps 空)")
     void givenCinemaAssistantBean_whenChat_thenReturnsVOWithReply() {
-        when(assistant.chat(eq("sid-1"), anyString(), eq("hi"))).thenReturn("hello back");
+        when(assistant.chat(eq("sid-1"), anyString(), eq("hi"))).thenReturn(text("hello back"));
         Optional<ChatResponseVO> result = service.chat("sid-1", "hi");
         assertThat(result).isPresent();
         assertThat(result.get().getReply()).isEqualTo("hello back");
@@ -151,7 +162,7 @@ class ChatAssistantServiceTest {
                 + "\"totalAmount\":90.00,\"actionLabel\":\"去选座确认\"}],"
                 + "\"followUps\":[\"换一个场次\",\"只看 VIP 厅\"]}\n"
                 + "```";
-        when(assistant.chat(eq("sid-t9"), anyString(), eq("推荐座位"))).thenReturn(replyWithFence);
+        when(assistant.chat(eq("sid-t9"), anyString(), eq("推荐座位"))).thenReturn(text(replyWithFence));
 
         Optional<ChatResponseVO> result = service.chat("sid-t9", "推荐座位");
         assertThat(result).isPresent();
@@ -172,7 +183,7 @@ class ChatAssistantServiceTest {
     @DisplayName("LLM reply 含坏 JSON fence → chat() 静默回退 cards=[], fence 仍剥离")
     void givenLLMReplyWithBadJsonFence_whenChat_thenSilentFallback() {
         String replyBad = "回答\n```json-cards\n{not valid}\n```";
-        when(assistant.chat(eq("sid-t9-bad"), anyString(), eq("x"))).thenReturn(replyBad);
+        when(assistant.chat(eq("sid-t9-bad"), anyString(), eq("x"))).thenReturn(text(replyBad));
 
         Optional<ChatResponseVO> result = service.chat("sid-t9-bad", "x");
         assertThat(result).isPresent();
@@ -187,7 +198,7 @@ class ChatAssistantServiceTest {
     @DisplayName("LLM reply 无 fence → chat() 走原路径(cards=[],reply 原样)")
     void givenLLMReplyWithoutFence_whenChat_thenOriginalReplyUnchanged() {
         String plain = "今晚 8 点有 3 场《流浪地球》。";
-        when(assistant.chat(eq("sid-t9-plain"), anyString(), eq("hi"))).thenReturn(plain);
+        when(assistant.chat(eq("sid-t9-plain"), anyString(), eq("hi"))).thenReturn(text(plain));
 
         Optional<ChatResponseVO> result = service.chat("sid-t9-plain", "hi");
         assertThat(result).isPresent();
@@ -207,7 +218,7 @@ class ChatAssistantServiceTest {
             maxConcurrent.updateAndGet(prev -> Math.max(prev, now));
             Thread.sleep(50);
             concurrentCount.decrementAndGet();
-            return "ok";
+            return text("ok");
         });
 
         ExecutorService executor = Executors.newFixedThreadPool(2);
@@ -231,7 +242,7 @@ class ChatAssistantServiceTest {
             maxConcurrent.updateAndGet(prev -> Math.max(prev, now));
             Thread.sleep(50);
             concurrentCount.decrementAndGet();
-            return "ok";
+            return text("ok");
         });
 
         ExecutorService executor = Executors.newFixedThreadPool(2);
@@ -277,7 +288,7 @@ class ChatAssistantServiceTest {
                 // 等主线程走完 evict + 第二次 chat;超时只是兜底,正常路径由主线程放行
                 releaseT1.await(10, TimeUnit.SECONDS);
                 concurrentCount.decrementAndGet();
-                return "ok";
+                return text("ok");
             });
 
             // 必须是 2 线程:单线程池里 T1 卡在 mock 上时 T2 根本排不上队,

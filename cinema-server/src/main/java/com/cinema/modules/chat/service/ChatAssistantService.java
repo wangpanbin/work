@@ -3,9 +3,12 @@ package com.cinema.modules.chat.service;
 import com.cinema.common.context.UserContext;
 import com.cinema.modules.chat.agent.CinemaAssistant;
 import com.cinema.modules.chat.memory.ChatMemoryStore;
+import com.cinema.modules.chat.entity.ChatAssistantLog;
 import com.cinema.modules.chat.order.OrderProposalAssembler;
 import com.cinema.modules.chat.vo.ActionCardVO;
 import com.cinema.modules.chat.vo.ChatResponseVO;
+import dev.langchain4j.model.output.TokenUsage;
+import dev.langchain4j.service.Result;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,21 +61,28 @@ public class ChatAssistantService {
      * 此时所有卡片原样透传(装配是可选增强, 不是 chat() 的必要条件)。
      */
     private final OrderProposalAssembler assembler;
+    /**
+     * 用量/审计落库服务(IT-05 + IT-11)。可为 null —— 单测用短构造器不注入它,
+     * 此时不落任何日志(不影响对话)。
+     */
+    private final ChatAssistantLogService logService;
     private final ConcurrentHashMap<String, ReentrantLock> serializationLocks = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Long> lastAccessAt = new ConcurrentHashMap<>();
 
     @Autowired
     public ChatAssistantService(ObjectProvider<CinemaAssistant> assistantProvider,
                                 ChatMemoryStore memoryStore,
-                                ObjectProvider<OrderProposalAssembler> assemblerProvider) {
-        this(assistantProvider, memoryStore, Clock.systemUTC(), assemblerProvider.getIfAvailable());
+                                ObjectProvider<OrderProposalAssembler> assemblerProvider,
+                                ObjectProvider<ChatAssistantLogService> logServiceProvider) {
+        this(assistantProvider, memoryStore, Clock.systemUTC(),
+                assemblerProvider.getIfAvailable(), logServiceProvider.getIfAvailable());
     }
 
     /** 测试用三参数构造器,允许注入 fixed Clock + mock memoryStore。 */
     public ChatAssistantService(ObjectProvider<CinemaAssistant> assistantProvider,
                                 ChatMemoryStore memoryStore,
                                 Clock clock) {
-        this(assistantProvider, memoryStore, clock, null);
+        this(assistantProvider, memoryStore, clock, null, null);
     }
 
     /** 四参数构造器: 额外注入提案装配器(生产路径)。 */
@@ -80,10 +90,20 @@ public class ChatAssistantService {
                                 ChatMemoryStore memoryStore,
                                 Clock clock,
                                 OrderProposalAssembler assembler) {
+        this(assistantProvider, memoryStore, clock, assembler, null);
+    }
+
+    /** 五参数构造器: 再加用量/审计落库服务(v0.4.0)。 */
+    public ChatAssistantService(ObjectProvider<CinemaAssistant> assistantProvider,
+                                ChatMemoryStore memoryStore,
+                                Clock clock,
+                                OrderProposalAssembler assembler,
+                                ChatAssistantLogService logService) {
         this.assistantProvider = assistantProvider;
         this.memoryStore = memoryStore;
         this.clock = clock;
         this.assembler = assembler;
+        this.logService = logService;
     }
 
     /**
@@ -121,8 +141,23 @@ public class ChatAssistantService {
             //    串行化直接失效(表现为偶发 maxConcurrent==2)。
             evictIfIdle(chatSessionId);
 
-            String reply = assistant.chat(chatSessionId, currentDateContext(), message);
+            // ── 用量与耗时采集(IT-11)────────────────────────────────────
+            // 助手返回 Result<String> 而不是裸 String, 就是为了拿得到 tokenUsage。
+            // 以前 token 用量被直接丢掉,「估算成本」这项指标根本算不出来。
+            long callStart = System.currentTimeMillis();
+            Result<String> llmResult;
+            try {
+                llmResult = assistant.chat(chatSessionId, currentDateContext(), message);
+            } catch (RuntimeException e) {
+                // 调用失败也要留痕 —— 失败率是看板四项指标之一
+                recordUsage(sessionId, (int) (System.currentTimeMillis() - callStart),
+                        null, ChatAssistantLog.RESULT_ERROR);
+                throw e;
+            }
+            int latencyMs = (int) (System.currentTimeMillis() - callStart);
+            String reply = llmResult.content();
             lastAccessAt.put(chatSessionId, clock.millis());
+            recordUsage(sessionId, latencyMs, llmResult.tokenUsage(), ChatAssistantLog.RESULT_OK);
             // T9: 解析 LLM 在 reply 末尾 fence 的 ```json-cards ... ``` 块,
             // 提取 cards + followUps + 剥离 fence 后的 reply(spec §6.1 + #16 acceptance)。
             // 解析失败静默回退到 cards=List.of(),不抛(spec §5.4 容错路径)。
@@ -151,6 +186,28 @@ public class ChatAssistantService {
             // 正在排队等这把锁的线程仍持旧锁;此时摘除,后续线程 computeIfAbsent 会拿到
             // 一把新锁,于是又出现两个线程并行。锁条目的回收统一交给 evictIdleSessions()。
             lock.unlock();
+        }
+    }
+
+    /**
+     * 记录一次对话调用的用量(IT-11)。
+     *
+     * <p><b>用量落库绝不影响主流程</b>:service 层内部已 try/catch, 这里再兜一层 ——
+     * 即便 logService 自己炸了, 也不能让用户的对话失败。
+     *
+     * <p>用量未知时 token 记 null(不是 0) —— 0 会被误读成「这次调用免费」。
+     */
+    private void recordUsage(String sessionId, int latencyMs, TokenUsage usage, String result) {
+        if (logService == null) {
+            return;
+        }
+        try {
+            logService.recordChat(sessionId, UserContext.userId(), latencyMs,
+                    usage == null ? null : usage.inputTokenCount(),
+                    usage == null ? null : usage.outputTokenCount(),
+                    result);
+        } catch (Exception e) {
+            log.warn("[chat-log] 记录对话用量失败 session={}: {}", sessionId, e.getMessage());
         }
     }
 

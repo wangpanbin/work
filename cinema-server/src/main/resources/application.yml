@@ -56,6 +56,14 @@ cinema:
     order-enabled: ${CINEMA_CHAT_ORDER_ENABLED:true}
     # 下单提案快照的存活秒数。提案**不占位**, 只是「已算好的报价与座位方案」。
     proposal-ttl-seconds: ${CINEMA_CHAT_PROPOSAL_TTL_SECONDS:90}
+    # 估算单价(IT-11 用量看板): 每 100 万 token 的价格, 单位 = 美分(USD cents)。
+    # 取价日期 2026-10-25, 来源 https://api-docs.deepseek.com/quick_start/pricing
+    #   deepseek-flash 非高峰: 输入 $0.15 / 输出 $0.60 每 1M token
+    # ⚠️ 这是**估算**, 不是财务口径 —— DeepSeek 会调价且分峰谷时段, 单价需人工维护。
+    #   配成 0 = 未配置单价 → 成本记 null(不记 0, 0 会被误读成「免费」)。
+    cost:
+      prompt-per-million-cents: ${CINEMA_CHAT_PROMPT_PRICE_PER_MILLION_CENTS:15}
+      completion-per-million-cents: ${CINEMA_CHAT_COMPLETION_PRICE_PER_MILLION_CENTS:60}
 
 springdoc:
   swagger-ui:
