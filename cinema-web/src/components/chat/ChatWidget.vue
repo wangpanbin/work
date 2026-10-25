@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { sendMessage } from '../../api/chat'
+import { sendMessage, resetChatSession } from '../../api/chat'
 import { useChatContext } from '../../composables/useChatContext'
 import { useUserStore } from '../../stores/user'
 import { detectLoginRequired } from '../../utils/loginRequiredDetector'
@@ -119,9 +119,29 @@ function onKeydownEnter(e: KeyboardEvent) {
   }
 }
 
-onMounted(() => {
-  // 用户登录态变化时清空历史(spec §4.4 边界)
-})
+/**
+ * 用户上下文隔离(spec §4.4,2026-10-24)。
+ *
+ * <p><b>原先这里是空壳</b>: 注释写着「用户登录态变化时清空历史」, 函数体里只有注释。
+ * 于是登出再登录(账号切换)时, 浮窗里还留着**上一个账号**的对话 ——
+ * 而对话内容可能包含订单号、座位号、用户名这类个人信息。
+ *
+ * <p>这里做两件事:
+ * <ol>
+ *   <li>清空本地消息列表;</li>
+ *   <li>换掉 {@code chatSessionId} —— 服务端的对话记忆是按 chatSessionId 分桶的
+ *       (ChatMemoryStore), 不换 id 的话新用户会**接着上一个用户的记忆**继续聊。</li>
+ * </ol>
+ *
+ * <p>watch 的键是 user id: 登出(user 变 null)与换号(id 变)都会触发。
+ */
+watch(
+  () => userStore.user?.id ?? null,
+  () => {
+    messages.value = []
+    resetChatSession()
+  },
+)
 
 defineExpose({ toggle })
 </script>

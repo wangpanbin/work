@@ -45,6 +45,30 @@ export function statusOnConnect(everOpened: boolean): WsStatus {
   return everOpened ? 'closed' : 'connecting'
 }
 
+/**
+ * WebSocket 基址解析(2026-10-24)—— 座位图与大屏**共用**这一份。
+ *
+ * <p>原先两处各写一套策略:
+ * <ul>
+ *   <li>座位 WS({@link createSeatWs}): `location.hostname` + 端口 5173 时换成 8080
+ *       —— 直连后端, 不走 Vite 代理;</li>
+ *   <li>大屏 WS(LiveDashboard.vue): 直接用 `location.host` —— 依赖 Vite 代理转发 /ws。</li>
+ * </ul>
+ * 两套策略不一致 → 同一个后端, 两条 socket 走不同路径; 而 {@code vite preview} 只配了
+ * {@code server.proxy}、**没有** {@code preview.proxy}, 于是 preview 模式下大屏那条
+ * 彻底连不上, 且没有任何错误面(用户只看到大屏一直空着)。
+ *
+ * <p>统一规则: 开发服务器端口(5173 / 4173)→ 直连后端 8080; 其余情况用当前 host。
+ *
+ * @param loc 形如 {@code location} 的对象(只用到 protocol / hostname / port)
+ */
+export function wsBaseUrl(loc: { protocol: string; hostname: string; port: string }): string {
+  const proto = loc.protocol === 'https:' ? 'wss' : 'ws'
+  const DEV_PORTS = ['5173', '4173']
+  const port = DEV_PORTS.includes(loc.port) ? '8080' : loc.port
+  return port ? `${proto}://${loc.hostname}:${port}` : `${proto}://${loc.hostname}`
+}
+
 export function createSeatWs(
   sessionId: Id,
   onEvent: (e: SeatEvent) => void,
@@ -70,11 +94,8 @@ export function createSeatWs(
   const connect = () => {
     if (closed) return
     status.value = statusOnConnect(everOpened)
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws'
-    const host = location.hostname
-    const port = location.port === '5173' ? '8080' : location.port
-    ws = new WebSocket(`${proto}://${host}:${port}/ws/seat/${toIdString(sessionId)}`)
-
+    // 基址解析与「大屏」共用一份(见 wsBaseUrl 的说明)
+    ws = new WebSocket(`${wsBaseUrl(location)}/ws/seat/${toIdString(sessionId)}`)
     ws.onmessage = (msg) => {
       const payload = msg.data
       const evt = parseWsMessage(payload)

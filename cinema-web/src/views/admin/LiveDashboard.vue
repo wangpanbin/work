@@ -2,11 +2,14 @@
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { dashboardSummary, type DashboardSummary } from '../../api/admin'
+import { wsBaseUrl } from '../../utils/ws'
 
 const { t, locale } = useI18n()
 /** WS 消息处理里 `t` 被事件类型局部变量遮蔽, 这里留一个不冲突的别名给模板/事件拼装用 */
 const t2 = t
 const data = ref<DashboardSummary | null>(null)
+/** 统计拉取失败的提示(2026-10-24): 有值说明是「请求失败」, 没值才是「今天没数据」 */
+const loadError = ref<string | null>(null)
 const events = ref<Array<{ id: number; time: string; type: string; text: string }>>([])
 /**
  * 事件序号 —— 事件行的 key。
@@ -34,14 +37,17 @@ function fmtMoney(n: number | undefined) {
 async function loadSummary() {
   try {
     data.value = await dashboardSummary()
+    loadError.value = null
   } catch (e) {
-    // ignore
+    // 区分「拉不到数据」与「今天确实没数据」—— 两者在界面上不能长得一样
+    loadError.value = t('api.requestFailed')
   }
 }
 
 function connectWs() {
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws'
-  const url = `${proto}://${location.host}/ws/admin`
+  // 基址解析与座位图共用一份(2026-10-24)—— 此前大屏用 location.host 依赖 Vite 代理,
+  // 而 vite preview 没有 preview.proxy, 于是 preview 模式下这条 socket 永远连不上。
+  const url = `${wsBaseUrl(location)}/ws/admin`
   ws = new WebSocket(url)
   ws.onopen = () => {
     connected.value = true
@@ -110,10 +116,18 @@ onUnmounted(() => {
   <div class="live">
     <div class="live-header">
       <h2>{{ t('admin.liveTitle') }}</h2>
-      <div class="conn-status" :class="{ ok: connected, off: !connected }">
+      <div class="conn-status" :class="{ ok: connected, off: !connected }" role="status" aria-live="polite">
         <span class="dot"></span>
         {{ connected ? t('admin.liveConnected') : t('admin.liveDisconnected') }}
       </div>
+    </div>
+
+    <!-- 统计拉取失败: 明确提示 + 重试(2026-10-24)。原先 catch 里只有一句 ignore,
+         卡片整片消失, 管理员看到的是「今天没开张」而不是「请求失败了」;
+         而 5 秒一次的轮询会把同一个失败反复重放。 -->
+    <div v-if="loadError" class="live-error" role="alert">
+      <span class="live-error-text">{{ loadError }}</span>
+      <el-button size="small" @click="loadSummary">{{ t('common.retry') }}</el-button>
     </div>
 
     <div v-if="data" class="cards">

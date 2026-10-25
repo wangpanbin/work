@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Grid, Warning } from '@element-plus/icons-vue'
@@ -32,11 +32,35 @@ onMounted(async () => {
     router.push(ROUTE_PATHS.home)
     return
   }
-  await load()
+  // 首拉失败不再让整个 onMounted 抛出去(2026-10-24):
+  // 根节点是 v-if="order" → 失败就是**一整页空白**, 没有报错、没有重试入口。
+  try {
+    await load()
+  } catch {
+    // 错误已记进 loadError —— 页面渲染错误态 + 重试按钮
+  }
 })
 
+/** 加载失败时的错误文案(渲染「加载失败 + 重试」而不是白屏)。 */
+const loadError = ref<string | null>(null)
+
 async function load() {
-  order.value = await orderDetail(orderNo)
+  try {
+    order.value = await orderDetail(orderNo)
+    loadError.value = null
+  } catch (e) {
+    loadError.value = t('payment.loadFailed')
+    throw e
+  }
+}
+
+/** 错误态上的「重试」—— 重新拉一次订单详情。 */
+async function reload() {
+  try {
+    await load()
+  } catch {
+    // 错误态已经更新, 保持在页面上
+  }
 }
 
 // 时钟走 useNow —— 之前这里调的是 dayjs()(非响应式), remaining 只在 order.value
@@ -61,12 +85,30 @@ const urgent = computed(() => remaining.value <= 60)
 
 // P0-4: 待支付订单超时后, 不再让用户卡在支付页 — 3s 后自动跳订单列表
 // 用 setTimeout 而非 immediate, 给用户一个看到"已超时"状态的窗口期
+//
+// 2026-10-24: 定时器句柄要存下来并在离开页面时清掉 —— 原先它从不取消,
+// 于是用户在这 3 秒窗口里点「重新选座」跳去选座页, 那个还活着的定时器
+// 会把他从选座页**拽回**订单列表。
+let redirectTimer: ReturnType<typeof setTimeout> | null = null
+
 function redirectToOrders() {
   if (autoRedirected.value) return
   autoRedirected.value = true
   ElMessage.warning(t('payment.expiredWarn'))
-  setTimeout(() => router.push(ROUTE_PATHS.orderList), 3000)
+  redirectTimer = setTimeout(() => router.push(ROUTE_PATHS.orderList), 3000)
 }
+
+/** 取消超时自动跳转 —— 用户主动离开前必须调用, 否则会被定时器拽走。 */
+function clearRedirectTimer() {
+  if (redirectTimer) {
+    clearTimeout(redirectTimer)
+    redirectTimer = null
+  }
+}
+
+onUnmounted(() => {
+  clearRedirectTimer()
+})
 
 watch(expired, (isExpired) => {
   if (isExpired) redirectToOrders()
@@ -182,6 +224,8 @@ function fmt(t: number) {
 
 function goSeat() {
   if (!order.value) return
+  // 主动离开前取消超时自动跳转 —— 否则那个还活着的定时器会把用户从选座页拽回来
+  clearRedirectTimer()
   router.push(seatPath(order.value.sessionId))
 }
 
@@ -193,6 +237,11 @@ const barcodeBars = [2, 1, 3, 1, 2, 1, 1, 3, 2, 1, 2, 3, 1, 2, 1, 3]
 </script>
 
 <template>
+  <!-- 加载失败: 错误态 + 重试, 不再是一整页空白(2026-10-24) -->
+  <div v-if="loadError && !order" class="load-error" role="alert">
+    <p class="load-error-text">{{ loadError }}</p>
+    <el-button type="primary" @click="reload">{{ t('common.retry') }}</el-button>
+  </div>
   <div v-if="order" class="payment">
     <div class="payment-card stub-perf-x">
       <!-- Header -->
@@ -369,6 +418,9 @@ const barcodeBars = [2, 1, 3, 1, 2, 1, 1, 3, 2, 1, 2, 3, 1, 2, 1, 3]
 </template>
 
 <style scoped>
+/* 加载失败态(2026-10-24): 居中的错误提示 + 重试, 不再是一整页空白。
+   样式已抽到 main.css 的共享 `.load-error` —— 三个视图共用同一份, 不再各抄一份。 */
+
 .payment {
   max-width: 600px;
   margin: 0 auto;

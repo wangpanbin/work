@@ -23,6 +23,15 @@ const movie = ref<Movie | null>(null)
 const sessions = ref<SessionVO[]>([])
 const loading = ref(false)
 const selectedDate = ref(dayjs().add(1, 'day').format('YYYY-MM-DD'))
+/**
+ * 加载失败态(2026-10-24)。
+ *
+ * <p>原先影片详情一失败, `onMounted` 里的 `await loadMovie()` 就把整个挂载流程打断 ——
+ * 既拿不到影片, `loadSessions()` 也根本没跑, 模板根节点又是 `v-if="movie"` → **整页空白**,
+ * 没有报错、没有重试入口。而「暂无场次」与「请求失败」在界面上长得一模一样。
+ */
+const loadError = ref<string | null>(null)
+const sessionsError = ref<string | null>(null)
 
 const dateOptions = computed(() =>
   [0, 1, 2].map((d) => ({
@@ -46,9 +55,15 @@ async function loadMovie() {
     }).catch(() => { /* 拦截器已提示 */ })
     return
   }
-  const m = await detail(movieId)
-  movie.value = m
-  if (m) cache.setMovieDetail(id, m)
+  try {
+    const m = await detail(movieId)
+    movie.value = m
+    if (m) cache.setMovieDetail(id, m)
+    loadError.value = null
+  } catch (e) {
+    loadError.value = t('movie.loadFailed')
+    throw e
+  }
 }
 
 async function loadSessions() {
@@ -70,13 +85,25 @@ async function loadSessions() {
     const list = await listByMovieAndDate(movieId, selectedDate.value)
     sessions.value = list
     cache.setSessionList(id, selectedDate.value, list)
+    sessionsError.value = null
+  } catch (e) {
+    // 区分「真的没有场次」与「请求失败」—— 两者在界面上不能长得一样
+    sessionsError.value = t('movie.sessionsLoadFailed')
+    throw e
   } finally {
     loading.value = false
   }
 }
 
+/**
+ * 切换场次日期。
+ *
+ * <p><b>只由 watch 驱动</b>(2026-10-24): 原先 `watch(selectedDate)` 与
+ * `<el-radio-group @change="loadSessions">` 各触发一次 —— 切一个日期发**两次**
+ * 相同请求, 两个响应还可能先后到达互相覆盖。
+ */
 watch(selectedDate, () => {
-  loadSessions()
+  loadSessions().catch(() => { /* 错误态已记录 */ })
 })
 
 function goSeat(s: SessionVO) {
@@ -93,12 +120,44 @@ function fmt(t: string) {
 }
 
 onMounted(async () => {
-  await loadMovie()
-  await loadSessions()
+  // 两个加载都各自兜住 —— 影片失败不该连场次都不拉(2026-10-24)
+  try {
+    await loadMovie()
+  } catch {
+    // 错误态已记录在 loadError
+  }
+  try {
+    await loadSessions()
+  } catch {
+    // 错误态已记录在 sessionsError
+  }
 })
+
+/** 错误态上的「重试」—— 重拉影片详情。 */
+async function reloadMovie() {
+  try {
+    await loadMovie()
+  } catch {
+    // 错误态已更新, 保持在页面上
+  }
+}
+
+/** 错误态上的「重试」—— 重拉场次列表。 */
+async function reloadSessions() {
+  try {
+    await loadSessions()
+  } catch {
+    // 错误态已更新, 保持在页面上
+  }
+}
 </script>
 
 <template>
+  <!-- 影片详情加载失败: 错误态 + 重试, 不再是一整页空白(2026-10-24) -->
+  <div v-if="loadError && !movie" class="load-error" role="alert">
+    <p class="load-error-text">{{ loadError }}</p>
+    <el-button type="primary" @click="reloadMovie">{{ t('common.retry') }}</el-button>
+  </div>
   <div v-loading="loading" class="movie-detail">
     <template v-if="movie">
       <!-- Hero Section -->
@@ -145,12 +204,16 @@ onMounted(async () => {
       <section class="sessions-section">
         <div class="sessions-header">
           <h2 class="section-title">{{ t('movie.sectionTitle') }}</h2>
-          <el-radio-group v-model="selectedDate" @change="loadSessions" class="date-picker">
+          <el-radio-group v-model="selectedDate" class="date-picker">
             <el-radio-button v-for="d in dateOptions" :key="d.value" :value="d.value">{{ d.label }}</el-radio-button>
           </el-radio-group>
         </div>
 
-        <el-empty v-if="!loading && sessions.length === 0" :description="t('movie.noSessions')" />
+        <div v-if="sessionsError && !loading" class="sessions-error" role="alert">
+          <p class="sessions-error-text">{{ sessionsError }}</p>
+          <el-button @click="reloadSessions">{{ t('common.retry') }}</el-button>
+        </div>
+        <el-empty v-else-if="!loading && sessions.length === 0" :description="t('movie.noSessions')" />
 
         <div class="session-list">
           <div v-for="(s, idx) in sessions" :key="s.id" class="session-card card-reveal" :style="{ animationDelay: `${idx * 0.06}s` }">
@@ -175,6 +238,23 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+/* 加载失败态(2026-10-24): 居中的错误提示 + 重试, 不再是一整页空白。
+   样式已抽到 main.css 的共享 `.load-error` —— 三个视图共用同一份, 不再各抄一份。 */
+/* 场次区加载失败: 与「暂无场次」区分开 —— 两者不能长得一样 */
+.sessions-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 28px 16px;
+  text-align: center;
+}
+.sessions-error-text {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+
 .movie-detail {
   animation: fadeInUp 0.5s ease;
 }

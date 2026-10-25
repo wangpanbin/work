@@ -36,18 +36,46 @@ const activeStatus = ref<StatusFilter>(ALL_STATUS)
 const counts = ref<Record<OrderStatusCode, number>>({ 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 })
 const allCount = ref(0)
 
+/**
+ * 分页状态(2026-10-24)。
+ *
+ * <p>原先列表写死 {@code page: 1, size: 20} 且全仓没有 el-pagination ——
+ * **第 21 条之后的订单永远看不到**。现在接上分页, 翻页能取到全部订单。
+ */
+const total = ref(0)
+const pageNum = ref(1)
+const pageSize = ref(20)
+
 async function load() {
   loading.value = true
   try {
     const data = await myOrders({
       status: activeStatus.value === ALL_STATUS ? undefined : activeStatus.value,
-      page: 1,
-      size: 20,
+      page: pageNum.value,
+      size: pageSize.value,
     })
     orders.value = data.records
+    total.value = Number(data.total ?? 0)
   } finally {
     loading.value = false
   }
+}
+
+/** 切换状态筛选: 回到第 1 页并重拉。 */
+function onStatusChange() {
+  pageNum.value = 1
+  load()
+}
+
+function onPageChange(p: number) {
+  pageNum.value = p
+  load()
+}
+
+function onSizeChange(s: number) {
+  pageSize.value = s
+  pageNum.value = 1
+  load()
 }
 
 // P2-#16: 并发拉各状态 size=1 计数, 让 tab 角标有数据
@@ -90,6 +118,8 @@ async function onCancel(o: OrderVO) {
     await cancel(o.orderNo)
     ElMessage.success(t('order.cancelSuccess'))
     load()
+    // 角标要跟着变 —— 订单状态变了, tab 上的计数不能还停在旧值
+    loadCounts()
   } catch {
     // 拦截器已弹错误
   }
@@ -113,6 +143,8 @@ async function onRefund(o: OrderVO) {
     await refund(o.orderNo)
     ElMessage.success(t('order.refundSuccess'))
     load()
+    // 角标要跟着变 —— 订单状态变了, tab 上的计数不能还停在旧值
+    loadCounts()
   } catch {
     // 拦截器已弹错误
   }
@@ -129,7 +161,7 @@ onMounted(() => {
     <!-- Header -->
     <div class="page-header">
       <h2 class="section-title">{{ t('order.pageTitle') }}</h2>
-      <el-radio-group v-model="activeStatus" @change="load" class="filter-tabs">
+      <el-radio-group v-model="activeStatus" @change="onStatusChange" class="filter-tabs">
         <el-radio-button :value="ALL_STATUS">
           {{ t('order.tabAll') }}<el-badge v-if="allCount > 0" :value="allCount" class="tab-badge" />
         </el-radio-button>
@@ -244,12 +276,29 @@ onMounted(() => {
         </div>
       </div>
     </div>
+
+    <!-- 分页条(2026-10-24): 原先写死 size=20 且无分页, 第 21 条之后的订单不可达 -->
+    <el-pagination
+      v-if="total > pageSize"
+      class="orders-pager"
+      layout="total, prev, pager, next"
+      :total="total"
+      :current-page="pageNum"
+      :page-size="pageSize"
+      @current-change="onPageChange"
+    />
   </div>
 </template>
 
 <style scoped>
 .order-list {
   animation: fadeInUp 0.5s ease;
+}
+
+/* 分页条: 右对齐, 与列表留出呼吸间距(2026-10-24) */
+.orders-pager {
+  margin-top: 18px;
+  justify-content: flex-end;
 }
 
 .page-header {

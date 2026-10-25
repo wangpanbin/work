@@ -1,12 +1,14 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { CARD_KINDS, cardKey, cardKindOf } from '../../../src/components/chat/cardRegistry'
+import { CARD_KINDS, cardKey, cardKindOf, cardTypeLabelKey } from '../../../src/components/chat/cardRegistry'
 import {
   CARD_TYPE_ORDER_PROPOSAL,
   CARD_TYPE_PENDING_ORDER,
 } from '../../../src/components/chat/orderProposalCard'
 import type { ActionCardVO } from '../../../src/types'
+import zhCN from '../../../src/i18n/locales/zh-CN'
+import enUS from '../../../src/i18n/locales/en-US'
 
 /**
  * 聊天卡片登记表的契约。
@@ -84,5 +86,57 @@ describe('ChatMessage.vue — 走 cardRegistry', () => {
 
   it('模板里不再出现内联的 cardId ?? sessionId-idx 表达式', () => {
     expect(src).not.toContain('card.cardId ??')
+  })
+})
+
+/**
+ * 卡型文案走 i18n(2026-10-24)。
+ *
+ * 模板原先直接渲染 `card.type`, 于是服务端枚举(SEAT_SUGGESTION / ORDER_PROPOSAL / …)
+ * 原样出现在界面上 —— 英文界面里也会露出英文枚举, 而相邻的每一句文案都是翻译过的。
+ */
+describe('cardTypeLabelKey — 卡型枚举 → i18n key', () => {
+  it('登记过的卡型返回对应 key', () => {
+    expect(cardTypeLabelKey('SEAT_SUGGESTION')).toBe('chat.cardTypeSeatSuggestion')
+    expect(cardTypeLabelKey('ORDER_PROPOSAL')).toBe('chat.cardTypeOrderProposal')
+    expect(cardTypeLabelKey('PENDING_ORDER')).toBe('chat.cardTypePendingOrder')
+  })
+
+  it('未知卡型返回 null(调用方回退到原样显示, 不空白)', () => {
+    expect(cardTypeLabelKey('SOMETHING_NEW')).toBeNull()
+  })
+
+  it('空值返回 null', () => {
+    expect(cardTypeLabelKey(null)).toBeNull()
+    expect(cardTypeLabelKey(undefined)).toBeNull()
+    expect(cardTypeLabelKey('')).toBeNull()
+  })
+
+  it('返回的 key 必须在 zh-CN 与 en-US 两份 locale 里都存在', () => {
+    // 静态导入两份 locale, 直接查表 —— 避免 key 拼错时界面显示成裸 key
+    // key 形如 'chat.cardTypeSeatSuggestion', 按点号路径逐级下钻
+    const lookup = (root: unknown, dotted: string) =>
+      dotted.split('.').reduce<unknown>((acc, seg) => {
+        if (acc == null || typeof acc !== 'object') return undefined
+        return (acc as Record<string, unknown>)[seg]
+      }, root)
+
+    for (const type of ['SEAT_SUGGESTION', 'ORDER_PROPOSAL', 'PENDING_ORDER']) {
+      const key = cardTypeLabelKey(type)
+      expect(key).not.toBeNull()
+      expect(lookup(zhCN, key as string), `zh-CN 缺 ${key}`).toBeTruthy()
+      expect(lookup(enUS, key as string), `en-US 缺 ${key}`).toBeTruthy()
+    }
+  })
+
+  it('ActionCard.vue 走 cardTypeLabelKey, 不直接渲染原始枚举', () => {
+    const src = readFileSync(
+      fileURLToPath(new URL('../../../src/components/chat/ActionCard.vue', import.meta.url)),
+      'utf-8',
+    )
+    expect(src).toContain("from './cardRegistry'")
+    expect(src).toContain('cardTypeLabelKey(')
+    // 模板里不得直接输出 card.type
+    expect(src).not.toMatch(/\{\{\s*card\.type\s*\}\}/)
   })
 })

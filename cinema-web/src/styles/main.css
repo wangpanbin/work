@@ -393,6 +393,28 @@ img {
   outline-offset: 2px;
 }
 
+/* ============================================
+   共享状态块 · 加载失败态
+   SeatSelect / Payment / MovieDetail 三处曾经各抄一份同名不同前缀的 CSS,
+   改一处漏两处就会漂。抽到这里共用, 颜色一律走 token(不用写死色值)。
+   ============================================ */
+.load-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-height: 320px;
+  padding: 32px;
+  text-align: center;
+}
+
+.load-error-text {
+  margin: 0;
+  font-size: 15px;
+  color: var(--ink-2);
+}
+
 /* --- App 根容器 --- */
 .app {
   min-height: 100vh;

@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { computed } from 'vue'
 import type { ActionCardVO } from '../../types'
 import { buildSeatRoute } from './actionCardRoute'
+import { cardTypeLabelKey } from './cardRegistry'
 
 const props = defineProps<{
   card: ActionCardVO
@@ -10,6 +12,12 @@ const props = defineProps<{
 
 const router = useRouter()
 const { t } = useI18n()
+
+/** 卡型文案: 登记过的走 i18n, 没登记的原样显示服务端枚举(不至于空白)。 */
+const typeLabel = computed(() => {
+  const key = cardTypeLabelKey(props.card.type)
+  return key ? t(key) : (props.card.type ?? '')
+})
 
 /**
  * 跳到选座流程并预选座位(spec §7.2 + ADR-0002)。
@@ -20,9 +28,15 @@ function onClick() {
 </script>
 
 <template>
+  <!--
+    卡片本体可点(鼠标), 但**焦点只落在里面的按钮上**(2026-10-24):
+    原先整张卡是 `div @click`, 没有 role / tabindex / keydown —— 键盘用户只能「碰巧」
+    tab 到内层按钮、按 Enter 让 click 冒泡上来才走得通, 读屏也只会念成「一组」。
+    现在按钮自己绑 onClick, 是唯一焦点落点与无障碍名字。
+  -->
   <div class="action-card" @click="onClick">
     <div class="action-card-header">
-      <span class="action-card-type">{{ card.type }}</span>
+      <span class="action-card-type">{{ typeLabel }}</span>
       <span class="action-card-price" v-if="card.price != null">¥{{ card.price }}</span>
     </div>
     <div class="action-card-body">
@@ -31,7 +45,9 @@ function onClick() {
       <div class="action-card-meta" v-if="card.seatDesc">{{ t('chat.cardSeatsLabel') }}: {{ card.seatDesc }}</div>
       <div class="action-card-meta" v-if="card.totalAmount != null">{{ t('chat.cardAmountLabel') }}: ¥{{ card.totalAmount }}</div>
     </div>
-    <button class="action-card-btn" type="button">{{ card.actionLabel ?? t('chat.cardJumpBtn') }}</button>
+    <button class="action-card-btn" type="button" @click.stop="onClick">
+      {{ card.actionLabel ?? t('chat.cardJumpBtn') }}
+    </button>
   </div>
 </template>
 

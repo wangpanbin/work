@@ -29,6 +29,15 @@ const { t } = useI18n()
 const sessionId = computed(() => String(route.params.sessionId))
 const submitting = ref(false)
 const refreshing = ref(false)
+/**
+ * 首拉失败时的错误文案(2026-10-24)。
+ *
+ * <p>原先首拉失败会让整个 `onMounted` 抛异常中断: 座位图根节点是
+ * `v-if="seatStore.map"` → 整页空白, 没有报错、没有重试, 而且
+ * **`createSeatWs` 根本没被调用** —— 实时同步整个会话静默失效,
+ * 用户看到的是一张永远不会更新的座位图, 毫无察觉。
+ */
+const loadError = ref<string | null>(null)
 let wsHandle: SeatWsHandle | null = null
 
 // P0-2: WS 连接状态(从 wsHandle.status 同步过来给 template 用)
@@ -40,14 +49,38 @@ const wsStatus = ref<WsStatus>('connecting')
  * @param preserveSelection 权威重拉时为 true —— 不直接丢弃用户已选座位, 而是逐个用新位图复核。
  *   缺省 false, 保持改动前的语义(手动刷新按钮 / 首次装载仍清空选座)。
  * @returns 本次被剔除的已选座位数(保留模式下才有意义)
+ * @throws 座位图接口失败时向上抛, 但**先把错误记进 {@link loadError}** ——
+ *   页面据此渲染「加载失败 + 重试」, 而不是一整页空白。
  */
 async function refresh(preserveSelection = false): Promise<number> {
   refreshing.value = true
   try {
     const m = await seatMap(sessionId.value)
-    return seatStore.load(m, { preserveSelection }).length
+    const removed = seatStore.load(m, { preserveSelection }).length
+    loadError.value = null
+    return removed
+  } catch (e) {
+    loadError.value = t('seat.loadFailed')
+    throw e
   } finally {
     refreshing.value = false
+  }
+}
+
+/**
+ * 手动刷新按钮的处理器(2026-10-24)。
+ *
+ * <p><b>为什么不直接 `@click="refresh"`</b>: Vue 的事件处理函数会把
+ * `MouseEvent` 作为第一个实参传进去, 而 `refresh(preserveSelection = false)`
+ * 的第一个形参是 boolean —— 于是事件对象被当成 `true` 传进去,
+ * 实际行为变成「保留选座」, 与按钮的文档语义(手动刷新清空选座)正好相反。
+ * 用一个无参包装函数把这个坑堵死。
+ */
+async function onManualRefresh() {
+  try {
+    await refresh(false)
+  } catch {
+    // 错误已记进 loadError, 页面会渲染错误态
   }
 }
 
@@ -231,12 +264,20 @@ onMounted(async () => {
     router.push('/login')
     return
   }
-  await refresh()
-  // T7: 应用 preselect(spec §7.2) — 来自 chat 行动卡片的跳转
-  // 必须在 refresh() 之后调用(位图未知则冲突判断失效)
-  const preselect = parsePreselectFromQuery(route.query.preselect)
-  if (preselect.length > 0) {
-    seatStore.applyPreselect(preselect)
+  // 首拉失败**不再中断整个 onMounted** —— WS 必须连上(2026-10-24)。
+  // 否则用户看到的是一张「没有实时更新」的过期座位图, 而且毫无察觉:
+  // 状态条都不会出现, 因为连 wsHandle 都没创建。
+  try {
+    await refresh()
+    // T7: 应用 preselect(spec §7.2) — 来自 chat 行动卡片的跳转
+    // 必须在 refresh() 之后调用(位图未知则冲突判断失效)
+    const preselect = parsePreselectFromQuery(route.query.preselect)
+    if (preselect.length > 0) {
+      seatStore.applyPreselect(preselect)
+    }
+  } catch {
+    // 错误已记进 loadError —— 页面渲染「加载失败 + 重试」, WS 继续连着,
+    // 连上后的权威重拉会把座位图补回来
   }
   wsHandle = createSeatWs(sessionId.value, (evt) => {
     const before = seatStore.selected.size
@@ -336,6 +377,13 @@ async function onConfirm() {
 </script>
 
 <template>
+  <!-- 首拉失败: 明确错误态 + 重试按钮, 不再是一整页空白(2026-10-24) -->
+  <div v-if="loadError && !seatStore.map" class="load-error" role="alert">
+    <p class="load-error-text">{{ loadError }}</p>
+    <el-button type="primary" :loading="refreshing" @click="onManualRefresh">
+      {{ t('common.retry') }}
+    </el-button>
+  </div>
   <div class="seat-select" v-if="seatStore.map">
     <!-- P0-2: WS 连接状态条 — 断连/重连时给用户明确反馈, 避免静默失同步 -->
     <div class="ws-status" :class="`ws-${wsStatus}`" role="status" aria-live="polite">
@@ -377,7 +425,7 @@ async function onConfirm() {
           </div>
         </div>
       </div>
-      <el-button @click="refresh" :loading="refreshing" class="refresh-btn">
+      <el-button @click="onManualRefresh" :loading="refreshing" class="refresh-btn">
         <el-icon class="refresh-icon"><Refresh /></el-icon>
         {{ t('seat.refresh') }}
       </el-button>
@@ -495,6 +543,9 @@ async function onConfirm() {
 </template>
 
 <style scoped>
+/* 首拉失败态(2026-10-24): 居中的错误提示 + 重试, 不再是一整页空白。
+   样式已抽到 main.css 的共享 `.load-error` —— 三个视图共用同一份, 不再各抄一份。 */
+
 .seat-select {
   display: flex;
   flex-direction: column;

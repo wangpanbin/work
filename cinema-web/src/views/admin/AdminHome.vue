@@ -12,6 +12,8 @@ const { t } = useI18n()
 
 const isAdmin = computed(() => userStore.user?.role === 1)
 const summary = ref<DashboardSummary | null>(null)
+/** 统计拉取失败的提示(2026-10-24): 有值说明是「请求失败」, 没值才是「今天没数据」 */
+const loadError = ref<string | null>(null)
 
 // 移动端顶部导航项
 // ⚠️ 原稿每项带彩色 emoji 图标(🏠📊📡🎞🛋📅)。票根主题是克制的印刷质感,
@@ -28,8 +30,10 @@ const navItems = computed(() => [
 async function load() {
   try {
     summary.value = await dashboardSummary()
+    loadError.value = null
   } catch {
-    // ignore
+    // 区分「拉不到数据」与「今天确实没数据」—— 两者在界面上不能长得一样
+    loadError.value = t('api.requestFailed')
   }
 }
 
@@ -88,6 +92,13 @@ function logout() {
             <p class="welcome-subtitle">{{ t('admin.welcomeSubtitle') }}</p>
           </div>
 
+          <!-- 统计拉取失败: 明确提示 + 重试(2026-10-24)。原先 catch 里只有一句 ignore,
+               卡片整片消失, 管理员看到的是「今天没开张」而不是「请求失败了」。 -->
+          <div v-if="loadError" class="welcome-error" role="alert">
+            <span class="welcome-error-text">{{ loadError }}</span>
+            <el-button size="small" @click="load">{{ t('common.retry') }}</el-button>
+          </div>
+
           <div v-if="summary" class="welcome-cards">
             <div class="card card-reveal card-reveal--plain gold">
               <div class="label">{{ t('admin.cardTodayRevenue') }}</div>
@@ -117,6 +128,9 @@ function logout() {
             <el-button @click="router.push('/admin/sessions')">
               {{ t('admin.welcomeEnterSessions') }}
             </el-button>
+            <!-- 退出登录(2026-10-24): logout() 此前定义了却没有任何模板引用,
+                 于是管理端**没有退出入口** —— 管理员只能手动清 localStorage。 -->
+            <el-button link type="danger" @click="logout">{{ t('admin.homeLogout') }}</el-button>
           </div>
         </div>
       </router-view>

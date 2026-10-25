@@ -42,3 +42,25 @@ export function cardKindOf(card: ActionCardVO | null | undefined): CardKind {
 export function cardKey(card: ActionCardVO, idx: number): string {
   return card.cardId ?? `${card.sessionId}-${idx}`
 }
+
+/**
+ * 服务端卡型枚举 → i18n 文案 key。
+ *
+ * <p><b>为什么需要它</b>(2026-10-24): 模板原先直接渲染 {@code card.type},
+ * 于是服务端枚举(SEAT_SUGGESTION / ORDER_PROPOSAL / …)原样出现在界面上 ——
+ * 英文界面里也会露出英文枚举, 而相邻的每一句文案都是翻译过的, 夹在中间很突兀。
+ *
+ * <p>未知卡型返回 {@code null}, 调用方回退到原样显示 —— 新增卡型时忘了登记文案,
+ * 最多是「显示英文枚举」, 而不是空白或报错。
+ */
+const CARD_TYPE_LABEL_KEYS: Readonly<Record<string, string>> = {
+  SEAT_SUGGESTION: 'chat.cardTypeSeatSuggestion',
+  ORDER_PROPOSAL: 'chat.cardTypeOrderProposal',
+  PENDING_ORDER: 'chat.cardTypePendingOrder',
+}
+
+/** 卡型枚举对应的 i18n key; 未知卡型返回 null。 */
+export function cardTypeLabelKey(type: string | null | undefined): string | null {
+  if (!type) return null
+  return CARD_TYPE_LABEL_KEYS[type] ?? null
+}

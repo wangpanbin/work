@@ -124,7 +124,7 @@ const hoveredTip = computed(() => (hovered.value ? tooltipPlacement(hovered.valu
 
 function maxMovie(): number {
   if (!data.value?.topMovies?.length) return 0
-  return Math.max(...data.value.topMovies.map((m) => Number(m.revenue)), 1)
+  return Math.max(...data.value.topMovies.map((m) => Number(m.revenue ?? 0)), 1)
 }
 
 onMounted(load)
@@ -236,7 +236,9 @@ onMounted(load)
             <div class="rank">{{ i + 1 }}</div>
             <div class="movie-name">{{ m.title }}</div>
             <div class="movie-bar-wrap">
-              <div class="movie-bar-fill" :style="{ width: (Number(m.revenue) / maxMovie() * 100) + '%' }"></div>
+              <!-- revenue 缺失时按 0 算: Number(undefined) 是 NaN, 拼成 "NaN%" 会被浏览器
+                   当作非法样式整条丢弃, 条形图于是静默停在默认宽度, 看上去像「这影片没票房」 -->
+              <div class="movie-bar-fill" :style="{ width: (Number(m.revenue ?? 0) / maxMovie() * 100) + '%' }"></div>
             </div>
             <div class="movie-rev">¥{{ fmtAmount(m.revenue) }} · {{ m.orders + ' ' + t('admin.ordersUnit') }}</div>
           </div>
