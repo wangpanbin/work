@@ -192,6 +192,33 @@ def gate_audit_redline() -> GateResult:
     return GateResult("审计红线", "FAIL", f"未确认写操作数 = {bad}(必须为 0)", duration, metrics)
 
 
+def gate_e2e() -> GateResult:
+    """浏览器回归(Playwright, 真 Chromium)。
+
+    <p>它需要**后端 8080 + 前端 5173 都在跑**。用 ``--with-e2e`` 显式要它跑;
+    服务没起就**明确报「缺前置」** —— 静默跳过等于把「没验」说成「验过了」。
+    """
+    import urllib.request
+    t0 = time.time()
+    duration = time.time() - t0
+    missing = []
+    for name, url in (("后端 8080", "http://localhost:8080/actuator/health"),
+                      ("前端 5173", "http://localhost:5173")):
+        try:
+            with urllib.request.urlopen(url, timeout=5):
+                pass
+        except Exception:
+            missing.append(name)
+    if missing:
+        return GateResult("浏览器回归", "FAIL",
+                          "前置缺失: " + "、".join(missing) + " 都在跑吗?(--with-e2e 是显式要求)", duration)
+    rc, out = _run([sys.executable, "test/e2e/e2e_regression.py"], REPO, timeout=1800)
+    tail = "\n".join(out.strip().splitlines()[-20:])
+    if rc != 0:
+        return GateResult("浏览器回归", "FAIL", tail, duration)
+    return GateResult("浏览器回归", "PASS", "", duration)
+
+
 GATES = [
     ("backend", "后端单测", gate_backend),
     ("frontend-type", "前端类型", gate_frontend_type),
@@ -209,6 +236,8 @@ def main(argv: list | None = None) -> int:
     p.add_argument("--only", action="append", default=[], metavar="GATE",
                    help="只跑某些闸门(可重复)")
     p.add_argument("--json", action="store_true", help="输出 JSON")
+    p.add_argument("--with-e2e", action="store_true",
+                   help="带上浏览器回归(test/e2e/e2e_regression.py)。需要后端 8080 与前端 5173 都在跑")
     args = p.parse_args(argv)
 
     selected = GATES
@@ -218,6 +247,8 @@ def main(argv: list | None = None) -> int:
     if args.skip:
         keys = set(args.skip)
         selected = [g for g in selected if g[0] not in keys]
+    if args.with_e2e and not any(k == "e2e" for k, _, _ in selected):
+        selected = selected + [("e2e", "浏览器回归", gate_e2e)]
     if not selected:
         print("没有要跑的闸门", file=sys.stderr)
         return 2
