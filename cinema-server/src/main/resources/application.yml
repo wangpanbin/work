@@ -43,6 +43,11 @@ cinema:
     # 生产部署必须显式设为 false(或改用 SPRING_PROFILES_ACTIVE 切到非 dev profile)。
     admin-enabled: ${CINEMA_SEED_ADMIN_ENABLED:true}
   chat:
+    # 对话助手的**模型来源**: deepseek(真实 LLM, 默认) | stub(假 LLM, 确定性回复)。
+    # stub 只替换「模型决策」这一步 —— 卡片解析、提案装配、座位重读、前端渲染全是生产代码。
+    # 用途: 让「一键下单确认卡」那条浏览器链路能确定性回归(真实 LLM 出不出卡看模型当天发挥)。
+    # ⚠️ stub 下**不调用任何外部模型**, 也不需要 api-key; 但它同样只读, 不写任何业务数据。
+    provider: ${CINEMA_CHAT_PROVIDER:deepseek}
     # 对话助手 LLM 配置(env 驱动;ChatConfig @ConditionalOnExpression 仅在 key 非空时注册 ChatModel Bean)
     # 设置 `DEEPSEEK_API_KEY` 环境变量后,/api/chat/message 才会接通 LLM(否则 50000 + "对话功能未配置" 短路)
     # 示例(setx DEEPSEEK_API_KEY "sk-xxx" 后重启 cmd / PowerShell,USER 级别即可)

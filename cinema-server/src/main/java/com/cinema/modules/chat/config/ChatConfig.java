@@ -1,6 +1,7 @@
 package com.cinema.modules.chat.config;
 
 import com.cinema.modules.chat.agent.CinemaAssistant;
+import com.cinema.modules.chat.agent.StubCinemaAssistant;
 import com.cinema.modules.chat.memory.ChatMemoryStore;
 import com.cinema.modules.chat.tools.ChatTools;
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
@@ -16,6 +17,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -92,6 +94,7 @@ public class ChatConfig {
 
     @Bean
     @ConditionalOnBean(ChatModel.class)
+    @ConditionalOnProperty(name = "cinema.chat.provider", havingValue = "deepseek", matchIfMissing = true)
     public CinemaAssistant cinemaAssistant(ChatModel chatModel, ChatTools chatTools, ChatMemoryStore memoryStore) {
         log.info("[chat] 注册 CinemaAssistant Bean (AiServices.builder + 3 个 ErrorHandler + 7 个工具 + ChatMemoryProvider)");
         return AiServices.builder(CinemaAssistant.class)
@@ -117,5 +120,20 @@ public class ChatConfig {
                             "没有名为 " + req.name() + " 的工具,请从可用工具中选择");
                 })
                 .build();
+    }
+
+    /**
+     * 假 LLM Bean —— {@code cinema.chat.provider=stub} 时取代真实模型。
+     *
+     * <p>只替换「模型决策」这一步, 卡片解析 / 提案装配 / 座位重读 / 前端渲染全是生产代码。
+     * 目的是让「一键下单确认卡」那条浏览器链路能**确定性**回归, 而不是看 LLM 当天心情。
+     *
+     * <p>它<b>不依赖 {@link ChatModel}</b> —— 所以没配 api-key 也能起, E2E 夹具可以完全离线跑。
+     */
+    @Bean
+    @ConditionalOnProperty(name = "cinema.chat.provider", havingValue = "stub")
+    public CinemaAssistant stubCinemaAssistant(ChatTools chatTools) {
+        log.info("[chat] 注册 CinemaAssistant Bean (stub provider —— 确定性回复, 不调用真实 LLM)");
+        return new StubCinemaAssistant(chatTools);
     }
 }
