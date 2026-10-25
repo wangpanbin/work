@@ -24,6 +24,7 @@ const router = createRouter({
         { path: 'movies', name: 'admin-movies', component: () => import('../views/admin/MovieManage.vue') },
         { path: 'halls', name: 'admin-halls', component: () => import('../views/admin/HallManage.vue') },
         { path: 'sessions', name: 'admin-sessions', component: () => import('../views/admin/SessionManage.vue') },
+        { path: 'chat-stats', name: 'admin-chat-stats', component: () => import('../views/admin/ChatStats.vue') },
       ]
     },
     // 兜底 404, 避免外部死链进来白屏

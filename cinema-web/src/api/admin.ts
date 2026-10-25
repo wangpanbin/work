@@ -27,6 +27,36 @@ export function dashboardSummary(): Promise<DashboardSummary> {
   return request.get('/admin/dashboard/summary') as Promise<DashboardSummary>
 }
 
+/* ===================== 对话助手用量看板 (v0.4.0 IT-11) ===================== */
+
+/**
+ * 助手用量统计。成本字段是**估算值**(单价来自后端配置, 需人工维护), 不是财务口径。
+ */
+export interface ChatAssistantStats {
+  days: number
+  since: string
+  totalCalls: number
+  failedCalls: number
+  failureRate: number
+  sessions: number
+  users: number
+  promptTokens: number
+  completionTokens: number
+  /** 估算成本(美分 USD); null = 单价未配置或用量未知 */
+  costCents: number | null
+  /** P95 服务端耗时(毫秒); null = 无样本 */
+  p95LatencyMs: number | null
+  writeAttempts: number
+  writeSuccess: number
+  /** 红线指标: 未经用户显式确认的写操作数, 必须恒为 0 */
+  unconfirmedWrites: number
+  dailyCalls: Array<{ day: string; calls: number }>
+}
+
+export function fetchChatStats(days = 7): Promise<ChatAssistantStats> {
+  return request.get('/admin/chat/stats', { params: { days } }) as Promise<ChatAssistantStats>
+}
+
 /* ===================== 影片 CRUD ===================== */
 
 export interface AdminMovieQuery {

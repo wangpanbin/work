@@ -25,6 +25,7 @@ const navItems = computed(() => [
   { path: '/admin/movies', labelKey: 'admin.mobileNavMovies' },
   { path: '/admin/halls', labelKey: 'admin.mobileNavHalls' },
   { path: '/admin/sessions', labelKey: 'admin.mobileNavSessions' },
+  { path: '/admin/chat-stats', labelKey: 'admin.mobileNavChatStats' },
 ])
 
 async function load() {
@@ -60,6 +61,7 @@ function logout() {
         <el-menu-item index="/admin/movies">{{ t('admin.homeSidebar.movies') }}</el-menu-item>
         <el-menu-item index="/admin/halls">{{ t('admin.homeSidebar.halls') }}</el-menu-item>
         <el-menu-item index="/admin/sessions">{{ t('admin.homeSidebar.sessions') }}</el-menu-item>
+        <el-menu-item index="/admin/chat-stats">{{ t('admin.homeSidebar.chatStats') }}</el-menu-item>
       </el-menu>
     </el-aside>
     <el-main class="content">
@@ -94,8 +96,8 @@ function logout() {
 
           <!-- 统计拉取失败: 明确提示 + 重试(2026-10-24)。原先 catch 里只有一句 ignore,
                卡片整片消失, 管理员看到的是「今天没开张」而不是「请求失败了」。 -->
-          <div v-if="loadError" class="welcome-error" role="alert">
-            <span class="welcome-error-text">{{ loadError }}</span>
+          <div v-if="loadError" class="load-error" role="alert">
+            <p class="load-error-text">{{ loadError }}</p>
             <el-button size="small" @click="load">{{ t('common.retry') }}</el-button>
           </div>
 
