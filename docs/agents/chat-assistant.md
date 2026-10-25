@@ -5,6 +5,33 @@
 > **硬约束仍在 `AGENTS.md`** —— 本文件是专题展开, 不覆盖仓库级底线。
 > 改动前先读 `AGENTS.md` 的 `Conventions & gotchas` 一节。
 
+## 写审计与用量(v0.4.0,IT-05 / IT-11)
+
+助手对话与「确认下单」都会往 `chat_assistant_log` 落一行。两张表共用一张:
+
+| 口径 | `kind` | 关键列 | 谁看 |
+| --- | --- | --- | --- |
+| 写审计 | `WRITE_CONFIRM` | `confirmed_by_user`(1=用户显式确认)· `proposal_id` · `order_no` · `result` | 管理端看板 + 红线查询 |
+| 用量 | `CHAT` | `latency_ms` · `prompt_tokens` · `completion_tokens` · `cost_cents` | 管理端看板 |
+
+**三条不能破的语义**:
+
+1. **审计写失败绝不影响用户下单** —— `ChatAssistantLogService.safeInsert` 全程 try/catch,
+   失败只记 error 日志。审计挂掉就让下单失败是不可接受的。
+2. **用量未知记 `null`,不记 0** —— 0 会被误读成「这次调用免费」。
+   `tokenUsage()` 拿不到就写 null;单价未配置(配成 0)时 `cost_cents` 也是 null。
+   看板的聚合用 `SUM(cost_cents)`(不是 `COALESCE(...,0)`)—— 否则「未配置单价」
+   会被压成 0,那个状态就再也显示不出来了。
+3. **成本是估算值,不是财务口径** —— 单价在 `application.yml` 的 `cinema.chat.cost.*`
+   (美分 USD / 每百万 token)。DeepSeek 会调价且分峰谷时段 → **单价需人工维护**。
+   取价来源:https://api-docs.deepseek.com/quick_start/pricing
+
+**红线指标**:`SELECT COUNT(*) FROM chat_assistant_log WHERE kind='WRITE_CONFIRM' AND confirmed_by_user=0`
+恒为 0。它恒为 0 的结构性理由:助手没有任何写工具(`ChatTools` 全是只读 `@Tool`),
+写入口只有 `ChatOrderController#confirm` 一处,且那一处恒传 `confirmed_by_user=1`。
+**将来新增任何写入口,必须显式传 1** —— 否则这条查询会立刻把它数出来。
+`tools/run_all_gates.py` 的「审计红线」闸门查的就是它。
+
 ## 对话式订票助手 (chat assistant)
 
 Design spec: `docs/superpowers/specs/2026-09-21-chat-assistant-design.md` + `docs/superpowers/specs/2026-10-19-chat-one-click-order-design.md`。It rides LangChain4j inside `cinema-server` (ADR-0001) and deliberately does not use RAG (ADR-0003). There are **8 `@Tool` methods** on `ChatTools` (4 movie/session + 2 seat + 2 order); `ChatToolsStructureTest` is the reflection whitelist that fails if any write method ever gets annotated.

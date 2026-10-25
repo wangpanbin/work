@@ -5,6 +5,16 @@ issue tracker、triage 标签与领域词表的位置。
 > **硬约束仍在 `AGENTS.md`** —— 本文件是专题展开, 不覆盖仓库级底线。
 > 改动前先读 `AGENTS.md` 的 `Conventions & gotchas` 一节。
 
+## 闸门入口
+
+`python tools/run_all_gates.py` —— 后端 / 前端类型 / 前端构建 / 前端用例 / Python 工具 / 审计红线,
+逐项 PASS/FAIL + 汇总,任一失败非零退出。`--only` / `--skip` 挑闸门,`--json` 机器可读。
+
+**它不碰 CI/CD 配置,也不装 git 钩子** —— 那是用户红线,别加。
+
+`--with-e2e` 会带上浏览器回归(`test/e2e/e2e_regression.py`),它需要后端 8080 与前端 5173
+都在跑;服务没起就**明确报缺前置**,不静默跳过。
+
 ## Issue tracker
 
 GitHub Issues (via the `gh` CLI). See `docs/agents/issue-tracker.md`.

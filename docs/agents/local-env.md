@@ -2,6 +2,25 @@
 
 本机怎么跑、怎么查、哪些姿势会静默出错。**按主题展开,不覆盖仓库级底线** —— 硬约束仍在 `AGENTS.md` 的 `Conventions & gotchas` 一节。
 
+## 浏览器回归套件的环境前置
+
+`test/e2e/e2e_regression.py` 是 Python Playwright 套件。**本机装它要三步**,少一步都会在跑之前就挂:
+
+```powershell
+# ① playwright 本体(本机已有) + 它依赖的 pyee —— ⚠️ 版本必须 <14:
+#    playwright 1.63 要 pyee<14, 装成 15 会报 'No module named pyee' 之类的怪错
+python -m pip install -i https://mirrors.aliyun.com/pypi/simple "pyee<14,>=13"
+
+# ② 浏览器二进制(playwright 本体装了不代表浏览器装了)—— 走国内镜像
+$env:PLAYWRIGHT_DOWNLOAD_HOST="https://cdn.npmmirror.com/binaries/playwright"
+python -m playwright install chromium
+
+# ③ 起服务再跑(套件要后端 8080 + 前端 5173, 且跑过 sql/05_refresh_sessions_for_demo.sql)
+python test/e2e/e2e_regression.py
+```
+
+> 三个坑的共同点:**依赖装了 ≠ 能跑**。playwright 的浏览器二进制是单独下的一份,
+> 默认从 playwright.azureedge.net 拉(本机慢),所以要走 `PLAYWRIGHT_DOWNLOAD_HOST` 换镜像。
 ## 查本机数据库 —— 用 `tools/db_query.py`,别手敲 mysql
 
 ```bash

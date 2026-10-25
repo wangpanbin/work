@@ -1,5 +1,13 @@
 # Chat Assistant — Code Review 双轴报告
 
+> **⚠️ 历史快照,不是当前约束(2026-10-25 归档)。**
+> 本报告评审的是 **2026-09-21 那轮 v0.2.0 的 9 个 TDD micro-commit**,结论**已被后续版本超越**,
+> 原文照录以备追溯 —— **不要**照着它去「修」那些已被判定为缺陷的地方。举例:
+> §S1「`ChatAssistantService.chat()` 写死 `cards(List.of())`,卡片永远空」已在 **v0.4.0 修掉**:
+> `CinemaAssistant.chat()` 现返回 `Result<String>`,卡片由 `ReplyCardParser` 解析
+> (`docs/agents/chat-assistant.md` 记的是当前不变式)。**当前约束看
+> `docs/agents/chat-assistant.md`,不是本文。**
+
 > **范围**: 9 个 TDD micro-commit(6203bdc → 4f652fa),master..HEAD 包含 `chat/` 12 个 main 文件 + 6 个 test 文件 + frontend 14 个组件/测试/类型。+2651 / -3 lines,锁座路径零触动(spec Q1 验收)。
 >
 > **轴**: Standards(代码质量 / 命名 / 错误处理 / 测试覆盖)+ Spec(ADR / spec §X / Q1-Q6 决策 / §X.X 验收)。

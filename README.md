@@ -4,7 +4,7 @@
 
 - 架构与实现细节见 [docs/实现方案.md](docs/实现方案.md)
 - P0 增量设计 spec: [docs/superpowers/specs/2026-08-31-p0-increment-design.md](docs/superpowers/specs/2026-08-31-p0-increment-design.md)
-- **对话式订票助手**(已落地):设计 spec [docs/superpowers/specs/2026-09-21-chat-assistant-design.md](docs/superpowers/specs/2026-09-21-chat-assistant-design.md) · 决策记录 [docs/adr/](docs/adr/) · code review [docs/agents/chat-assistant-code-review.md](docs/agents/chat-assistant-code-review.md)
+- **对话式订票助手**(已落地):设计 spec [docs/superpowers/specs/2026-09-21-chat-assistant-design.md](docs/superpowers/specs/2026-09-21-chat-assistant-design.md) · 决策记录 [docs/adr/](docs/adr/) · code review [docs/archive/chat-assistant-code-review-2026-09-21.md](docs/archive/chat-assistant-code-review-2026-09-21.md)(历史快照)
 - **一键下单**(v0.2.0,已落地):设计 spec [docs/superpowers/specs/2026-10-19-chat-one-click-order-design.md](docs/superpowers/specs/2026-10-19-chat-one-click-order-design.md) · 决策记录 [ADR-0004](docs/adr/0004-chat-order-proposal.md) · 发布说明 [docs/发布说明-v0.2.0.md](docs/发布说明-v0.2.0.md)
 - **v0.3.0 收口与修复**(2026-10-25):发布说明 [docs/发布说明-v0.3.0.md](docs/发布说明-v0.3.0.md) · 部署前置检查 [docs/部署前置检查.md](docs/部署前置检查.md)
 - 领域词汇表: [CONTEXT.md](CONTEXT.md)
@@ -161,7 +161,7 @@ pnpm test
 # 仓库自带的 Python 工具测试(对账脚本 / 演示排片脚本 / 文档一致性闸门)
 cd ..
 python -m unittest discover -s tools -p "test_*.py"
-# Ran 81 tests ... OK
+# Ran 85 tests ... OK
 ```
 
 ### 4.1 一键跑完全部闸门
@@ -446,7 +446,7 @@ F:/test/work/
 
 - **设计文档**:[docs/superpowers/specs/2026-09-21-chat-assistant-design.md](docs/superpowers/specs/2026-09-21-chat-assistant-design.md)
 - **技术选型**:LangChain4j 1.20.0(Java)嵌入 `cinema-server`,进程内直调既有领域 Service;模型走 DeepSeek 的 OpenAI 兼容端点
-- **代码评审**:[docs/agents/chat-assistant-code-review.md](docs/agents/chat-assistant-code-review.md) — Standards + Spec 双轴 13 项 + live curl 验证矩阵
+- **代码评审**:[docs/archive/chat-assistant-code-review-2026-09-21.md](docs/archive/chat-assistant-code-review-2026-09-21.md) — Standards + Spec 双轴 13 项 + live curl 验证矩阵(**v0.2.0 时期的历史快照,结论已被后续版本超越**)
 
 三条核心约束:
 
@@ -595,14 +595,14 @@ v0.1.0 曾经「不让助手直接锁座」(三条代码级证据见 spec §2.3)
 
 - `cinema-server/src/test/java/...` — **329 个 JUnit5 + Mockito 单元测试**(49 个测试类,2026-10-25 实测)
 - `cinema-web/tests/` — **554 个 Vitest 单元测试**(35 个 `.test.ts` 文件,2026-10-25 实测)
-- `tools/test_*.py` — **80 个 Python 工具测试**(位图对账 / 幽灵订单清理 / Redis 探针 / 只读 SQL 工具 / 文档一致性闸门,2026-10-25 实测)
+- `tools/test_*.py` — **85 个 Python 工具测试**(位图对账 / 幽灵订单清理 / Redis 探针 / 只读 SQL 工具 / 文档一致性闸门,2026-10-25 实测)
+- `tools/run_all_gates.py` — 四套闸门的一键入口
+- `tools/demo_run.py` — 一键演示(补种 → 冒烟 → 防超卖 → 压测 → 出报告)
 - `test/load_test.py` — 三场景 Python 压测驱动
 - `test/concurrency_strict.py` — 防超卖专项
 - `test/concurrency_test.py` — 并发基础压测
-- `test/e2e/e2e_regression.py` — E2E 回归用例(含截图产物)
+- `test/e2e/e2e_regression.py` — 浏览器回归套件(22 场景,含截图产物)
 - `test/jmeter/scenario-*.jmx` — JMeter 模板
-- `test_mixed.py` — 200 并发混合读/锁/查压测(根目录)
-- `test_webapp_e2e.py` — Web 端 E2E 脚本(根目录)
 - `docs/压测报告.md` — 完整压测报告(W5)
 - `docs/压测报告-v2.md` — P0 后回归压测报告
 - `docs/部署前置检查.md` — 部署前置检查清单(Redis / MySQL / 环境变量 / 演示数据)
@@ -612,7 +612,8 @@ v0.1.0 曾经「不让助手直接锁座」(三条代码级证据见 spec §2.3)
 - `docs/superpowers/specs/2026-10-19-chat-one-click-order-design.md` — 一键下单设计 spec(**已实现**,v0.2.0)
 - `docs/发布说明-v0.2.0.md` — v0.2.0 发布说明
 - `docs/发布说明-v0.3.0.md` — v0.3.0 发布说明(收口与修复)
+- `docs/发布说明-v0.4.0.md` — v0.4.0 发布说明(补齐欠账 + 修超卖窗口)
 - `docs/adr/` — 架构决策记录(ADR-0001/0002/0003/**0004 一键下单**)
-- `docs/agents/chat-assistant-code-review.md` — 对话助手双轴 code review
+- `docs/archive/chat-assistant-code-review-2026-09-21.md` — 对话助手双轴 code review(**历史快照**)
 
 > `test/` 目录与根目录测试脚本均属本地测试产物,已由 `.gitignore` 排除,不进入版本库。
