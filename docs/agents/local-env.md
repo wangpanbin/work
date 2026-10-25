@@ -79,6 +79,26 @@ rm -- "相对路径"        # Windows: runtime 路由到受信任的 launcher
 
 ⚠️ **不要在同一条命令里先 `Set-Location` 再 `rm`** —— 本地安全策略会拦(「write/delete targets cannot be verified safely after a command working directory change」)。把 `rm` 单独放在一条命令里,路径相对会话工作目录。
 
+## `redis-cli` 取位图的两个坑
+
+位图是**原始字节**,不是文本 —— 用 `redis-cli` 直接看会骗你:
+
+- `--no-raw` 给的是**转义文本**(带引号),不是字节 —— 位图看着像 `"@@..."`。
+- `--raw` 给原始字节,但**会补一个行尾换行** —— 凭空多出 2 个位,解码出来全是假的。
+
+正确姿势:`STRLEN` 取真实字节数,再按这个长度截断(别信 `--raw` 的输出长度)。
+位图的位序是「**字节内 MSB 优先**」(字节 `0xC0` 的第 0、1 位为 1,不是第 6、7 位)——
+详见 `AGENTS.md` 的对应规则条。
+
+## 新增文件在提交前会让文档闸门报「引用必须已入库」
+
+`tools/test_docs_consistency.py` 的第 ⑤ 项检查「文档里引用的文件必须在 `git ls-files` 里」。
+**新建的文件在 commit 之前不在 `git ls-files` 里** —— 于是文档一引用新模块/新测试文件,
+闸门立刻报「文档引用了没入库的文件」, 看着像文档写错了, 其实是文件还没进 index。
+
+**姿势**:新增文件后先 `git add`(只是进暂存区, **不等于提交**), 闸门就能看见它们了。
+真正的提交仍然由你决定(`AGENTS.md` 的规矩是**不自动 commit / push**)。
+
 ## 依赖安装
 
 走国内镜像源,默认落 F 盘:`pip` 用 `https://mirrors.aliyun.com/pypi/simple`,npm/pnpm 用 `https://registry.npmmirror.com/`,maven 用 `https://maven.aliyun.com/repository/public`,cargo 用 `https://rsproxy.cn`。

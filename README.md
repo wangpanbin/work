@@ -21,7 +21,7 @@
 | **延迟关单** | Redis ZSet 延迟队列(主链路 5s 扫描) + 定时补偿任务(1min 兜底),双保险 |
 | **冷启动守护** | 服务重启/Redis flush 后锁座前自动从 DB 重建 Bitmap,杜绝"看似可选实则已售" |
 | **交易闭环** | 锁座 → 支付 → 退票(状态机 PAID→REFUNDING→REFUNDED) + 电子票(HMAC 签名,24h 过期,一次性验票) |
-| **工程严谨** | 338 个 JUnit5 + Mockito 单元测试覆盖核心链路;`@RateLimit`/`@Idempotent` AOP 注解;OrderService 拆 4 service + 1 core(单文件 ≤ 300 行) |
+| **工程严谨** | 361 个 JUnit5 + Mockito 单元测试覆盖核心链路;`@RateLimit`/`@Idempotent` AOP 注解;OrderService 拆 4 service + 1 core(单文件 ≤ 300 行) |
 | **数据可视化** | 管理端经营看板(4 卡片 + 3 图 + 1 表);实时数据大屏(WebSocket 推送锁座事件) |
 | **前端体验** | 全局路由守卫(未登录/非管理员自动拦截) · 影片搜索/筛选 · 注册确认密码 · 移动端适配 · 座位图重构 |
 | **国际化** | vue-i18n 11 双语(zh-CN / en-US);浏览器语言自动探测 + 本地持久化 + `fallbackLocale: zh-CN` 防裸 key;29 个专项用例,其中 `key-coverage` 兜底「两边都漏」的盲点 |
@@ -66,7 +66,7 @@
 | 接口限流(`@RateLimit`) | ✅ P0 E4 | Redis 滑动窗口 Lua,锁座/支付/退票/聊天分级限流 |
 | 幂等键(`@Idempotent`) | ✅ P0 E5 | SETNX,锁座/支付前置挡重试 |
 | OrderService 拆分 | ✅ P0 E1 | 4 service + 1 core,单文件 ≤ 300 行 |
-| 关键路径单测 | ✅ P0 E2 | **338 个 JUnit5 + Mockito 用例**(51 个测试类,2026-10-25 实测) |
+| 关键路径单测 | ✅ P0 E2 | **361 个 JUnit5 + Mockito 用例**(51 个测试类,2026-10-25 实测) |
 | 营收明细导出 Excel | ✅ | `GET /api/admin/revenue/export`,独立 axios 实例走 blob,看板导出对话框 |
 | 错误码体系 | ✅ | 0/4xxxx/5xxxx + data 携带附加信息 |
 | **安全基线** | ✅ v0.3.0 | JWT 密钥走 `JWT_SECRET` 环境变量(仓库里的默认值只用于开发);CORS 收敛成 `CORS_ALLOWED_ORIGINS` 白名单(不再是 `*`);登录按 IP+账号 10/分钟、注册按 IP 120/小时 限流;管理员播种双开关(`SPRING_PROFILES_ACTIVE` + `CINEMA_SEED_ADMIN_ENABLED`) |
@@ -151,12 +151,12 @@ pnpm dev
 ```bash
 cd cinema-server
 mvn test
-# Tests run: 338, Failures: 0, Errors: 0
+# Tests run: 361, Failures: 0, Errors: 0
 # (跨 51 个测试类,2026-10-25 实测)
 
 cd ../cinema-web
 pnpm test
-# Test Files: 35 passed, Tests: 554 passed (vitest 3.x)
+# Test Files: 43 passed, Tests: 714 passed (vitest 3.x)
 
 # 仓库自带的 Python 工具测试(对账脚本 / 演示排片脚本 / 文档一致性闸门)
 cd ..
@@ -179,7 +179,7 @@ python tools/run_all_gates.py
 ```bash
 # 需要: 后端 8080 + 前端 5173 都在跑, 且跑过 sql/05_refresh_sessions_for_demo.sql
 python test/e2e/e2e_regression.py
-# 22 个场景(PASS/FAIL/SKIP 三态,退出码只看 FAIL); 报告写 test/e2e/RESULTS.md, 截图写 test/e2e/screenshots/
+# 23 个场景(PASS/FAIL/SKIP 三态,退出码只看 FAIL); 报告写 test/e2e/RESULTS.md, 截图写 test/e2e/screenshots/
 # 只跑单个场景(调试用): python test/e2e/e2e_regression.py --only S22
 # 想让 S22(对话下单卡)确定性 PASS: 用 CINEMA_CHAT_PROVIDER=stub 启动后端
 #   (stub 只替换「模型决策」这一步,卡片解析/提案装配/座位重读/前端渲染全是生产代码)
@@ -311,7 +311,7 @@ F:/test/work/
 └── cinema-web/                           Vue3 前端
     ├── package.json
     ├── DESIGN.md                         视觉宪法(票根语言/色板/命名规则), 与 main.css 由测试锁同步
-    ├── tests/                            vitest 用例(35 个 .test.ts / 554 条)
+    ├── tests/                            vitest 用例(43 个 .test.ts / 714 条)
     └── src/
         ├── api/                          axios 封装 + 各模块 API(admin.ts 含 exportRevenue 独立实例)
             └── errorCodes.ts             错误码 → 结构化载荷(锁座冲突的座位列表等)
@@ -602,8 +602,8 @@ v0.1.0 曾经「不让助手直接锁座」(三条代码级证据见 spec §2.3)
 
 ## 测试文件
 
-- `cinema-server/src/test/java/...` — **338 个 JUnit5 + Mockito 单元测试**(51 个测试类,2026-10-25 实测)
-- `cinema-web/tests/` — **554 个 Vitest 单元测试**(35 个 `.test.ts` 文件,2026-10-25 实测)
+- `cinema-server/src/test/java/...` — **361 个 JUnit5 + Mockito 单元测试**(51 个测试类,2026-10-25 实测)
+- `cinema-web/tests/` — **714 个 Vitest 单元测试**(43 个 `.test.ts` 文件,2026-10-25 实测)
 - `tools/test_*.py` — **85 个 Python 工具测试**(位图对账 / 幽灵订单清理 / Redis 探针 / 只读 SQL 工具 / 文档一致性闸门,2026-10-25 实测)
 - `tools/run_all_gates.py` — 四套闸门的一键入口
 - `tools/demo_run.py` — 一键演示(补种 → 冒烟 → 防超卖 → 压测 → 出报告)

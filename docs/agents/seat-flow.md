@@ -5,6 +5,10 @@
 > **硬约束仍在 `AGENTS.md`** —— 本文件是专题展开, 不覆盖仓库级底线。
 > 改动前先读 `AGENTS.md` 的 `Conventions & gotchas` 一节。
 
+- **⚠️ 同场次重复锁座:「关旧单 / 锁新座」的顺序决定用户会不会两头落空**（2026-10-25 交互审查 P0-2）。`OrderLockService#lockSeats` 按**新旧座位有无交集**分两条路:**无交集**(用户改选别的座位)→ **先锁新座、成功后才关旧单**,锁失败时旧单原样保留(用户手上仍有一笔可支付的单);**有交集**(用户重选自己已锁的座位)→ 保持「先关旧单释放座位、再锁新座」(旧单的锁还在位图上,不先释放必然与自己冲突)。DB 上有唯一索引 `uk_user_pending`,两条路都必须保证「关旧单」发生在「写新订单」之前。**已知边界**:无交集路径上「建新单」失败(DB 异常,不是锁冲突)时旧单已关 → 仍会两头落空;彻底解决需在失败路径上补偿恢复旧单,属钱的路径,尚未做。关旧单抛异常时新座位会被 `releaseUnpaid` 补偿释放(否则留下幽灵锁),用例在 `OrderLockServiceTest`。
+- **⚠️ 选座页同路由换场次必须重新装载**（2026-10-25 交互审查 P0-1,资损级）。Vue Router 4 对**同一路由记录只换 params** 会**复用组件实例**(`RouterView` 渲染时组件上不加 `key`),`onMounted` 不再触发 —— 座位图会停在上一场次上,而 URL 已经是新场次、WS 也还连着旧场次,用户在旧场次的网格上选座、请求却发往新场次。修法:编排下沉到 `cinema-web/src/composables/useSeatSession.ts`(依赖注入,node 环境可单测),由 `watch(route.params.sessionId)` 驱动;**换场次时座位图本身也要清**(`seatStore.map = null`),否则旧网格还在,用户仍在旧场次上选座。**判据要按「轮次」不是场次 ID** —— `A → B → A` 快返时场次 ID 又相等了,只比 ID 会把上一轮 A 的预选套到当前 A 场次上。E2E `S23` 用影片名/座位数/预选/WS 重连四条独立断言锁住这条链路。
+- **⚠️ 影厅 VIP 起始行在 `seat` 表不在 `hall` 表**（2026-10-25 交互审查 P2-1）。真源是 `Seat.seatType = 1`;`hall.vipFromRow` 是**派生值**(`@TableField(exist=false)` —— 不加这个注解,MyBatis-Plus 会去读写一个数据库里不存在的列,直接 SQL 报错),由 `AdminHallController` 用 `MIN(row_no) WHERE seat_type=1` 派生。**后端 update 的语义是「null = 保持原样」**(不是「清空 VIP 区」)—— 2026-10-25 之前是「null = 清空」,老前端发来的 null 会把整厅 VIP 静默降级成普通座位。真要清空 VIP 区请**新建影厅**,与「有过订单的影厅不允许改行列数」同一条规矩。前端要区分「不知道」(`undefined`,后端没这个字段)与「没有」(`null`),前者要在界面上明说。
+
 - **座位事件带全局单调序号**：`SeatEventPublisher` 发布前对 `cinema:seat:event:seq`（`RedisKeys.SEAT_EVENT_SEQ`）做一次 `INCR`，结果写进事件载荷的 `seq`。三个 `publishXxx` 的公开签名没变，所以 `SeatRedisSubscriber`/`SeatWsHandler` 零改动、四个下游 `@Mock` 测试类不受影响。
 - **序号是可选字段**：`parseWsMessage` 只在 `seq` 是有限数值时才挂到事件对象上，缺失/非法**剥掉**该字段而不是挂 `seq: 0`。前后端版本不一致时前端退化成纯增量行为。
 - **`seq <= 0` 必须走「无序号、总是应用」分支**：服务端 `INCR` 失败时兜底发 `seq=0`，若前端按 `0 > lastSeq[s]` 过滤会**把所有事件静默丢弃**。这是 `filterBySeq` 的第一条断言。

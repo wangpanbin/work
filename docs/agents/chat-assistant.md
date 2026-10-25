@@ -57,6 +57,28 @@
 (只读、公开、不含任何凭据)。浏览器回归 S22 读它决定定性:
 **stub 模式下必须出卡, 没出卡记 FAIL**;真模型下没出卡才记 SKIP。
 
+### stub 的第二条分支:座位建议卡(`SEAT_SUGGESTION`)
+
+stub 除了出**下单卡**(`ORDER_PROPOSAL`), 还会出**座位建议卡**(`SEAT_SUGGESTION`)——
+触发条件很窄: 消息里**同时**有「显式场次 ID」和「在问座位/位置/布局」
+(`座位|位置|布局`; 「连座」**不算**, 所以 S22 那句仍走下单卡那条路)。
+
+两条卡的差别在前端动作上, 不是措辞上:
+
+| 卡型 | 前端动作 | 载荷 |
+| --- | --- | --- |
+| `ORDER_PROPOSAL` | 对话内「确认下单」→ 建单 | `sessionId + count`(**无** `seatIndexes`, 服务端重读位图自己挑) |
+| `SEAT_SUGGESTION` | 跳 `/seat/{sessionId}?preselect=...` | `sessionId + seatIndexes`(座位取自 `findContiguousSeats`) |
+
+**为什么加这条分支**: `SEAT_SUGGESTION` 的前端动作是**跳选座页**, 而「同路由换场次
+必须重新装载座位图」这条(P0-1)只能在**页内换场次**时复现 —— 真模型下能不能出这张卡
+取决于模型当天发挥, 于是那条回归长期没法自动化。stub 让它确定性地出卡, E2E 的
+**S23** 就是靠它复现的(`test/e2e/e2e_regression.py` 的 `s23_seat_session_switch`)。
+
+**取不到连座就不出这张卡** —— 退回复一句实话, 而不是给一张跳过去没座的卡。
+`StubCinemaAssistantTest` 里用 `verify(chatTools, never()).findContiguousSeats(...)`
+钉死了「S22 那句不许走座位分支」。
+
 ## 写审计与用量(v0.4.0,IT-05 / IT-11)
 
 助手对话与「确认下单」都会往 `chat_assistant_log` 落一行。两张表共用一张:
