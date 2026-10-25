@@ -133,9 +133,20 @@ public class TicketService {
             if (t.getVerifiedAt() != null) {
                 return VerifyResult.used(t.getVerifiedAt().toString());
             }
-            // 标记已使用
-            t.setVerifiedAt(LocalDateTime.now());
-            ticketMapper.updateById(t);
+            // 标记已使用 —— **原子条件更新**(2026-10-24)。
+            // 原先这里是「读-改-写」(查 verifiedAt → setVerifiedAt → updateById),
+            // 两个检票员并发扫同一张票时两次读都看到 verified_at IS NULL, 两次写都成功
+            // → 两边都拿到 valid=true → 一票两用。
+            // 改成 WHERE verified_at IS NULL 的条件更新后, 并发下只有一个 UPDATE 影响 1 行,
+            // 另一个影响 0 行 → 返「已使用」。
+            int marked = ticketMapper.markVerifiedIfUnused(orderNo, LocalDateTime.now());
+            if (marked == 0) {
+                // 刚被别人验掉: 读回来拿验票时间(它可能正好也刚被验, 读不到就退化成空串)
+                Ticket used = ticketMapper.selectById(orderNo);
+                String usedAt = (used != null && used.getVerifiedAt() != null)
+                        ? used.getVerifiedAt().toString() : "";
+                return VerifyResult.used(usedAt);
+            }
             return VerifyResult.ok(orderNo, t.getUserId(), t.getSessionId());
         } catch (Exception e) {
             log.warn("[验票] payload 解析失败 err={}", e.toString());
