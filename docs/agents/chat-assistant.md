@@ -5,6 +5,58 @@
 > **硬约束仍在 `AGENTS.md`** —— 本文件是专题展开, 不覆盖仓库级底线。
 > 改动前先读 `AGENTS.md` 的 `Conventions & gotchas` 一节。
 
+## 提示词 ↔ 卡片契约(2026-10-25 修,附守卫测试)
+
+`CinemaAssistant` 的 `@SystemMessage` 与 `ReplyCardParser` / `OrderProposalService` /
+前端 `buildRepickRequest` 必须对同一件事说同样的话。这三处不在同一个文件里,
+靠人评审抓不到彼此的漂移 —— 所以有一条测试把它们锁在一起(`CinemaAssistantPromptTest`)。
+
+**2026-10-25 实测踩到的坑**:提示词写着「出 `ORDER_PROPOSAL` 卡**之前必须先调
+`findContiguousSeats`** 拿座位索引, 拿不到就不出卡」, 而解析器 / 服务端 / 前端
+**全都把 `seatIndexes` 当成可选**(ADR-0004 决策 D8:座位由服务端重读实时位图决定)。
+
+后果是出卡链路**死锁**:模型要先有座位才能出卡 → 要先定场次 → 一晚有多个候选场次时
+它就反问「你打算看哪一场」→ 永远走不到下单卡。浏览器回归 S22 因此长期停在 SKIP
+(实测:三次真实调用全部返回 markdown 表格 + 反问,`cards=0`)。
+
+修好的约定(改提示词时三条都不能破):
+
+| 约定 | 说明 |
+| --- | --- |
+| `seatIndexes` **可选** | 服务端会重读实时位图自己挑连座, 模型不必先查座位 |
+| **不要反问** | 用户已表达下单意图时, 场次自己挑(有余座优先)、张数按措辞推断 |
+| 张数缺省 **2 张** | 用户完全没提张数时按 2 张出卡, 不为这个反问 |
+
+`CinemaAssistantPromptTest` 三条断言分别锁:卡型集合与 `ActionCardVO` 常量一致、
+`seatIndexes` 被声明为可选且提示词里不得出现「必须先调」、
+「不要反问」与「默认给 2 张」还在。**改提示词后先跑它** ——
+负向验证已做过:把提示词还原成 2026-10-25 之前的版本,前两条会红。
+
+## 假 LLM(stub provider)—— 让「一键下单」这条验收可回归
+
+`cinema.chat.provider`(`application.yml`,env `CINEMA_CHAT_PROVIDER`)两个取值:
+
+| provider | 行为 |
+| --- | --- |
+| `deepseek`(默认) | 真模型。`DEEPSEEK_API_KEY` 非空才注册 `ChatModel` Bean |
+| `stub` | `StubCinemaAssistant` —— 确定性回复, **不调用任何外部模型, 也不需要 api-key** |
+
+**它只替换「模型决策」这一步**。卡片解析、提案装配、座位重读、价格核算、前端渲染
+全是生产代码,走的是与真模型**完全相同**的那条路 —— 所以它不是 mock:契约变了它一样会炸
+(`StubCinemaAssistantTest` 的断言直接走真的 `ReplyCardParser`)。
+
+**为什么需要它**:一键下单确认卡(AC-20 那条浏览器链路)在真模型下「出不出卡」取决于
+模型当天怎么发挥, 于是 S22 长期停在 SKIP。stub 让它确定性地 PASS。
+
+**stub 挑场次的三个条件**(踩过坑):有余座 · 有连座(`longestContiguousLength` ≥ count)·
+**还没开场** —— 已开场的场次下单会被服务端拒(`场次已开场,无法购票`),
+那时卡片已经被装配器丢掉了, 用户只看到一句没头没尾的说明。
+张数:消息里明说的优先,没明说按 **2 张**(与提示词一致)。
+
+`GET /api/chat/status` 返回 `{"provider":"deepseek"|"stub","enabled":bool}`
+(只读、公开、不含任何凭据)。浏览器回归 S22 读它决定定性:
+**stub 模式下必须出卡, 没出卡记 FAIL**;真模型下没出卡才记 SKIP。
+
 ## 写审计与用量(v0.4.0,IT-05 / IT-11)
 
 助手对话与「确认下单」都会往 `chat_assistant_log` 落一行。两张表共用一张:
@@ -32,7 +84,7 @@
 **将来新增任何写入口,必须显式传 1** —— 否则这条查询会立刻把它数出来。
 `tools/run_all_gates.py` 的「审计红线」闸门查的就是它。
 
-## 对话式订票助手 (chat assistant)
+## 核心不变量与历史踩坑点
 
 Design spec: `docs/superpowers/specs/2026-09-21-chat-assistant-design.md` + `docs/superpowers/specs/2026-10-19-chat-one-click-order-design.md`。It rides LangChain4j inside `cinema-server` (ADR-0001) and deliberately does not use RAG (ADR-0003). There are **8 `@Tool` methods** on `ChatTools` (4 movie/session + 2 seat + 2 order); `ChatToolsStructureTest` is the reflection whitelist that fails if any write method ever gets annotated.
 

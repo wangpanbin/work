@@ -72,7 +72,7 @@ web
 
 - 测试:后端 JUnit5 + Mockito、前端 Vitest 3.x(`tests/**/*.test.ts`)、仓库内 Python 工具测试(`tools/test_*.py`)。**用例数会漂移,以实跑为准** —— AGENTS.md 明确写了「数字以实测为准,别照抄文档」。
 - 上线前检查:`docs/部署前置检查.md` + `tools/check_redis_safety.py`(Redis 配置只读探针)。
-- 压测:`docs/压测报告.md`、`docs/压测报告-v2.md`;核心结论「250 并发抢同一座位 0 超卖」。
+- 压测:`docs/压测报告-v3.md`(一键演示生成,内容是该次运行的快照)、`docs/压测报告.md`、`docs/压测报告-v2.md`(历史快照);核心结论「250 并发抢同一座位 0 超卖」。
 - 设计与决策:`docs/实现方案.md`、`docs/superpowers/specs/`、`docs/adr/`(ADR-0001/0002/0003)、`CONTEXT.md` 领域词表。
 - 资产:`src/components/BrandMark.vue`(手写票根 SVG,无外部依赖)。
 - 本地产物(已 gitignore,不构成依据):`test/`、根目录 `test_*.py`、`_report*`、`test/e2e-report-*.md`。
