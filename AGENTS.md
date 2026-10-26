@@ -20,7 +20,7 @@ Test accounts seeded by backend on startup: `user1/123456`, `user2/123456`, `adm
 
 ## Commands
 
-- Frontend: `pnpm dev` · `pnpm build` · `pnpm type-check` (`vue-tsc --noEmit`) · `pnpm test` (vitest 3.x, `tests/**/*.test.ts`,**714 用例跨 43 个 `.test.ts` 文件**,2026-10-25 实测)。**用例清单不要抄进这份文件** —— 那是环境的一份副本,必然过期(本轮就因为它漂了 3 次);要看有哪些测试,直接看 `cinema-web/tests/` 目录树,数字以 `pnpm test` 的输出为准,文档闸门第 ② 项会核对。主题/换肤闸门见下方「主题 token」「双主题」「SFC 编译闸门」「管理端是控制台」。
+- Frontend: `pnpm dev` · `pnpm build` · `pnpm type-check` (`vue-tsc --noEmit`) · `pnpm test` (vitest 3.x, `tests/**/*.test.ts`,**715 用例跨 43 个 `.test.ts` 文件**,2026-10-26 实测)。**用例清单不要抄进这份文件** —— 那是环境的一份副本,必然过期(本轮就因为它漂了 3 次);要看有哪些测试,直接看 `cinema-web/tests/` 目录树,数字以 `pnpm test` 的输出为准,文档闸门第 ② 项会核对。主题/换肤闸门见下方「主题 token」「双主题」「SFC 编译闸门」「管理端是控制台」。
 - Backend: `mvn spring-boot:run` · `mvn test` (**361 个 JUnit5+Mockito 用例跨 51 个测试类**,2026-10-25 实测)。同样**别把测试类清单抄进这份文件** —— 要看有哪些类,看 `cinema-server/src/test/java/` 目录树;数字以 surefire 实测为准(聚合 `cinema-server/target/surefire-reports/TEST-*.xml`),文档闸门第 ② 项会核对。**测座位/退票/位图链路必须带 `SeatBitmapGuardTest` + `SeatLuaServiceBitmapRoundTripTest`**。
 - There is no linter configured in either module. **build 要单独验**:`pnpm build` 与 `pnpm type-check` 查出的问题不重叠(SCSS 变量/模板编译错误只有 build 报)。
 - Python 工具: `python -m unittest discover -s tools -p "test_*.py"`(**85 个用例**,2026-10-25 实测;对账脚本的纯逻辑 + 真实 Redis 往返 + 临时 MySQL 库的集成测试 + 文档一致性闸门)。

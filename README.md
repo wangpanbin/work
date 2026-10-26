@@ -156,7 +156,7 @@ mvn test
 
 cd ../cinema-web
 pnpm test
-# Test Files: 43 passed, Tests: 714 passed (vitest 3.x)
+# Test Files: 43 passed, Tests: 715 passed (vitest 3.x)
 
 # 仓库自带的 Python 工具测试(对账脚本 / 演示排片脚本 / 文档一致性闸门)
 cd ..
@@ -311,7 +311,7 @@ F:/test/work/
 └── cinema-web/                           Vue3 前端
     ├── package.json
     ├── DESIGN.md                         视觉宪法(票根语言/色板/命名规则), 与 main.css 由测试锁同步
-    ├── tests/                            vitest 用例(43 个 .test.ts / 714 条)
+    ├── tests/                            vitest 用例(43 个 .test.ts / 715 条)
     └── src/
         ├── api/                          axios 封装 + 各模块 API(admin.ts 含 exportRevenue 独立实例)
             └── errorCodes.ts             错误码 → 结构化载荷(锁座冲突的座位列表等)
@@ -603,7 +603,7 @@ v0.1.0 曾经「不让助手直接锁座」(三条代码级证据见 spec §2.3)
 ## 测试文件
 
 - `cinema-server/src/test/java/...` — **361 个 JUnit5 + Mockito 单元测试**(51 个测试类,2026-10-25 实测)
-- `cinema-web/tests/` — **714 个 Vitest 单元测试**(43 个 `.test.ts` 文件,2026-10-25 实测)
+- `cinema-web/tests/` — **715 个 Vitest 单元测试**(43 个 `.test.ts` 文件,2026-10-26 实测)
 - `tools/test_*.py` — **85 个 Python 工具测试**(位图对账 / 幽灵订单清理 / Redis 探针 / 只读 SQL 工具 / 文档一致性闸门,2026-10-25 实测)
 - `tools/run_all_gates.py` — 四套闸门的一键入口
 - `tools/demo_run.py` — 一键演示(补种 → 冒烟 → 防超卖 → 压测 → 出报告)

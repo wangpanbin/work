@@ -27,6 +27,8 @@ const router = createRouter({
         { path: 'chat-stats', name: 'admin-chat-stats', component: () => import('../views/admin/ChatStats.vue') },
       ]
     },
+    // 产品主页: 版式来自一次性分支 prototype/landing-variants 的变体挑选(A hero + C bento)
+    { path: '/landing', name: 'landing', component: () => import('../views/Landing.vue') },
     // 兜底 404, 避免外部死链进来白屏
     { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('../views/NotFound.vue') },
   ],
