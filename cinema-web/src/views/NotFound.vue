@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { ROUTE_PATHS } from '../constants/routes'
 import BrandMark from '../components/BrandMark.vue'
 
 const router = useRouter()
@@ -48,7 +49,7 @@ const canGoBack = !!window.history.state?.back
       <p class="desc">{{ t('notFound.subtitle') }}</p>
 
       <div class="actions">
-        <el-button type="primary" size="large" @click="router.push('/')">{{ t('notFound.backHome') }}</el-button>
+        <el-button type="primary" size="large" @click="router.push(ROUTE_PATHS.home)">{{ t('notFound.backHome') }}</el-button>
         <!-- v-if: 只有确有站内上一页时才给「返回上一页」, 否则这一键会把用户带离本站 -->
         <el-button v-if="canGoBack" @click="router.back()">{{ t('common.back') }}</el-button>
       </div>

@@ -2,16 +2,22 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import {
   ADMIN_REQUIRED_PREFIX,
-  AUTH_REQUIRED_PATHS,
-  AUTH_REQUIRED_PREFIXES,
   ROUTE_NAMES,
   ROUTE_PATHS,
 } from '../constants/routes'
+import { shouldRedirectToLogin } from '../utils/authRedirect'
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: ROUTE_PATHS.home, name: ROUTE_NAMES.home, component: () => import('../views/Home.vue') },
+    // 产品主页(**默认入口**, 公开): 版式来自一次性分支 prototype/landing-variants
+    // 的变体挑选(A hero + C bento)。2026-10-26 起根路径归它 —— 打开站点先看到门面,
+    // 登录入口在顶栏与 hero 区, 不把人拦在登录页。
+    { path: ROUTE_PATHS.home, name: ROUTE_NAMES.home, component: () => import('../views/Landing.vue') },
+    // 影片浏览页(公开): 原 `Home.vue`, 从根路径迁到这里。
+    { path: ROUTE_PATHS.movies, name: ROUTE_NAMES.movies, component: () => import('../views/Home.vue') },
+    // 旧地址(`/landing`)保留为重定向别名 —— 书签与外链不该 404。
+    { path: ROUTE_PATHS.landing, name: ROUTE_NAMES.landing, redirect: ROUTE_PATHS.home },
     { path: ROUTE_PATHS.login, name: ROUTE_NAMES.login, component: () => import('../views/Login.vue') },
     { path: ROUTE_PATHS.movieDetail, name: ROUTE_NAMES.movieDetail, component: () => import('../views/MovieDetail.vue') },
     { path: ROUTE_PATHS.seatSelect, name: ROUTE_NAMES.seatSelect, component: () => import('../views/SeatSelect.vue') },
@@ -27,8 +33,6 @@ const router = createRouter({
         { path: 'chat-stats', name: 'admin-chat-stats', component: () => import('../views/admin/ChatStats.vue') },
       ]
     },
-    // 产品主页: 版式来自一次性分支 prototype/landing-variants 的变体挑选(A hero + C bento)
-    { path: '/landing', name: 'landing', component: () => import('../views/Landing.vue') },
     // 兜底 404, 避免外部死链进来白屏
     { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('../views/NotFound.vue') },
   ],
@@ -40,6 +44,9 @@ const router = createRouter({
  * - /admin/*: 必须 role === 1, 否则跳 / 并提示
  * - 守卫依赖 userStore.user, 故 user 必须能从 localStorage 同步初始化
  *   (见 stores/user.ts readCachedUser)
+ *
+ * <p>「哪些路径需要登录」只有一份判定 —— `utils/authRedirect.ts` 的
+ * `shouldRedirectToLogin`, axios 拦截器也用它。两边各写一遍迟早漂移。
  */
 router.beforeEach((to, from, next) => {
   const userStore = useUserStore()
@@ -49,9 +56,7 @@ router.beforeEach((to, from, next) => {
     return next(ROUTE_PATHS.home)
   }
 
-  const needAuth =
-    AUTH_REQUIRED_PREFIXES.some((p) => to.path.startsWith(p)) ||
-    AUTH_REQUIRED_PATHS.includes(to.path)
+  const needAuth = shouldRedirectToLogin(to.path)
   if (needAuth && !userStore.isLogin) {
     return next({ path: ROUTE_PATHS.login, query: { redirect: to.fullPath } })
   }

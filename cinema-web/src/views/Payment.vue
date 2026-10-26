@@ -29,7 +29,10 @@ const autoRedirected = ref(false)
 onMounted(async () => {
   if (!orderNo) {
     ElMessage.error(t('payment.orderNoMissing'))
-    router.push(ROUTE_PATHS.home)
+    // 订单号缺失时回**订单列表**而不是根路径 —— 根路径现在是产品主页(营销页),
+    // 把一个「你的订单出问题了」的人丢到门面页上是错的。支付页必然已登录
+    // (守卫把未登录挡在 /login), 所以订单列表一定可达。
+    router.push(ROUTE_PATHS.orderList)
     return
   }
   // 首拉失败不再让整个 onMounted 抛出去(2026-10-24):

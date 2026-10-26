@@ -16,10 +16,12 @@ import { useI18n } from 'vue-i18n'
 import { search as searchMovies } from '../api/movie'
 import { ROUTE_PATHS } from '../constants/routes'
 import { useMovieCache } from '../stores/movieCache'
+import { useUserStore } from '../stores/user'
 import { toIdString, type Movie } from '../types'
 import { usePosterFallback } from '../composables/usePosterFallback'
 
 const { t } = useI18n()
+const userStore = useUserStore()
 const movies = ref<Movie[]>([])
 const cache = useMovieCache()
 const { isBroken: isPosterBroken, markBroken: markPosterBroken } = usePosterFallback()
@@ -75,8 +77,12 @@ onMounted(() => {
         <h1 class="ld-title">{{ t('landing.heroTitle') }}</h1>
         <p class="ld-sub">{{ t('landing.heroSubtitle') }}</p>
         <div class="ld-cta">
-          <router-link class="ld-btn-primary" :to="ROUTE_PATHS.home">{{ t('landing.ctaBrowse') }}</router-link>
-          <a class="ld-btn-ghost" href="#evidence">{{ t('landing.ctaEvidence') }}</a>
+          <!-- 主 CTA 进浏览页(`/movies`), 不是自指到本页 —— 主页是门面, 购票在下一站。 -->
+          <router-link class="ld-btn-primary" :to="ROUTE_PATHS.movies">{{ t('landing.ctaBrowse') }}</router-link>
+          <!-- 登录入口(仅未登录时显示): 顶栏已有一枚chip, 这里再给一枚近门的 ——
+               匿名访客不必先滚到顶栏找。已登录就别再喊「登录」了。 -->
+          <router-link v-if="!userStore.isLogin" class="ld-btn-ghost" :to="ROUTE_PATHS.login">{{ t('landing.ctaLogin') }}</router-link>
+          <a class="ld-cta-link" href="#evidence">{{ t('landing.ctaEvidence') }}</a>
         </div>
       </div>
       <div class="ld-map" aria-hidden="true">
@@ -362,6 +368,19 @@ onMounted(() => {
 .ld-btn-ghost:hover {
   border-color: var(--hall-ink-2);
   background: var(--hall-wash);
+}
+
+/* 证据锚点: 行内文字链接, 不跟按钮抢同一行的注意力。
+   只用既有 --hall-* token, 不新增色值(主题闸门会扫)。 */
+.ld-cta-link {
+  font-size: 13px;
+  color: var(--hall-ink-2);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  transition: color var(--transition-fast);
+}
+.ld-cta-link:hover {
+  color: var(--hall-ink);
 }
 
 /* hero 座位图意象: 装饰, 不绑真实场次 */

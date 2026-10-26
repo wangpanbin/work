@@ -35,6 +35,9 @@ describe('路由常量', () => {
 
   it('关键路径的字面值不变(改路径等于改契约)', () => {
     expect(ROUTE_PATHS.home).toBe('/')
+    // 2026-10-26: 根路径归产品主页, 影片浏览页迁到 /movies, 旧 /landing 保留为重定向别名。
+    expect(ROUTE_PATHS.movies).toBe('/movies')
+    expect(ROUTE_PATHS.landing).toBe('/landing')
     expect(ROUTE_PATHS.login).toBe('/login')
     expect(ROUTE_PATHS.movieDetail).toBe('/movie/:id')
     expect(ROUTE_PATHS.seatSelect).toBe('/seat/:sessionId')
@@ -46,6 +49,13 @@ describe('路由常量', () => {
   it('登录校验口径: /payment 与 /orders 精确匹配, /seat 走前缀', () => {
     expect(AUTH_REQUIRED_PATHS).toEqual(['/payment', '/orders'])
     expect(AUTH_REQUIRED_PREFIXES).toEqual(['/seat'])
+  })
+
+  it('主页与影片浏览页都是公开页(匿名访客必须能停在上面)', () => {
+    expect(AUTH_REQUIRED_PATHS).not.toContain(ROUTE_PATHS.home)
+    expect(AUTH_REQUIRED_PATHS).not.toContain(ROUTE_PATHS.movies)
+    expect(AUTH_REQUIRED_PREFIXES.some((p) => ROUTE_PATHS.home.startsWith(p))).toBe(false)
+    expect(AUTH_REQUIRED_PREFIXES.some((p) => ROUTE_PATHS.movies.startsWith(p))).toBe(false)
   })
 
   it('管理员校验口径: /admin 前缀', () => {

@@ -33,6 +33,8 @@ const messages: SameShape<typeof zhCN> = {
     chipOrders: 'My Orders',
     chipLogout: 'Logout',
     chipLogin: 'Sign in / Register',
+    // Header "Browse movies" chip (2026-10-26): visible to everyone, goes straight to the browse page
+    chipBrowse: 'Browse movies',
     localeSwitchTo: '中文',
     mobileMenuLocale: '中文',
     localeSwitchAria: 'Switch language',
@@ -79,6 +81,8 @@ const messages: SameShape<typeof zhCN> = {
     heroSubtitle: 'A complete cinema flow from browse to e-ticket. 250 concurrent buyers on one seat, zero oversold, measured locally.',
     ctaBrowse: 'Browse movies',
     ctaEvidence: 'How zero oversell works',
+    // Landing hero sign-in CTA (only shown while signed out)
+    ctaLogin: 'Sign in / Register',
     expStep1Title: 'Browse',
     expStep1Body: 'Now-showing movies and sessions, filterable by genre and region.',
     expStep2Title: 'Pick seats live',

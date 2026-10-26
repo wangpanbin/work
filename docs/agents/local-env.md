@@ -21,6 +21,40 @@ python test/e2e/e2e_regression.py
 
 > 三个坑的共同点:**依赖装了 ≠ 能跑**。playwright 的浏览器二进制是单独下的一份,
 > 默认从 playwright.azureedge.net 拉(本机慢),所以要走 `PLAYWRIGHT_DOWNLOAD_HOST` 换镜像。
+
+## 本机出网不稳 —— e2e 场景不要等 `load` 事件
+
+`index.html` 里引了 Google Fonts(`fonts.googleapis.com` / `fonts.gstatic.com`),
+演示海报走 TMDB 图床(`image.tmdb.org`)。**本机出网时好时坏**:这些请求可能悬着不返回,
+于是 `page.goto(url)` 等 `load` 事件直接 30s 超时 —— **场景红的原因是外部资源, 不是被测逻辑**。
+
+2026-10-26 实测:S25「过期 token 打开主页不被弹登录」第一次跑就是超时挂的,诊断后发现
+token 其实已被清掉、页面也停在 `/`(被测逻辑是对的),只是 `load` 没等到。
+
+**写 e2e 场景的两条规矩**:
+
+1. 只关心路由/状态时用 `wait_until="domcontentloaded"` + 等应用自己的 DOM 信号
+   (如 `wait_for_selector`),**别用 `wait_for_load_state("networkidle")`**;
+2. 新场景直接掐掉外部请求(`page.route("**/*")` 里放行 `localhost`,其余 `abort()`),
+   场景就只依赖本机 —— 见 `e2e_regression.py` 里的 `_block_external()`。
+
+> 反过来:看到 e2e 超时,先分清是**产品缺陷**还是**环境/夹具漂移** —— 别急着改断言去迁就症状。
+
+## 本机常驻环境变量 —— 会渗进 Spring 测试上下文
+
+本机 **user 级**环境变量里常驻:
+
+| 变量 | 值 | 影响 |
+| --- | --- | --- |
+| `CINEMA_CHAT_PROVIDER` | `stub` | 后端默认跑**假模型**(确定性回复, 不调真 LLM);E2E 的 S22 因此能确定性出卡 |
+| `DEEPSEEK_API_KEY` | 已设 | 真 provider 也能起 |
+
+⚠️ **`CINEMA_CHAT_PROVIDER=stub` 会污染后端单元测试**:像 `ChatConfigTest` 那种
+`ApplicationContextRunner` 只装一个 `@Configuration` 的隔离上下文,stub provider 会让
+`stubCinemaAssistant` 注册并依赖 `ChatTools`(那个上下文里没有)→ 上下文起不来,
+断言还没跑就炸。**测试必须与环境无关** —— 已在 `ChatConfigTest` 里把
+`cinema.chat.provider` 钉死成 `deepseek`。新写隔离上下文的测试同样要钉。
+
 ## 查本机数据库 —— 用 `tools/db_query.py`,别手敲 mysql
 
 ```bash

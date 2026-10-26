@@ -11,10 +11,11 @@
 >>> 旧文件保留用于对照回归, 不再主动维护。详见 F:/test/work/tests/README.md。
 
 影院抢票选座系统 E2E 回归测试 (Python Playwright)
-覆盖 S01~S12 十二个场景, 重点回归上次修复的三个 Bug:
+覆盖 S01~S25 二十五个场景, 重点回归上次修复的三个 Bug:
   Bug A: WebSocket 实时推送 (S03)
   Bug B: seat-map myLockedSeats 自锁高亮 (S03)
   Bug C: snowflake ID 精度丢失 (S01/S09)
+以及 2026-10-26 的「默认入口改产品主页 + 401 不再弹登录页」(S24/S25)。
 
 运行方式(由 with_server.py 托管前后端):
   python with_server.py --server "cd cinema-server && mvn spring-boot:run" --port 8080 --timeout 240
@@ -295,17 +296,21 @@ def s12_health(page):
 
 
 def s01_browse(page):
-    """公共浏览: 首页影片卡 → 详情页场次; snowflake ID 详情直达 (Bug C 回归)"""
-    page.goto(FRONT + "/")
+    """公共浏览: 浏览页影片卡 → 详情页场次; snowflake ID 详情直达 (Bug C 回归)
+
+    ⚠️ 2026-10-26: 根路径 `/` 改成了**产品主页**, 影片浏览页迁到了 `/movies`。
+       这个场景找的是 `.movie-card`, 所以必须走 `/movies` —— 否则等不到卡片。
+    """
+    page.goto(FRONT + "/movies")
     page.wait_for_load_state("networkidle")
     n_cards = wait_stable_count(page, ".movie-card")
-    assert n_cards >= 3, f"首页影片卡数量 {n_cards} < 3"
+    assert n_cards >= 3, f"浏览页影片卡数量 {n_cards} < 3"
     shot(page, "s01-home")
 
     # 逐卡进入详情, 直到找到带场次的影片
     detail_ok, used_idx = False, -1
     for i in range(min(n_cards, 4)):
-        page.goto(FRONT + "/")
+        page.goto(FRONT + "/movies")
         page.wait_for_load_state("networkidle")
         page.locator(".movie-card").nth(i).click()
         page.wait_for_url(re.compile(r"/movie/"), timeout=8000)
@@ -330,7 +335,7 @@ def s01_browse(page):
         page.wait_for_load_state("networkidle")
         page.wait_for_selector("text=测试新片", timeout=8000)
         snow_note = f"snowflake id 直达详情 OK(接口 id 为 string)"
-    return f"首页 {n_cards} 张影片卡; 卡{used_idx}详情含 {session_cnt} 个场次; {snow_note}"
+    return f"浏览页 {n_cards} 张影片卡; 卡{used_idx}详情含 {session_cnt} 个场次; {snow_note}"
 
 
 def s02_login(page):
@@ -1146,6 +1151,83 @@ def s20_rebuild_keeps_lock(page, page_c):
     #  它直接在位图上锁一个**DB 里没有单**的座位, 合并后必须还在)。
     return f"重建后座位 {keep} 仍被锁定(lockBit=1) ✓ —— DB 有单的座位不会被重建抹掉"
 
+
+# ===================== 2026-10-26 新增场景(S24~S25) =====================
+# 背景: 根路径 `/` 改成了产品主页, 同时修掉了「一打开就被弹到登录页」。
+# 那条 bug 的机制: 浏览器 localStorage 里存着过期 JWT → App.vue 挂载时
+# fetchMe() 打 /api/users/me → 后端返 40102 → 拦截器过去**无条件**
+# router.push('/login'), 不管当前在哪个页面。修法: 公开页静默降级(清 token、
+# 留在原地), 只有当前页本身需要登录才跳。
+
+def _block_external(page):
+    """掐掉外部字体/图片请求 —— 这两个场景只关心**路由与登录态**。
+
+    ⚠️ 2026-10-26 实测踩到: 本机出网不稳(Google Fonts / TMDB 图床),
+    那些请求会悬着不返回, `page.goto` 等 "load" 事件直接 30s 超时 ——
+    场景失败的原因是**外部资源**, 不是被测逻辑。掐掉它们, 场景只依赖本机。
+    """
+    def _route(route):
+        url = route.request.url
+        if url.startswith(FRONT) or "localhost" in url or "127.0.0.1" in url:
+            route.continue_()
+        else:
+            route.abort()
+    page.route("**/*", _route)
+
+
+def s24_anonymous_landing(page):
+    """匿名访客打开根路径 → 落在产品主页, **不被弹到登录页**
+
+    ⚠️ 必须用**全新 context**: 共享 context 里 user1 从 S02 起一直带着 token,
+    那样测的就不是「匿名访客」了。
+    """
+    ctx24 = page.context.browser.new_context(viewport={"width": 1440, "height": 900})
+    p24 = ctx24.new_page()
+    _block_external(p24)
+    try:
+        # 等 domcontentloaded 而不是 load: load 会等外部字体/图片(见 _block_external)
+        p24.goto(FRONT + "/", wait_until="domcontentloaded", timeout=15000)
+        p24.wait_for_selector(".landing", timeout=10000)
+        assert "/login" not in p24.url, f"匿名访客被弹到登录页: {p24.url}"
+        # 顶栏的「登录 / 注册」入口在位(用类名选, 不绑文案 —— 中英文界面都在)
+        assert p24.locator("button.chip-login").count() >= 1, "顶栏没有登录入口"
+        # 没有「请先登录」那条 warning 提示(401 静默降级)
+        assert p24.locator(".el-message--warning").count() == 0, "匿名访客看到「请先登录」提示"
+        shot(p24, "s24-anonymous-landing")
+        return "匿名打开 / 落在产品主页, 未被弹登录页, 顶栏登录入口在位 ✓"
+    finally:
+        ctx24.close()
+
+
+def s25_expired_token_stays_on_landing(page):
+    """带**过期 token** 打开根路径 → 不被弹登录页, 且 token 被清掉(登录态真降级)
+
+    判据是「顶栏回到未登录态」: 登录 chip 只在 `userStore.user` 为空时渲染,
+    它在位就说明 store 跟着失效广播一起降级了(只清 localStorage 是不够的)。
+    """
+    ctx25 = page.context.browser.new_context(viewport={"width": 1440, "height": 900})
+    p25 = ctx25.new_page()
+    _block_external(p25)
+    try:
+        # 塞一个解析不过的 token —— 后端 JwtInterceptor 认不出来 → 40102。
+        # 包 try/catch: about:blank 是不透明源, 直接访问 localStorage 会抛。
+        p25.add_init_script(
+            "try { localStorage.setItem('cinema_token', 'expired.jwt.value') } catch (e) {}"
+        )
+        p25.goto(FRONT + "/", wait_until="domcontentloaded", timeout=15000)
+        # 等 token 被清掉 —— 这正是 401 回来之后要发生的事
+        p25.wait_for_function(
+            "() => !localStorage.getItem('cinema_token')", timeout=10000)
+        assert "/login" not in p25.url, f"过期 token 把人弹到了登录页: {p25.url}"
+        token = p25.evaluate("localStorage.getItem('cinema_token')")
+        assert token in (None, ""), f"过期 token 没被清掉: {token}"
+        p25.wait_for_selector("button.chip-login", timeout=8000)
+        shot(p25, "s25-expired-token-landing")
+        return "过期 token 打开 / : 未被弹登录页, token 已清, 顶栏回到未登录态 ✓"
+    finally:
+        ctx25.close()
+
+
 # ---------------- 主流程 ----------------
 
 def run(only=None):
@@ -1189,6 +1271,9 @@ def run(only=None):
             ("S21 管理端助手用量看板", lambda: s21_admin_usage_dashboard(page_c)),
             ("S22 对话浮窗→下单卡→确认下单", lambda: s22_chat_widget_flow(page)),
             ("S23 选座页换场次必须重载", lambda: s23_seat_session_switch(page)),
+            # S24/S25: 默认入口改产品主页 + 401 不再把公开页的人弹去登录页
+            ("S24 匿名打开主页不被弹登录", lambda: s24_anonymous_landing(page)),
+            ("S25 过期token打开主页不被弹登录", lambda: s25_expired_token_stays_on_landing(page)),
             # ⚠️ 登出**必须排最后** —— 它会清掉 user1 的 token,
             # 排在前面会让后面所有需要登录的场景被路由守卫踢回 /login。
             ("S07 登出+路由守卫", lambda: s07_logout(page)),

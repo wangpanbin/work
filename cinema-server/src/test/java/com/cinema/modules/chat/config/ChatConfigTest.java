@@ -28,7 +28,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ChatConfigTest {
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
-            .withUserConfiguration(ChatConfig.class);
+            .withUserConfiguration(ChatConfig.class)
+            // ⚠️ 2026-10-26: 本机**用户级环境变量**里有 CINEMA_CHAT_PROVIDER=stub,
+            // 它会渗进测试上下文 → stubCinemaAssistant 注册 → 它依赖 ChatTools,
+            // 而本上下文只装了 ChatConfig(没有 ChatTools)→ 上下文起不来,
+            // 断言还没跑就先炸了(2026-10-26 实测: 2 个用例红)。
+            // 这里把 provider 钉死成 deepseek: 本类要验的是
+            // 「api-key 空/缺 → 不注册 ChatModel」, 与用哪个 provider 无关,
+            // 不该被环境变量决定。测试必须与环境无关。
+            .withPropertyValues("cinema.chat.provider=deepseek");
 
     @Test
     @DisplayName("api-key 为空字符串时 ChatModel Bean 不注册")

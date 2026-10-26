@@ -20,12 +20,12 @@ Test accounts seeded by backend on startup: `user1/123456`, `user2/123456`, `adm
 
 ## Commands
 
-- Frontend: `pnpm dev` · `pnpm build` · `pnpm type-check` (`vue-tsc --noEmit`) · `pnpm test` (vitest 3.x, `tests/**/*.test.ts`,**715 用例跨 43 个 `.test.ts` 文件**,2026-10-26 实测)。**用例清单不要抄进这份文件** —— 那是环境的一份副本,必然过期(本轮就因为它漂了 3 次);要看有哪些测试,直接看 `cinema-web/tests/` 目录树,数字以 `pnpm test` 的输出为准,文档闸门第 ② 项会核对。主题/换肤闸门见下方「主题 token」「双主题」「SFC 编译闸门」「管理端是控制台」。
+- Frontend: `pnpm dev` · `pnpm build` · `pnpm type-check` (`vue-tsc --noEmit`) · `pnpm test` (vitest 3.x, `tests/**/*.test.ts`,**737 用例跨 47 个 `.test.ts` 文件**,2026-10-26 实测)。**用例清单不要抄进这份文件** —— 那是环境的一份副本,必然过期(本轮就因为它漂了 3 次);要看有哪些测试,直接看 `cinema-web/tests/` 目录树,数字以 `pnpm test` 的输出为准,文档闸门第 ② 项会核对。主题/换肤闸门见下方「主题 token」「双主题」「SFC 编译闸门」「管理端是控制台」。
 - Backend: `mvn spring-boot:run` · `mvn test` (**361 个 JUnit5+Mockito 用例跨 51 个测试类**,2026-10-25 实测)。同样**别把测试类清单抄进这份文件** —— 要看有哪些类,看 `cinema-server/src/test/java/` 目录树;数字以 surefire 实测为准(聚合 `cinema-server/target/surefire-reports/TEST-*.xml`),文档闸门第 ② 项会核对。**测座位/退票/位图链路必须带 `SeatBitmapGuardTest` + `SeatLuaServiceBitmapRoundTripTest`**。
 - There is no linter configured in either module. **build 要单独验**:`pnpm build` 与 `pnpm type-check` 查出的问题不重叠(SCSS 变量/模板编译错误只有 build 报)。
 - Python 工具: `python -m unittest discover -s tools -p "test_*.py"`(**85 个用例**,2026-10-25 实测;对账脚本的纯逻辑 + 真实 Redis 往返 + 临时 MySQL 库的集成测试 + 文档一致性闸门)。
 - **一键闸门**:`python tools/run_all_gates.py` —— 后端 / 前端类型 / 前端构建 / 前端用例 / Python 工具 / 审计红线,逐项 PASS/FAIL + 汇总,任一失败非零退出(`--only` / `--skip` 可挑闸门,`--json` 机器可读)。**它不碰 CI/CD 配置,也不装 git 钩子。**
-- **浏览器回归**:`python test/e2e/e2e_regression.py` —— 23 个场景的 Python Playwright 套件(**已入库**)。前置:后端 8080 + 前端 5173 在跑,且跑过 `sql/05_refresh_sessions_for_demo.sql`(场次过期会 404)。
+- **浏览器回归**:`python test/e2e/e2e_regression.py` —— 25 个场景的 Python Playwright 套件(**已入库**)。前置:后端 8080 + 前端 5173 在跑,且跑过 `sql/05_refresh_sessions_for_demo.sql`(场次过期会 404)。
   - **三态**:PASS / FAIL / **SKIP**。SKIP = 当前环境不具备验证条件,**不是通过**。退出码只看 FAIL。报告写 `test/e2e/RESULTS.md`,截图写 `test/e2e/screenshots/`(不入库)。`--only S22` 可单跑调试。
   - **S22 不再必然 SKIP**:后端以 `cinema.chat.provider=stub` 启动时助手**必定出卡**,没出卡记 FAIL(真模型下仍可能 SKIP —— 出不出卡取决于模型当天发挥)。
 - **一键演示**:`python tools/demo_run.py` —— 幂等补种 → 全链路冒烟 → 250 并发防超卖 → 三场景压测 → 出报告。默认**不重置**数据;`--reset` 默认 dry-run,还要 `--yes` 才真删(只删演示范围,不碰 `movie`/`hall`)。
@@ -72,13 +72,14 @@ Test accounts seeded by backend on startup: `user1/123456`, `user2/123456`, `adm
 - **⚠️ Redis 位图的位序是「字节内 MSB 优先」** —— 字节 `0xC0` 的第 0、1 位为 1(不是第 6、7 位)。seat-map API 的 `lockBitmap` 与 `utils/bitmap.ts`(`bit = 7 - (i & 7)`)用的就是同一套编码。2026-10-19 写对账工具时按 LSB 解,把 2 个真位读成 224 个假位,差点把「压测脚本污染」当成「全站漂移」。`redis-cli` 取位图的两个坑见 `docs/agents/local-env.md`。
 - **位图与订单状态的对账工具**:`python tools/reconcile_seat_bitmap.py` —— 比对 Redis 位图与 DB 里 PENDING_PAY/PAID 订单的座位,报「泄漏(位图占着但 DB 无有效订单)」与「缺失(DB 说该占但位图是空的)」。默认只查有订单的场次,`--include-orphan` 连孤儿位图一起看,`--fix` 按 DB 权威清掉泄漏位。**位图漂移只能靠它发现** —— 肉眼在 140 座的图上看不出来。
 - **锁座失败/冲突的提示权在调用方,不在 axios 拦截器**(`api/request.ts` 的 `skipErrorToast`):拦截器无条件弹一次通用文案,业务层再弹一次本地化的,同一次失败就弹两条(而且通用那条是后端中文原文,英文界面就夹中文)。自己弹提示的请求必须声明 `skipErrorToast: true`。通用错误文案统一走 `i18n/errorText.ts`(中文界面透出后端原文,其它界面用本地化兜底)。
+- **⚠️ 401 不许无条件跳登录页**: 跳转判定见 `utils/authRedirect.ts`(守卫与拦截器同源),公开页静默降级;失效走 `utils/authSession.ts`(localStorage 与 Pinia store 一起清)。
 - **⚠️ 同场次重复锁座:「关旧单 / 锁新座」的顺序决定用户会不会两头落空** —— 按座位有无交集分两条路,见 `docs/agents/seat-flow.md`。
 - **⚠️ 选座页同路由换场次必须重新装载**(Vue Router 4 复用组件实例,漏了是资损),见 `docs/agents/seat-flow.md`。
 - **⚠️ 影厅 VIP 起始行在 `seat` 表不在 `hall` 表**,后端 update 的 null = 「保持原样」不是「清空」,见 `docs/agents/seat-flow.md`。
 - **WS 座位事件不带发起人**(`SeatEventPublisher` 只发 type/seats/seq),所以客户端无法从事件本身区分「我锁的」与「别人抢的」。做法是**锁座请求发出前先认领**(`seatStore.claimMyLocked`),让自家锁座的 WS 事件早到也不算冲突;reducer 的 `computeApplyEvent` 收了 `myLockedSet` 参数来做这个区分。漏了认领就会弹「你已选的 N 个座位被他人锁定」(2026-10-19 联调 F2)。
 - **`seatIndexes` 必须按场次校验范围, 上界不能用常量** — `LockSeatsDTO` 的 `@Max(4095)` 只是兜底, 真实上界是场次的 `seatCount`, 由 `OrderCore#requireSeatsInRange` 在进 Lua 之前拦住(本机演示库的行列值会变,别抄 —— 见 `docs/agents/seat-flow.md`)。**越界索引不会被业务拒绝, 而是直接落进 `lock_seat.lua` 的 `SETBIT`** —— Redis bitmap 按 offset 立即分配且永不回收(实测 offset=100000 把位图从 18B 撑到 12501B, 公开的 `GET /seat-map` 响应放大 61 倍; 硬上界 2^32-1 时单 key 512MiB)。`SessionBitmapReader.readWithPadding` 另有读侧截断兜底历史脏位图。改动这条链路请同时跑 `OrderCoreSeatRangeTest` + `LockSeatsDTOValidationTest` + `test/stability_edge_probe.py`。
 - **`_denied` / E2E 证据文件**:2026-09-29 的 E2E 报告见 `test/e2e-report-2026-09-29.md`(14 个 bug 已全部修复,`git log` 可查对应 commit)—— 2026-10-25 起它**随仓库入库**。浏览器回归套件在 `test/e2e/e2e_regression.py`(同样入库),跑完会刷新 `test/e2e/RESULTS.md`;截图在 `test/e2e/screenshots/`(**不入库**,随时重生成)。**文档里不要引用没入库的路径** —— 新克隆的仓库拿不到,`tools/test_docs_consistency.py` 的第 5 项检查会判红。
-- Auth state lives in `localStorage` under `cinema_token` / `cinema_user`; the axios interceptor (`src/api/request.ts`) reads the token and, on `40101/40102`, clears both keys and redirects to `/login`.
+- Auth state lives in `localStorage` under `cinema_token` / `cinema_user`; the axios interceptor (`src/api/request.ts`) reads the token and, on `40101/40102`, invalidates the session (localStorage keys **and** the Pinia store) and redirects to `/login` **only when the current route requires login**.
 - Backend API responses wrap as `{ code, msg, data }`; `code === 0` is success. Distinct codes: `40002` seat-conflict (conflicting seats in `data`), `40003` 对话下单提案已过期/已被消费, `40004` 对话下单功能被回滚闸门关掉, `40900` idempotent conflict, `42900` rate-limited, `40101/40102` auth. Frontend axios unwraps `data` on success.
   - **`40002` 一码多义是踩过的坑** —— 提案过期原本也用 `40002`,前端按 spec §5.3 的表把过期显示成「座位被抢走了」。现已拆出 `40003`/`40004`,前端按 `err.code` 分支(映射表 `CONFIRM_ERROR_KEYS` 在 `components/chat/orderProposalCard.ts`,有单测兜底)。
   - **`request.ts` 的 40101/40102 分支也要挂 `err.code`** —— 那条分支提前 `Promise.reject(new Error(body.msg))`,不挂 `.code` 的话,上层所有 `code === 40101` 的判断都走不到(确认卡的「请先登录后再下单」就是这么变成死代码的)。其它码走通用分支(`err.code = body.code`)所以正常。

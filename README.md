@@ -142,9 +142,10 @@ pnpm dev
 
 打开 http://localhost:5173
 
-- 用户: `/login` 注册/登录 → `/` 首页选片/搜索 → `/movie/:id` 详情选场次 → `/seat/:sessionId` 选座/锁座 → `/payment` 支付 → `/orders` 我的订单(取消/退票/电子票)
+- 用户: `/` 产品主页(默认入口, 顶栏可登录/进入购票)→ `/movies` 影片浏览(搜索/筛选)→ `/movie/:id` 详情选场次 → `/seat/:sessionId` 选座/锁座 → `/payment` 支付 → `/orders` 我的订单(取消/退票/电子票)
 - 管理员: `/admin` → 经营看板/实时大屏 + 影片/影厅/场次管理
 - 路由守卫: 未登录访问 `/seat*`、`/payment`、`/orders` 跳 `/login`(带 redirect);非管理员访问 `/admin*` 跳首页;未知路径显示 404 兜底页
+- 登录态失效(token 过期/失效): 公开页静默降级为匿名并留在原地(不弹登录页), 只有当前页本身需要登录时才跳 `/login`
 
 ### 4. 跑单测
 
@@ -156,7 +157,7 @@ mvn test
 
 cd ../cinema-web
 pnpm test
-# Test Files: 43 passed, Tests: 715 passed (vitest 3.x)
+# Test Files: 47 passed, Tests: 737 passed (vitest 3.x)
 
 # 仓库自带的 Python 工具测试(对账脚本 / 演示排片脚本 / 文档一致性闸门)
 cd ..
@@ -179,7 +180,7 @@ python tools/run_all_gates.py
 ```bash
 # 需要: 后端 8080 + 前端 5173 都在跑, 且跑过 sql/05_refresh_sessions_for_demo.sql
 python test/e2e/e2e_regression.py
-# 23 个场景(PASS/FAIL/SKIP 三态,退出码只看 FAIL); 报告写 test/e2e/RESULTS.md, 截图写 test/e2e/screenshots/
+# 25 个场景(PASS/FAIL/SKIP 三态,退出码只看 FAIL); 报告写 test/e2e/RESULTS.md, 截图写 test/e2e/screenshots/
 # 只跑单个场景(调试用): python test/e2e/e2e_regression.py --only S22
 # 想让 S22(对话下单卡)确定性 PASS: 用 CINEMA_CHAT_PROVIDER=stub 启动后端
 #   (stub 只替换「模型决策」这一步,卡片解析/提案装配/座位重读/前端渲染全是生产代码)
@@ -311,7 +312,7 @@ F:/test/work/
 └── cinema-web/                           Vue3 前端
     ├── package.json
     ├── DESIGN.md                         视觉宪法(票根语言/色板/命名规则), 与 main.css 由测试锁同步
-    ├── tests/                            vitest 用例(43 个 .test.ts / 715 条)
+    ├── tests/                            vitest 用例(47 个 .test.ts / 737 条)
     └── src/
         ├── api/                          axios 封装 + 各模块 API(admin.ts 含 exportRevenue 独立实例)
             └── errorCodes.ts             错误码 → 结构化载荷(锁座冲突的座位列表等)
@@ -361,7 +362,8 @@ F:/test/work/
             ├── markdown.ts               聊天 Markdown 渲染
             └── seatDragRange.ts          拖拽连选的区间计算(纯函数)
         └── views/
-            ├── Home.vue                  首页(F1 搜索筛选 + 特征卡栅格)
+            ├── Landing.vue                产品主页(默认入口, 根路径 /)
+            ├── Home.vue                   影片浏览页(/movies, F1 搜索筛选 + 特征卡栅格)
             ├── Login.vue                 登录/注册(确认密码)
             ├── MovieDetail.vue           影片详情 + 场次(票根式场次卡)
             ├── SeatSelect.vue            选座(WebSocket 实时 + 库存条 + 拖拽连选)
@@ -603,7 +605,7 @@ v0.1.0 曾经「不让助手直接锁座」(三条代码级证据见 spec §2.3)
 ## 测试文件
 
 - `cinema-server/src/test/java/...` — **361 个 JUnit5 + Mockito 单元测试**(51 个测试类,2026-10-25 实测)
-- `cinema-web/tests/` — **715 个 Vitest 单元测试**(43 个 `.test.ts` 文件,2026-10-26 实测)
+- `cinema-web/tests/` — **737 个 Vitest 单元测试**(47 个 `.test.ts` 文件,2026-10-26 实测)
 - `tools/test_*.py` — **85 个 Python 工具测试**(位图对账 / 幽灵订单清理 / Redis 探针 / 只读 SQL 工具 / 文档一致性闸门,2026-10-25 实测)
 - `tools/run_all_gates.py` — 四套闸门的一键入口
 - `tools/demo_run.py` — 一键演示(补种 → 冒烟 → 防超卖 → 压测 → 出报告)

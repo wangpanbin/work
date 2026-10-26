@@ -2,11 +2,12 @@
 import { computed, onMounted, watch, type Component } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Compass, Monitor, Moon, Setting, Sunny, SwitchButton, Ticket, User } from '@element-plus/icons-vue'
+import { Compass, Monitor, Moon, Setting, Sunny, SwitchButton, Ticket, User, VideoPlay } from '@element-plus/icons-vue'
 import { useUserStore } from './stores/user'
 import { useI18nStore } from './stores/i18n'
 import { useThemeStore } from './stores/theme'
 import { elementPlusLocale } from './utils/elementPlusLocale'
+import { ROUTE_PATHS } from './constants/routes'
 import BrandMark from './components/BrandMark.vue'
 import ChatWidget from './components/chat/ChatWidget.vue'
 
@@ -76,7 +77,7 @@ async function logout() {
     return
   }
   userStore.logout()
-  router.push('/login')
+  router.push(ROUTE_PATHS.login)
 }
 
 // P2-#15: 移动端 dropdown 菜单项(label 在此用 $t 取值,避免硬编码)
@@ -110,7 +111,7 @@ function onMobileSelect(key: string | number) {
   <el-config-provider :locale="epLocale">
   <el-container class="app">
     <el-header class="app-header">
-      <router-link to="/" class="brand">
+      <router-link :to="ROUTE_PATHS.home" class="brand">
         <BrandMark :size="24" />
         <span class="brand-text">{{ $t('app.brand') }}</span>
         <span class="brand-tag">{{ $t('app.brandTag') }}</span>
@@ -137,11 +138,21 @@ function onMobileSelect(key: string | number) {
           <el-icon class="chip-icon"><component :is="themeIcon" /></el-icon>
           <span class="chip-text">{{ themeLabel }}</span>
         </el-button>
+        <!-- 进入购票 chip(2026-10-26): **所有人可见** —— 根路径现在是产品主页,
+             顶栏必须留一条直接进浏览页(/movies)的路, 否则访客得先滚到 hero。 -->
+        <el-button
+          class="header-chip chip-browse chip-icon-text"
+          size="default"
+          @click="router.push(ROUTE_PATHS.movies)"
+        >
+          <el-icon class="chip-icon"><VideoPlay /></el-icon>
+          <span class="chip-text chip-text-hide-mobile">{{ $t('app.chipBrowse') }}</span>
+        </el-button>
         <el-button
           v-if="userStore.isLogin && userStore.user?.role === 1"
           class="header-chip chip-warning chip-icon-text"
           size="default"
-          @click="router.push('/admin')"
+          @click="router.push(ROUTE_PATHS.adminHome)"
         >
           <el-icon class="chip-icon"><Setting /></el-icon>
           <span class="chip-text">{{ $t('app.chipAdmin') }}</span>
@@ -150,7 +161,7 @@ function onMobileSelect(key: string | number) {
           v-if="userStore.isLogin"
           class="header-chip chip-primary chip-icon-text"
           size="default"
-          @click="router.push('/orders')"
+          @click="router.push(ROUTE_PATHS.orderList)"
         >
           <el-icon class="chip-icon"><Ticket /></el-icon>
           <span class="chip-text">{{ $t('app.chipOrders') }}</span>
@@ -165,7 +176,7 @@ function onMobileSelect(key: string | number) {
             <span class="chip-text">{{ $t('app.chipLogout') }}</span>
           </el-button>
         </template>
-        <el-button v-else class="header-chip chip-login chip-icon-text" size="default" @click="router.push('/login')">
+        <el-button v-else class="header-chip chip-login chip-icon-text" size="default" @click="router.push(ROUTE_PATHS.login)">
           <span class="chip-text">{{ $t('app.chipLogin') }}</span>
         </el-button>
       </div>
@@ -184,6 +195,16 @@ function onMobileSelect(key: string | number) {
           <el-icon class="chip-icon"><component :is="themeIcon" /></el-icon>
           <span class="chip-text">{{ themeLabel }}</span>
         </el-button>
+        <!-- 进入购票 chip(移动端): 只留图标, 文案在小屏上挤掉别的 chip。
+             匿名访客在主页上还有 hero 的「进入购票」主 CTA 兜底。 -->
+        <el-button
+          class="header-chip chip-browse chip-icon-text"
+          size="default"
+          @click="router.push(ROUTE_PATHS.movies)"
+        >
+          <el-icon class="chip-icon"><VideoPlay /></el-icon>
+          <span class="chip-text chip-text-hide-mobile">{{ $t('app.chipBrowse') }}</span>
+        </el-button>
         <template v-if="userStore.user">
           <el-dropdown trigger="click" @command="onMobileSelect">
             <el-button class="avatar-btn" circle size="default" :aria-label="$t('app.menuAria', 'User menu')">
@@ -201,7 +222,7 @@ function onMobileSelect(key: string | number) {
             </template>
           </el-dropdown>
         </template>
-        <el-button v-else class="header-chip chip-login" size="default" @click="router.push('/login')">
+        <el-button v-else class="header-chip chip-login" size="default" @click="router.push(ROUTE_PATHS.login)">
           {{ $t('app.chipLogin') }}
         </el-button>
       </div>
@@ -289,13 +310,15 @@ function onMobileSelect(key: string | number) {
 /* --- T9: 语言切换 chip 样式 ---
    中性墨色,避免与 chip-warning/danger/primary 重复 */
 .chip-locale,
-.chip-theme {
+.chip-theme,
+.chip-browse {
   background: var(--paper-sunk);
   border: 1px solid var(--rule);
   color: var(--ink-2);
 }
 .chip-locale:hover,
-.chip-theme:hover {
+.chip-theme:hover,
+.chip-browse:hover {
   background: var(--paper);
   border-color: var(--rule-strong);
   color: var(--ink);
@@ -314,5 +337,7 @@ function onMobileSelect(key: string | number) {
 @media (max-width: 640px) {
   .desktop-only { display: none; }
   .mobile-only  { display: flex; align-items: center; gap: 8px; }
+  /* 小屏上 chip 只留图标: 文案会把顶栏挤爆。 */
+  .chip-text-hide-mobile { display: none; }
 }
 </style>

@@ -35,6 +35,8 @@ export default {
     chipOrders: '我的订单',
     chipLogout: '退出',
     chipLogin: '登录 / 注册',
+    // 顶栏「进入购票」chip(2026-10-26): 所有人可见, 直通影片浏览页
+    chipBrowse: '进入购票',
     localeSwitchTo: 'EN',
     mobileMenuLocale: 'English',
     localeSwitchAria: '切换语言',
@@ -81,6 +83,8 @@ export default {
     heroSubtitle: '从选片到电子票的完整影院链路。250 并发抢同一座位,本机实测 0 超卖。',
     ctaBrowse: '进入购票',
     ctaEvidence: '看它如何做到 0 超卖',
+    // 主页 hero 的登录入口(仅未登录时显示)
+    ctaLogin: '登录 / 注册',
     expStep1Title: '选片',
     expStep1Body: '热映影片与场次一目了然,按类型与地区筛选。',
     expStep2Title: '实时选座',

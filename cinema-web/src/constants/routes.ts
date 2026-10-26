@@ -11,9 +11,17 @@
  * 也在这里, 保证判定口径与路由表同源。
  */
 
-/** 路由路径 —— 参数用 `:id` 风格, 与 vue-router 路由表一致。 */
+/**
+ * 路由路径 —— 参数用 `:id` 风格, 与 vue-router 路由表一致。
+ *
+ * <p>⚠️ **`home` 的语义在 2026-10-26 变过**: 根路径 `/` 现在是**产品主页**
+ * (`views/Landing.vue`), 影片浏览页 (`views/Home.vue`) 迁到了 `/movies`。
+ * 旧的 `/landing` 保留为**重定向别名** —— 书签与外链不会 404。
+ */
 export const ROUTE_PATHS = {
   home: '/',
+  movies: '/movies',
+  landing: '/landing',
   login: '/login',
   movieDetail: '/movie/:id',
   seatSelect: '/seat/:sessionId',
@@ -31,6 +39,8 @@ export const ROUTE_PATHS = {
 /** 路由名 —— `router.push({ name: ... })` 用。 */
 export const ROUTE_NAMES = {
   home: 'home',
+  movies: 'movies',
+  landing: 'landing',
   login: 'login',
   movieDetail: 'movie-detail',
   seatSelect: 'seat-select',
